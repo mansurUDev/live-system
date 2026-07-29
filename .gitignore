@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# личный стартовый набор данных
+sistema-zhizni-start.json
