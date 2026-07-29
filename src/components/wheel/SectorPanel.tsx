@@ -73,7 +73,7 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
   const addCustomAmount = () => {
     const parsed = parseFloat(amount.replace(',', '.').replace('−', '-'))
     if (!Number.isFinite(parsed) || parsed === 0) {
-      toast('Введи число, например 125 или −25')
+      toast('Введи число, например 30 или −10')
       return
     }
     dispatch(A.addAmount(sector.id, parsed))
@@ -88,7 +88,7 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
 
   const remove = () => {
     dispatch(A.removeSector(sector.id))
-    toast('Сектор удалён')
+    toast('Убрано с колеса')
     onClose()
   }
 
@@ -99,7 +99,8 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
         position: 'fixed',
         left: 10,
         right: 10,
-        bottom: 10,
+        // над домашней полосой телефона, если она есть
+        bottom: 'calc(10px + env(safe-area-inset-bottom))',
         zIndex: 60,
         maxHeight: '64vh',
         overflow: 'auto',
@@ -274,7 +275,7 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
               }}
               type="text"
               inputMode="decimal"
-              placeholder="своя сумма, напр. 125 или −25"
+              placeholder="своё число, напр. 30 или −10"
               style={{
                 fontFamily: 'inherit',
                 fontSize: 14.5,
@@ -375,7 +376,7 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
           </>
         ) : (
           <button style={{ ...btnDeleteLink, opacity: 0.85 }} onClick={() => setConfirmDelete(true)}>
-            Удалить сектор
+            Убрать с колеса
           </button>
         )}
       </div>

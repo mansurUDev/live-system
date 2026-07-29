@@ -37,7 +37,7 @@ export function SectorModal({ usedColors, onCancel, onCreate }: Props) {
 
   const submit = () => {
     const trimmed = name.trim()
-    if (!trimmed) return setError('Напиши название сектора')
+    if (!trimmed) return setError('Напиши название')
 
     const seed = {
       id: uid('s'),
@@ -83,7 +83,7 @@ export function SectorModal({ usedColors, onCancel, onCreate }: Props) {
 
   return (
     <Modal
-      title="Новый сектор"
+      title="Что добавить на колесо"
       onClose={onCancel}
       footer={
         <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 16 }}>

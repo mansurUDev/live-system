@@ -3,7 +3,7 @@ import { useToastMessage } from '../state/ToastProvider'
 const style: React.CSSProperties = {
   position: 'fixed',
   left: '50%',
-  bottom: 22,
+  bottom: 'calc(22px + env(safe-area-inset-bottom))',
   transform: 'translateX(-50%)',
   zIndex: 97,
   background: 'rgba(14,22,40,.94)',

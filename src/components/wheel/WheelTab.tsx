@@ -28,7 +28,7 @@ export function WheelTab() {
 
   const openAdd = () => {
     if (sectors.length >= MAX_SECTORS) {
-      toast(`Максимум ${MAX_SECTORS} секторов — сначала удали какой-нибудь`)
+      toast(`На колесе уже ${MAX_SECTORS} — больше не поместится, сначала убери лишнее`)
       return
     }
     setAdding(true)
@@ -55,7 +55,7 @@ export function WheelTab() {
             }}
             onClick={openAdd}
           >
-            + Добавить сектор
+            + Добавить на колесо
           </button>
         </div>
 
@@ -63,13 +63,13 @@ export function WheelTab() {
           <>
             <WheelSvg sectors={sectors} selectedId={selectedId} onSelect={setSelectedId} />
             <div style={{ fontSize: 13, color: C.dim, letterSpacing: '.5px', marginTop: 4 }}>
-              нажми на сектор, чтобы изменить прогресс
+              нажми на любую часть колеса, чтобы отметить прогресс
             </div>
           </>
         ) : (
           <div style={{ margin: '70px 0', textAlign: 'center' }}>
             <div style={{ fontSize: 22, fontWeight: 600, letterSpacing: '1px', color: '#e6efff' }}>Колесо пустое</div>
-            <div style={{ color: C.dim, margin: '6px 0 0' }}>Добавь первый сектор — сферу жизни или цель</div>
+            <div style={{ color: C.dim, margin: '6px 0 0' }}>Добавь первую цель — или сферу жизни для оценки</div>
           </div>
         )}
       </section>

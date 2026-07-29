@@ -36,7 +36,7 @@ export function ImportConfirmModal({ doc, onCancel, onConfirm }: Props) {
       }
     >
       <div style={{ marginTop: 12, fontSize: 14.5, color: C.textSoft, lineHeight: 1.5 }}>
-        Из файла приедет: {sectors} {plural(sectors, 'сектор', 'сектора', 'секторов')}, {entries}{' '}
+        Из файла приедет: на колесе — {sectors}, {entries}{' '}
         {plural(entries, 'запись', 'записи', 'записей')} времени, {acts}{' '}
         {plural(acts, 'кнопка', 'кнопки', 'кнопок')}
         {archive > 0 && `, ${archive} в архиве`}.

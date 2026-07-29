@@ -15,6 +15,18 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/*
+ * Запущенное с домашнего экрана приложение занимает весь экран телефона,
+ * поэтому шапку отодвигаем из-под «чёлки», а боковые отступы — из-под
+ * скруглений. Фиксированные слои фона это не двигает: они позиционируются
+ * относительно окна, а не документа.
+ */
+body {
+  padding-top: env(safe-area-inset-top);
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
 a {
   color: #67e8f9;
 }

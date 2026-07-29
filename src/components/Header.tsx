@@ -86,7 +86,9 @@ export function Header() {
     backupCurrent()
     dispatch(A.replaceDoc(pending))
     setPending(null)
-    toast(`Импортировано: ${pending.sectors.length} секторов, ${pending.entries.length} записей времени`)
+    toast(
+      `Импортировано: ${pending.sectors.length} на колесе, ${pending.entries.length} записей времени`,
+    )
   }
 
   return (
