@@ -1,0 +1,445 @@
+import { describe, expect, it } from 'vitest'
+import { avgPct, pct } from './pct'
+import { findConflict, overlaps, resolveEnd } from './overlap'
+import { runningEntry, segs, splitByDay, totalMs } from './segs'
+import { catTotals, topActs, untrackedMs, weekdayTotals } from './analytics'
+import { numberForecast, stepsForecast } from './forecast'
+import { buildHints } from './hints'
+import { normalize } from './normalize'
+import { defaultDoc, makeSector } from './defaults'
+import { withTodaySnapshot } from './snapshot'
+import { donutSlice, fillRadius, labelPosition, sectorAngles, wedgePath, WHEEL } from './wheel'
+import { addDays, localDateKey, periodRange, startOfDay, weekdayIndex } from './time'
+import { DAY_MS } from '../constants'
+import type { Activity, Sector, TimeEntry } from '../types'
+
+const NOW = new Date('2026-03-15T12:00:00').getTime()
+
+// makeSector всегда заводит историю с единственной записью «начало», поэтому
+// фикстурам со своей историей она подставляется поверх готового сектора.
+function sphere(value: number, extra: Partial<Sector> = {}): Sector {
+  return { ...makeSector({ id: 's', name: 'S', color: '#22d3ee', kind: 'sphere', value }, NOW), ...extra }
+}
+function numberGoal(current: number, target: number, extra: Partial<Sector> = {}): Sector {
+  return {
+    ...makeSector({ id: 'g', name: 'G', color: '#fbbf24', kind: 'number', current, target }, NOW),
+    ...extra,
+  }
+}
+function stepsGoal(done: number, total: number, extra: Partial<Sector> = {}): Sector {
+  return {
+    ...makeSector(
+      {
+        id: 'k',
+        name: 'K',
+        color: '#fb923c',
+        kind: 'steps',
+        steps: Array.from({ length: total }, (_, i) => ({ id: 't' + i, text: 'э' + i, done: i < done })),
+      },
+      NOW,
+    ),
+    ...extra,
+  }
+}
+function entry(id: string, actId: string, start: string, end: string | null): TimeEntry {
+  return { id, actId, start, end }
+}
+
+const ACTS: Activity[] = [
+  { id: 'a1', name: 'Работа', color: '#22d3ee', cat: 'work' },
+  { id: 'a2', name: 'Спорт', color: '#34d399', cat: 'health' },
+  { id: 'a3', name: 'Сон', color: '#818cf8', cat: 'sleep' },
+]
+
+describe('pct', () => {
+  it('переводит оценку сферы в проценты', () => {
+    expect(pct(sphere(1))).toBe(10)
+    expect(pct(sphere(7))).toBe(70)
+    expect(pct(sphere(10))).toBe(100)
+  })
+
+  it('считает долю числовой цели и не выходит за 100', () => {
+    expect(pct(numberGoal(50, 200))).toBe(25)
+    expect(pct(numberGoal(999, 100))).toBe(100)
+    expect(pct(numberGoal(1, 3))).toBe(33)
+  })
+
+  it('не даёт NaN и деления на ноль', () => {
+    expect(pct(numberGoal(10, 0))).toBe(0)
+    expect(pct(numberGoal(Number.NaN, 100))).toBe(0)
+    expect(pct(stepsGoal(0, 0))).toBe(0)
+    expect(pct({ ...sphere(5), value: Number.NaN })).toBe(10)
+  })
+
+  it('считает долю выполненных этапов', () => {
+    expect(pct(stepsGoal(3, 40))).toBe(8)
+    expect(pct(stepsGoal(5, 5))).toBe(100)
+  })
+
+  it('avgPct отдаёт null на пустом колесе', () => {
+    expect(avgPct([])).toBeNull()
+    expect(avgPct([sphere(4), sphere(6)])).toBe(50)
+  })
+})
+
+describe('overlaps / resolveEnd / findConflict', () => {
+  it('касание границ не считается пересечением', () => {
+    expect(overlaps(0, 10, 10, 20)).toBe(false)
+    expect(overlaps(10, 20, 0, 10)).toBe(false)
+  })
+
+  it('находит частичное и полное перекрытие', () => {
+    expect(overlaps(0, 10, 5, 15)).toBe(true)
+    expect(overlaps(0, 100, 40, 50)).toBe(true)
+    expect(overlaps(40, 50, 0, 100)).toBe(true)
+    expect(overlaps(0, 10, 0, 10)).toBe(true)
+  })
+
+  it('конец раньше начала уводит запись за полночь', () => {
+    const start = new Date('2026-03-15T23:00:00').getTime()
+    const end = new Date('2026-03-15T01:00:00').getTime()
+    const r = resolveEnd(start, end)
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.end - start).toBe(2 * 3600 * 1000)
+  })
+
+  it('совпадающие начало и конец отклоняются', () => {
+    const t = new Date('2026-03-15T10:00:00').getTime()
+    expect(resolveEnd(t, t).ok).toBe(false)
+  })
+
+  it('исключает редактируемую запись по id', () => {
+    const list = [entry('e1', 'a1', '2026-03-15T10:00:00.000Z', '2026-03-15T11:00:00.000Z')]
+    const cand = {
+      start: new Date('2026-03-15T10:30:00.000Z').getTime(),
+      end: new Date('2026-03-15T10:45:00.000Z').getTime(),
+    }
+    expect(findConflict(list, cand)).not.toBeNull()
+    expect(findConflict(list, cand, 'e1')).toBeNull()
+  })
+
+  it('идущая запись занимает время до бесконечности', () => {
+    const list = [entry('run', 'a1', '2026-03-15T09:00:00.000Z', null)]
+    const future = {
+      start: new Date('2026-03-20T10:00:00.000Z').getTime(),
+      end: new Date('2026-03-20T11:00:00.000Z').getTime(),
+    }
+    expect(findConflict(list, future)).not.toBeNull()
+  })
+
+  it('ночная запись конфликтует с утренней следующего дня', () => {
+    const list = [entry('m', 'a1', '2026-03-16T07:00:00.000Z', '2026-03-16T08:00:00.000Z')]
+    const start = new Date('2026-03-15T23:00:00.000Z').getTime()
+    const resolved = resolveEnd(start, new Date('2026-03-15T07:30:00.000Z').getTime())
+    expect(resolved.ok).toBe(true)
+    if (resolved.ok) {
+      expect(findConflict(list, { start, end: resolved.end })).not.toBeNull()
+    }
+  })
+})
+
+describe('segs / splitByDay', () => {
+  const from = new Date('2026-03-15T00:00:00').getTime()
+  const to = new Date('2026-03-16T00:00:00').getTime()
+
+  it('обрезает запись по границам окна', () => {
+    const list = [entry('e', 'a1', '2026-03-14T22:00:00', '2026-03-15T02:00:00')]
+    const [seg] = segs(list, from, to, NOW)
+    expect(seg!.s).toBe(from)
+    expect(seg!.e - seg!.s).toBe(2 * 3600 * 1000)
+  })
+
+  it('идущую запись считает до текущего момента', () => {
+    const list = [entry('e', 'a1', '2026-03-15T11:00:00', null)]
+    const [seg] = segs(list, from, to, NOW)
+    expect(seg!.e).toBe(NOW)
+  })
+
+  it('запись, целиком лежащая вне окна, не попадает в выборку', () => {
+    expect(segs([entry('e', 'a1', '2026-03-10T10:00:00', '2026-03-10T11:00:00')], from, to, NOW)).toHaveLength(0)
+  })
+
+  it('запись, окончившаяся ровно на границе окна, не попадает', () => {
+    expect(segs([entry('e', 'a1', '2026-03-14T22:00:00', '2026-03-15T00:00:00')], from, to, NOW)).toHaveLength(0)
+  })
+
+  it('начало в будущем не даёт отрицательной длительности', () => {
+    const list = [entry('e', 'a1', '2026-03-15T20:00:00', null)]
+    expect(totalMs(segs(list, from, to, NOW))).toBe(0)
+  })
+
+  it('делит ночной отрезок по суткам', () => {
+    const seg = {
+      actId: 'a1',
+      s: new Date('2026-03-15T22:00:00').getTime(),
+      e: new Date('2026-03-16T02:00:00').getTime(),
+    }
+    const parts = splitByDay(seg)
+    expect(parts).toHaveLength(2)
+    expect(parts[0]!.e - parts[0]!.s).toBe(2 * 3600 * 1000)
+    expect(parts[1]!.e - parts[1]!.s).toBe(2 * 3600 * 1000)
+  })
+
+  it('сохраняет суммарную длительность при делении по суткам', () => {
+    const seg = {
+      actId: 'a1',
+      s: new Date('2026-03-15T20:00:00').getTime(),
+      e: new Date('2026-03-18T05:30:00').getTime(),
+    }
+    expect(totalMs(splitByDay(seg))).toBe(seg.e - seg.s)
+  })
+
+  it('находит идущую запись', () => {
+    const list = [
+      entry('e1', 'a1', '2026-03-15T09:00:00', '2026-03-15T10:00:00'),
+      entry('e2', 'a2', '2026-03-15T10:00:00', null),
+    ]
+    expect(runningEntry(list)?.id).toBe('e2')
+    expect(runningEntry([list[0]!])).toBeNull()
+  })
+})
+
+describe('analytics', () => {
+  it('относит записи без категории и удалённых кнопок к прочему', () => {
+    const list = [
+      { actId: 'a1', s: 0, e: 1000 },
+      { actId: 'ghost', s: 0, e: 500 },
+    ]
+    const totals = catTotals(list, ACTS)
+    expect(totals.work).toBe(1000)
+    expect(totals.other).toBe(500)
+  })
+
+  it('клампит дыры к нулю при пересекающихся записях', () => {
+    const list = [
+      { actId: 'a1', s: 0, e: 3600_000 },
+      { actId: 'a2', s: 0, e: 3600_000 },
+    ]
+    expect(untrackedMs(list, 0, 3600_000)).toBe(0)
+  })
+
+  it('раскладывает время по дням недели, понедельник первый', () => {
+    const monday = new Date('2026-03-16T10:00:00')
+    const wk = weekdayTotals([
+      { actId: 'a1', s: monday.getTime(), e: monday.getTime() + 3600_000 },
+    ])
+    expect(wk[0]).toBe(3600_000)
+    expect(weekdayIndex(new Date('2026-03-15T10:00:00'))).toBe(6)
+  })
+
+  it('отдаёт топ-5 по убыванию времени', () => {
+    const list = Array.from({ length: 8 }, (_, i) => ({ actId: 'a' + i, s: 0, e: (i + 1) * 1000 }))
+    const top = topActs(list)
+    expect(top).toHaveLength(5)
+    expect(top[0]!.actId).toBe('a7')
+    expect(top[0]!.ms).toBeGreaterThan(top[4]!.ms)
+  })
+})
+
+describe('forecast', () => {
+  it('считает темп и дату достижения', () => {
+    const goal = numberGoal(150, 200, {
+      history: [{ d: new Date(NOW - 5 * DAY_MS).toISOString(), p: 50, label: 'старт', v: 100 }],
+    })
+    const f = numberForecast(goal, NOW)
+    expect(f.kind).toBe('ok')
+    if (f.kind === 'ok') {
+      expect(f.perDay).toBe(10)
+      expect(f.days).toBe(5)
+    }
+  })
+
+  it('сообщает об отсутствии темпа и о достигнутой цели', () => {
+    expect(numberForecast(numberGoal(200, 200), NOW).kind).toBe('done')
+    expect(numberForecast(numberGoal(50, 200, { history: [] }), NOW).kind).toBe('no-data')
+
+    const stalled = numberGoal(100, 200, {
+      history: [{ d: new Date(NOW - 5 * DAY_MS).toISOString(), p: 50, label: 'старт', v: 100 }],
+    })
+    expect(numberForecast(stalled, NOW).kind).toBe('negative')
+  })
+
+  it('не делит на ноль дней, когда вся история за сегодня', () => {
+    const goal = numberGoal(150, 200, {
+      history: [{ d: new Date(NOW).toISOString(), p: 50, label: 'старт', v: 100 }],
+    })
+    const f = numberForecast(goal, NOW)
+    expect(f.kind).toBe('ok')
+    if (f.kind === 'ok') expect(Number.isFinite(f.days)).toBe(true)
+  })
+
+  it('показывает темп цели по этапам', () => {
+    const goal = stepsGoal(3, 10, {
+      history: [{ d: new Date(NOW - DAY_MS).toISOString(), p: 30, label: '✓ Подвеска' }],
+    })
+    const f = stepsForecast(goal, NOW)
+    expect(f.kind).toBe('pace')
+    if (f.kind === 'pace') {
+      expect(f.per14).toBe(1)
+      expect(f.remaining).toBe(7)
+    }
+    expect(stepsForecast(stepsGoal(5, 5), NOW).kind).toBe('done')
+  })
+})
+
+describe('hints', () => {
+  const week = [{ actId: 'a1', s: 0, e: 3600_000 }]
+
+  it('предупреждает о высокой оценке при малом времени', () => {
+    const hints = buildHints([sphere(8, { cat: 'health' })], week, ACTS)
+    expect(hints).toHaveLength(1)
+    expect(hints[0]!.ms).toBe(0)
+  })
+
+  it('молчит, когда времени достаточно или условия не выполнены', () => {
+    const withSport = [...week, { actId: 'a2', s: 0, e: 40 * 60_000 }]
+    expect(buildHints([sphere(8, { cat: 'health' })], withSport, ACTS)).toHaveLength(0)
+    expect(buildHints([sphere(6, { cat: 'health' })], week, ACTS)).toHaveLength(0)
+    expect(buildHints([sphere(8)], week, ACTS)).toHaveLength(0)
+  })
+
+  it('молчит при полностью пустой неделе', () => {
+    expect(buildHints([sphere(8, { cat: 'health' })], [], ACTS)).toHaveLength(0)
+  })
+})
+
+describe('normalize', () => {
+  it('подставляет дефолт на мусорный вход', () => {
+    expect(normalize(null, NOW).sectors).toHaveLength(8)
+    expect(normalize('нет', NOW).sectors).toHaveLength(8)
+    expect(normalize([], NOW).sectors).toHaveLength(8)
+  })
+
+  it('чинит цвета, числа и лишние поля', () => {
+    const doc = normalize(
+      {
+        sectors: [
+          { id: 'x', name: 'Ы'.repeat(200), color: 'red', kind: 'сфера', value: 99, current: 'abc' },
+        ],
+      },
+      NOW,
+    )
+    const s = doc.sectors[0]!
+    expect(s.color).toMatch(/^#[0-9a-f]{6}$/i)
+    expect(s.name.length).toBe(60)
+    expect(s.kind).toBe('sphere')
+    expect(s.value).toBe(10)
+    expect(s.current).toBe(0)
+  })
+
+  it('оставляет одну идущую запись и отбрасывает битые даты', () => {
+    const doc = normalize(
+      {
+        sectors: [],
+        entries: [
+          { id: 'e1', actId: 'a1', start: '2026-03-15T09:00:00.000Z', end: null },
+          { id: 'e2', actId: 'a1', start: '2026-03-15T10:00:00.000Z', end: null },
+          { id: 'e3', actId: 'a1', start: 'не дата', end: null },
+        ],
+      },
+      NOW,
+    )
+    expect(doc.entries).toHaveLength(2)
+    expect(doc.entries.filter((e) => !e.end)).toHaveLength(1)
+    expect(doc.entries.at(-1)!.id).toBe('e2')
+  })
+
+  it('сортирует записи и оставляет свежие при переполнении', () => {
+    const entries = Array.from({ length: 4200 }, (_, i) => ({
+      id: 'e' + i,
+      actId: 'a1',
+      start: new Date(NOW - (4200 - i) * 60_000).toISOString(),
+      end: new Date(NOW - (4200 - i) * 60_000 + 1000).toISOString(),
+    }))
+    const doc = normalize({ sectors: [], entries }, NOW)
+    expect(doc.entries).toHaveLength(4000)
+    expect(doc.entries[0]!.id).toBe('e200')
+  })
+
+  it('не пропускает служебные ключи из чужого JSON', () => {
+    const raw = JSON.parse('{"sectors":[{"id":"a","__proto__":{"polluted":1}}],"snapshots":{"__proto__":{"x":1}}}')
+    const doc = normalize(raw, NOW)
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined()
+    expect(Object.keys(doc.snapshots)).toHaveLength(0)
+  })
+
+  it('идемпотентна и переживает цикл экспорт → импорт', () => {
+    const once = normalize(defaultDoc(NOW), NOW)
+    const twice = normalize(once, NOW)
+    expect(twice).toEqual(once)
+    expect(normalize(JSON.parse(JSON.stringify(once)), NOW)).toEqual(once)
+  })
+})
+
+describe('snapshot', () => {
+  it('держит один ключ на день и обрезает старые', () => {
+    const sectors = [sphere(5)]
+    let snaps = withTodaySnapshot({}, sectors, NOW)
+    snaps = withTodaySnapshot(snaps, [sphere(9)], NOW)
+    const key = localDateKey(NOW)
+    expect(Object.keys(snaps)).toHaveLength(1)
+    expect(snaps[key]!.sectors[0]!.p).toBe(90)
+
+    const many: Record<string, { d: string; sectors: [] }> = {}
+    for (let i = 0; i < 200; i++) {
+      many[localDateKey(addDays(NOW, -i))] = { d: new Date(NOW).toISOString(), sectors: [] }
+    }
+    expect(Object.keys(withTodaySnapshot(many, sectors, NOW))).toHaveLength(180)
+  })
+})
+
+describe('time', () => {
+  it('строит ключ дня по локальному времени', () => {
+    expect(localDateKey(new Date('2026-03-15T01:30:00'))).toBe('2026-03-15')
+    expect(localDateKey(new Date('2026-03-15T23:30:00'))).toBe('2026-03-15')
+  })
+
+  it('строит окна периодов от полуночи', () => {
+    const day = periodRange('day', NOW)
+    expect(day.from).toBe(startOfDay(NOW))
+    expect(day.to).toBe(NOW)
+    expect(localDateKey(periodRange('week', NOW).from)).toBe('2026-03-09')
+    expect(localDateKey(periodRange('month', NOW).from)).toBe('2026-02-14')
+  })
+
+  it('сдвигает дни через календарь, а не прибавлением суток', () => {
+    expect(localDateKey(addDays(new Date('2026-03-02T12:00:00'), -6))).toBe('2026-02-24')
+  })
+})
+
+describe('wheel', () => {
+  it('рисует валидный клин для единственного сектора', () => {
+    const { a1, a2 } = sectorAngles(1, 0)
+    expect(a2 - a1).toBeCloseTo(Math.PI * 2)
+    const d = wedgePath(a1, a2)
+    expect(d).not.toContain('NaN')
+    expect(d).toContain('A208 208 0 1 1')
+  })
+
+  it('покрывает круг шестнадцатью секторами', () => {
+    const angles = Array.from({ length: 16 }, (_, i) => sectorAngles(16, i))
+    const sum = angles.reduce((a, x) => a + (x.a2 - x.a1), 0)
+    expect(sum).toBeCloseTo(Math.PI * 2)
+    expect(wedgePath(angles[15]!.a1, angles[15]!.a2)).not.toContain('NaN')
+  })
+
+  it('переводит процент в радиус заливки без NaN', () => {
+    expect(fillRadius(0)).toBe(0)
+    // на 100% дуга встаёт чуть внутри внешнего кольца — как в моке
+    expect(fillRadius(100)).toBe(WHEEL.R - 2)
+    expect(fillRadius(50)).toBeCloseTo(WHEEL.r0 - 2 + (WHEEL.R - WHEEL.r0) / 2, 1)
+    expect(fillRadius(Number.NaN)).toBe(0)
+  })
+
+  it('разводит подписи по сторонам круга', () => {
+    expect(labelPosition(0).textAlign).toBe('left')
+    expect(labelPosition(Math.PI).textAlign).toBe('right')
+    expect(labelPosition(-Math.PI / 2).textAlign).toBe('center')
+  })
+
+  it('замыкает донат, когда сегмент занимает весь круг', () => {
+    const full = donutSlice(0, Math.PI * 2, 58)
+    expect(full).not.toContain('NaN')
+    expect(full.match(/A/g)).toHaveLength(2)
+  })
+})

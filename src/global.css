@@ -1,0 +1,145 @@
+/*
+ * Порт глобальных стилей дизайн-мока «Система жизни».
+ * Здесь только то, что нельзя выразить инлайн-стилями: базовые правила документа,
+ * @keyframes, :hover и prefers-reduced-motion. Всё остальное живёт в theme.ts.
+ */
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #070b14;
+  color: #dbe4f5;
+  font-family: 'Exo 2', sans-serif;
+  color-scheme: dark;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: #67e8f9;
+}
+a:hover {
+  color: #a5f3fc;
+}
+
+button,
+input,
+textarea {
+  font-family: inherit;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+@keyframes popIn {
+  0% {
+    transform: scale(0.86);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes sheetUp {
+  0% {
+    transform: translateY(46px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes confettiFall {
+  0% {
+    transform: translateY(-4vh) rotate(0deg);
+  }
+  100% {
+    transform: translateY(115vh) rotate(720deg);
+    opacity: 0.15;
+  }
+}
+@keyframes burst {
+  0% {
+    transform: scale(0.08);
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: scale(1.15);
+    opacity: 0;
+  }
+}
+
+/* Ховеры мока: в дизайне они заданы атрибутом style-hover, здесь — классами. */
+.h-ghost:hover {
+  border-color: rgba(94, 234, 255, 0.6);
+  color: #e6f6ff;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.25);
+}
+.h-ghost-bright:hover {
+  border-color: rgba(94, 234, 255, 0.6);
+  color: #fff;
+}
+.h-accent:hover {
+  box-shadow: 0 0 24px rgba(34, 211, 238, 0.6);
+}
+.h-bright:hover {
+  filter: brightness(1.12);
+}
+.h-amount:hover {
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.35);
+}
+.h-danger:hover {
+  box-shadow: 0 0 14px rgba(248, 113, 113, 0.3);
+}
+.h-row:hover {
+  background: rgba(148, 163, 184, 0.08);
+}
+.h-row-soft:hover {
+  background: rgba(148, 163, 184, 0.07);
+}
+.h-edit:hover {
+  background: rgba(34, 211, 238, 0.12);
+}
+
+/* Плитка активности: цвет ховера зависит от цвета кнопки — приходит через CSS-переменные. */
+.h-tile:hover {
+  border-color: var(--tile-hov-border);
+  box-shadow: var(--tile-hov-shadow);
+  transform: translateY(-1px);
+}
+
+::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.22);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.38);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
