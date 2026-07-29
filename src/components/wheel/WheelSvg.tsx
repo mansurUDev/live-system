@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import { avgPct, pct } from '../../logic/pct'
-import { fillRadius, labelPosition, sectorAngles, wedgePath, WHEEL } from '../../logic/wheel'
+import { fillRadius, labelPosition, sectorAngles, wedgePath, wheelViewBox, WHEEL } from '../../logic/wheel'
 import { C, MONO } from '../../theme'
 import type { Sector } from '../../types'
 
@@ -9,6 +9,8 @@ interface Props {
   sectors: Sector[]
   selectedId: string | null
   onSelect: (id: string) => void
+  /** запас по бокам под подписи — нужен на узком экране */
+  padX?: number
 }
 
 const wrapStyle: CSSProperties = {
@@ -30,14 +32,21 @@ const centerStyle: CSSProperties = {
   WebkitUserSelect: 'none',
 }
 
-const nameStyle: CSSProperties = {
-  fontSize: 'clamp(9px,1.9cqw,14px)',
-  fontWeight: 600,
-  letterSpacing: '1.1px',
-  textTransform: 'uppercase',
-  lineHeight: 1.15,
-  maxWidth: '21cqw',
-  overflowWrap: 'anywhere',
+/**
+ * Подпись сектора. На узком экране доля от ширины даёт слишком мало места:
+ * ширину подпираем снизу фиксированной, а разрядку убираем — иначе длинные
+ * слова вроде «саморазвитие» рвутся посреди корня.
+ */
+function nameStyle(compact: boolean): CSSProperties {
+  return {
+    fontSize: 'clamp(10px,1.9cqw,14px)',
+    fontWeight: 600,
+    letterSpacing: compact ? '.4px' : '1.1px',
+    textTransform: 'uppercase',
+    lineHeight: 1.15,
+    maxWidth: compact ? '96px' : 'max(88px, 20cqw)',
+    overflowWrap: 'anywhere',
+  }
 }
 
 /**
@@ -50,7 +59,7 @@ const nameStyle: CSSProperties = {
  * Компонент намеренно не подписан на текущее время: любой лишний ререндер
  * перезапускал бы эту анимацию.
  */
-export function WheelSvg({ sectors, selectedId, onSelect }: Props) {
+export function WheelSvg({ sectors, selectedId, onSelect, padX = 0 }: Props) {
   const items = useMemo(
     () =>
       sectors.map((s, i) => {
@@ -67,17 +76,17 @@ export function WheelSvg({ sectors, selectedId, onSelect }: Props) {
           d: wedgePath(a1, a2),
           arcR,
           clipR: arcR ? arcR + 3 : 0,
-          label: labelPosition(mid),
+          label: labelPosition(mid, padX),
         }
       }),
-    [sectors, selectedId],
+    [sectors, selectedId, padX],
   )
 
   const avg = avgPct(sectors)
 
   return (
     <div style={wrapStyle}>
-      <svg viewBox={`0 0 ${WHEEL.vbW} ${WHEEL.vbH}`} style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
+      <svg viewBox={wheelViewBox(padX)} style={{ width: '100%', height: 'auto', display: 'block', overflow: 'visible' }}>
         <defs>
           {items.map((it) => (
             <clipPath key={'p' + it.sector.id} id={'prog-' + it.sector.id}>
@@ -157,7 +166,7 @@ export function WheelSvg({ sectors, selectedId, onSelect }: Props) {
             color: it.selected ? '#eaf6ff' : it.dimmed ? 'rgba(203,213,225,.4)' : '#cbd5e1',
           }}
         >
-          <div style={nameStyle}>{it.sector.name}</div>
+          <div style={nameStyle(padX > 0)}>{it.sector.name}</div>
           <div
             style={{
               fontFamily: MONO,

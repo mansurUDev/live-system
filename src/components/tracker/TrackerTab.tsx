@@ -7,7 +7,8 @@ import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
-import { page } from '../../theme'
+import { useIsMobile } from '../../hooks/useIsMobile'
+import { pageStyle } from '../../theme'
 import { ActModal } from '../modals/ActModal'
 import { EntryModal } from '../modals/EntryModal'
 import { ActGrid } from './ActGrid'
@@ -22,6 +23,7 @@ export function TrackerTab() {
   const { state, dispatch } = useData()
   const toast = useToast()
   const now = useNow()
+  const isMobile = useIsMobile()
 
   const [dayOffset, setDayOffset] = useState(0)
   const [editing, setEditing] = useState(false)
@@ -48,7 +50,7 @@ export function TrackerTab() {
   }
 
   return (
-    <main style={{ ...page, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16 }}>
       <RunningBar
         running={running}
         acts={acts}

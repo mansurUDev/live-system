@@ -131,6 +131,11 @@ textarea {
   transform: translateY(-1px);
 }
 
+/* Полоса вкладок прокручивается, но самой полосы прокрутки быть не должно */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 ::-webkit-scrollbar {
   width: 9px;
   height: 9px;

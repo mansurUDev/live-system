@@ -32,44 +32,22 @@ export function makeSector(seed: SectorSeed, now: number): Sector {
   return s
 }
 
-const CAR_STEPS = [
-  'Найти кузов',
-  'Купить двигатель',
-  'Перебрать двигатель',
-  'Коробка передач',
-  'Подвеска',
-  'Тормоза',
-  'Электрика',
-  'Салон',
-  'Покраска',
-  'Техосмотр',
-]
-
-/** Стартовое наполнение — то же, что показывает дизайн-мок */
+/**
+ * Стартовое наполнение первого запуска.
+ *
+ * Намеренно всего два пункта, зато разного вида: измеримая цель и сфера с
+ * оценкой. Так сразу видно оба способа вести колесо, и при этом чистый экран
+ * не приходится разгребать от чужих примеров.
+ */
 export function defaultDoc(now: number = Date.now()): Doc {
   return {
     v: 1,
     sectors: [
-      makeSector({ id: 's1', name: 'Здоровье', color: '#34d399', kind: 'sphere', value: 7, cat: 'health' }, now),
-      makeSector({ id: 's2', name: 'Карьера', color: '#22d3ee', kind: 'sphere', value: 8, cat: 'work' }, now),
-      makeSector({ id: 's3', name: 'Отношения', color: '#f472b6', kind: 'sphere', value: 6 }, now),
-      makeSector({ id: 's4', name: 'Семья', color: '#f87171', kind: 'sphere', value: 8 }, now),
-      makeSector({ id: 's5', name: 'Саморазвитие', color: '#a78bfa', kind: 'sphere', value: 5 }, now),
-      makeSector({ id: 's6', name: 'Отдых', color: '#2dd4bf', kind: 'sphere', value: 4, cat: 'rest' }, now),
       makeSector(
-        { id: 's7', name: 'Накопить 1000 $', color: '#fbbf24', kind: 'number', target: 1000, unit: '$', current: 350 },
+        { id: 's1', name: 'Накопить 1000 $', color: '#fbbf24', kind: 'number', target: 1000, unit: '$', current: 0 },
         now,
       ),
-      makeSector(
-        {
-          id: 's8',
-          name: 'Собрать машину',
-          color: '#fb923c',
-          kind: 'steps',
-          steps: CAR_STEPS.map((text, i) => ({ id: 't' + (i + 1), text, done: i < 3 })),
-        },
-        now,
-      ),
+      makeSector({ id: 's2', name: 'Саморазвитие', color: '#a78bfa', kind: 'sphere', value: 5 }, now),
     ],
     acts: [
       { id: 'a1', name: 'Проснулся', color: '#fbbf24', cat: 'byt' },

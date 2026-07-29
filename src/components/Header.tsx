@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { C } from '../theme'
+import { useIsMobile } from '../hooks/useIsMobile'
 import { useData } from '../state/DataProvider'
 import { useToast } from '../state/ToastProvider'
 import { A } from '../state/actions'
@@ -8,14 +9,18 @@ import { backupCurrent, exportFile, parseImportFile } from '../state/storage'
 import { ImportConfirmModal } from './modals/ImportConfirmModal'
 import type { Doc } from '../types'
 
-const headerStyle: CSSProperties = {
-  maxWidth: 1220,
-  margin: '0 auto',
-  padding: '20px 18px 8px',
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  gap: '10px 18px',
+// На телефоне шапка ужимается: заголовок мельче и плотнее, подзаголовок уходит,
+// кнопки переезжают в ту же строку — иначе она съедала треть экрана.
+function headerStyle(mobile: boolean): CSSProperties {
+  return {
+    maxWidth: 1220,
+    margin: '0 auto',
+    padding: mobile ? '12px 14px 6px' : '20px 18px 8px',
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: mobile ? '8px 10px' : '10px 18px',
+  }
 }
 
 const dotStyle: CSSProperties = {
@@ -27,14 +32,17 @@ const dotStyle: CSSProperties = {
   animation: 'blink 2.4s ease-in-out infinite',
 }
 
-const titleStyle: CSSProperties = {
-  fontSize: 23,
-  fontWeight: 700,
-  letterSpacing: '5px',
-  textTransform: 'uppercase',
-  color: C.textHead,
-  textShadow: '0 0 20px rgba(34,211,238,.5)',
-  margin: 0,
+function titleStyle(mobile: boolean): CSSProperties {
+  return {
+    fontSize: mobile ? 17 : 23,
+    fontWeight: 700,
+    letterSpacing: mobile ? '2px' : '5px',
+    textTransform: 'uppercase',
+    color: C.textHead,
+    textShadow: '0 0 20px rgba(34,211,238,.5)',
+    margin: 0,
+    whiteSpace: 'nowrap',
+  }
 }
 
 const subtitleStyle: CSSProperties = {
@@ -45,21 +53,25 @@ const subtitleStyle: CSSProperties = {
   textTransform: 'uppercase',
 }
 
-const ioBtn: CSSProperties = {
-  fontFamily: 'inherit',
-  fontSize: 13.5,
-  color: '#cbd5e1',
-  background: 'rgba(148,163,184,.08)',
-  border: '1px solid rgba(148,163,184,.28)',
-  borderRadius: 10,
-  padding: '8px 14px',
-  cursor: 'pointer',
-  letterSpacing: '.4px',
+function ioBtn(mobile: boolean): CSSProperties {
+  return {
+    fontFamily: 'inherit',
+    fontSize: mobile ? 12 : 13.5,
+    color: '#cbd5e1',
+    background: 'rgba(148,163,184,.08)',
+    border: '1px solid rgba(148,163,184,.28)',
+    borderRadius: 10,
+    padding: mobile ? '7px 10px' : '8px 14px',
+    cursor: 'pointer',
+    letterSpacing: '.4px',
+    whiteSpace: 'nowrap',
+  }
 }
 
 export function Header() {
   const { state, dispatch } = useData()
   const toast = useToast()
+  const isMobile = useIsMobile()
   const fileRef = useRef<HTMLInputElement>(null)
   const [pending, setPending] = useState<Doc | null>(null)
 
@@ -93,21 +105,21 @@ export function Header() {
 
   return (
     <>
-      <header style={headerStyle}>
+      <header style={headerStyle(isMobile)}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10 }}>
             <span style={dotStyle} />
-            <h1 style={titleStyle}>Система жизни</h1>
+            <h1 style={titleStyle(isMobile)}>Система жизни</h1>
           </div>
-          <div style={subtitleStyle}>командный центр баланса и целей</div>
+          {!isMobile && <div style={subtitleStyle}>командный центр баланса и целей</div>}
         </div>
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button className="h-ghost" style={ioBtn} onClick={onExport}>
-            Экспорт в JSON
+        <div style={{ display: 'flex', gap: isMobile ? 7 : 9, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button className="h-ghost" style={ioBtn(isMobile)} onClick={onExport}>
+            {isMobile ? 'Экспорт' : 'Экспорт в JSON'}
           </button>
-          <button className="h-ghost" style={ioBtn} onClick={() => fileRef.current?.click()}>
-            Импорт из JSON
+          <button className="h-ghost" style={ioBtn(isMobile)} onClick={() => fileRef.current?.click()}>
+            {isMobile ? 'Импорт' : 'Импорт из JSON'}
           </button>
           <input
             ref={fileRef}

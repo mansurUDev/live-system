@@ -61,6 +61,17 @@ export function fillRadius(p: number): number {
   return Number((WHEEL.r0 - 2 + (WHEEL.R - WHEEL.r0) * (clamped / 100)).toFixed(1))
 }
 
+/**
+ * Поле отрисовки с запасом по бокам.
+ *
+ * Подписи стоят снаружи круга и на узком экране упирались в край: та, что слева,
+ * просто обрезалась. Запас раздвигает систему координат, колесо от этого
+ * рисуется мельче, зато названиям есть куда лечь.
+ */
+export function wheelViewBox(padX = 0): string {
+  return `${-padX} 0 ${WHEEL.vbW + padX * 2} ${WHEEL.vbH}`
+}
+
 export interface LabelPosition {
   leftPct: string
   topPct: string
@@ -70,11 +81,12 @@ export interface LabelPosition {
 }
 
 /** Положение подписи сектора снаружи круга, в процентах от контейнера */
-export function labelPosition(mid: number): LabelPosition {
+export function labelPosition(mid: number, padX = 0): LabelPosition {
   const c = Math.cos(mid)
   const s = Math.sin(mid)
+  const totalW = WHEEL.vbW + padX * 2
   return {
-    leftPct: (((WHEEL.cx + c * WHEEL.labelR) / WHEEL.vbW) * 100).toFixed(2) + '%',
+    leftPct: (((WHEEL.cx + c * WHEEL.labelR + padX) / totalW) * 100).toFixed(2) + '%',
     topPct: (((WHEEL.cy + s * WHEEL.labelR) / WHEEL.vbH) * 100).toFixed(2) + '%',
     translateX: c > 0.18 ? '0%' : c < -0.18 ? '-100%' : '-50%',
     translateY: s < -0.35 ? '-100%' : s > 0.35 ? '0%' : '-50%',

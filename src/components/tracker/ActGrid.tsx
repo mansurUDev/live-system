@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { CATS, OTHER } from '../../constants'
+import { useIsMobile } from '../../hooks/useIsMobile'
 import { btnGhostSm, C } from '../../theme'
 import type { Activity, TimeEntry } from '../../types'
 
@@ -13,13 +14,19 @@ interface Props {
   onAdd: () => void
 }
 
-const gridStyle: CSSProperties = {
-  display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fill,minmax(150px,1fr))',
-  gap: 11,
+// На телефоне плитки чуть плотнее: так на экран помещается больше кнопок,
+// но палец по-прежнему попадает без промаха.
+function gridStyle(mobile: boolean): CSSProperties {
+  return {
+    display: 'grid',
+    gridTemplateColumns: `repeat(auto-fill,minmax(${mobile ? 136 : 150}px,1fr))`,
+    gap: mobile ? 9 : 11,
+  }
 }
 
 export function ActGrid({ acts, running, editing, onPress, onEdit, onToggleEditing, onAdd }: Props) {
+  const isMobile = useIsMobile()
+
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
@@ -33,7 +40,7 @@ export function ActGrid({ acts, running, editing, onPress, onEdit, onToggleEditi
         </button>
       </div>
 
-      <div style={gridStyle}>
+      <div style={gridStyle(isMobile)}>
         {acts.map((a) => {
           const isRunning = running?.actId === a.id
           return (
@@ -46,8 +53,8 @@ export function ActGrid({ acts, running, editing, onPress, onEdit, onToggleEditi
                   fontFamily: 'inherit',
                   textAlign: 'left',
                   cursor: 'pointer',
-                  padding: '13px 14px 11px',
-                  minHeight: 84,
+                  padding: isMobile ? '11px 12px 9px' : '13px 14px 11px',
+                  minHeight: isMobile ? 74 : 84,
                   borderRadius: 14,
                   background: 'linear-gradient(165deg, rgba(22,32,58,.7), rgba(10,16,32,.85))',
                   border: `1px solid ${a.color}${isRunning ? 'cc' : '44'}`,
@@ -66,7 +73,7 @@ export function ActGrid({ acts, running, editing, onPress, onEdit, onToggleEditi
             >
               <span
                 style={{
-                  fontSize: 16.5,
+                  fontSize: isMobile ? 15.5 : 16.5,
                   fontWeight: 600,
                   color: '#e9f1ff',
                   letterSpacing: '.3px',

@@ -229,12 +229,16 @@ export const errText: CSSProperties = {
   marginTop: 10,
 }
 
-/** Основной контейнер страницы */
-export const page: CSSProperties = {
-  maxWidth: 1220,
-  margin: '0 auto',
-  padding: '0 18px 70px',
+/** Основной контейнер страницы; на телефоне поля уже — контенту нужна ширина */
+export function pageStyle(mobile = false): CSSProperties {
+  return {
+    maxWidth: 1220,
+    margin: '0 auto',
+    padding: mobile ? '0 10px 60px' : '0 18px 70px',
+  }
 }
+
+export const page = pageStyle(false)
 
 /** Оверлей модального окна */
 export const modalOverlay: CSSProperties = {

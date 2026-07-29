@@ -305,9 +305,10 @@ describe('hints', () => {
 
 describe('normalize', () => {
   it('подставляет дефолт на мусорный вход', () => {
-    expect(normalize(null, NOW).sectors).toHaveLength(8)
-    expect(normalize('нет', NOW).sectors).toHaveLength(8)
-    expect(normalize([], NOW).sectors).toHaveLength(8)
+    const seeded = defaultDoc(NOW).sectors.length
+    expect(normalize(null, NOW).sectors).toHaveLength(seeded)
+    expect(normalize('нет', NOW).sectors).toHaveLength(seeded)
+    expect(normalize([], NOW).sectors).toHaveLength(seeded)
   })
 
   it('чинит цвета, числа и лишние поля', () => {

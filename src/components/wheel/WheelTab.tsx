@@ -4,7 +4,7 @@ import { useData } from '../../state/DataProvider'
 import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
 import { useIsMobile } from '../../hooks/useIsMobile'
-import { C, page } from '../../theme'
+import { C, pageStyle } from '../../theme'
 import { SectorModal } from '../modals/SectorModal'
 import { CelebrationOverlay } from './CelebrationOverlay'
 import { SectorPanel } from './SectorPanel'
@@ -35,7 +35,7 @@ export function WheelTab() {
   }
 
   return (
-    <main style={{ ...page, display: 'flex', gap: 22, alignItems: 'flex-start' }}>
+    <main style={{ ...pageStyle(isMobile), display: 'flex', gap: 22, alignItems: 'flex-start' }}>
       <section style={{ flex: '1 1 480px', minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <div style={{ width: '100%', display: 'flex', justifyContent: 'flex-end', marginBottom: 6 }}>
           <button
@@ -61,7 +61,12 @@ export function WheelTab() {
 
         {sectors.length > 0 ? (
           <>
-            <WheelSvg sectors={sectors} selectedId={selectedId} onSelect={setSelectedId} />
+            <WheelSvg
+              sectors={sectors}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              padX={isMobile ? 140 : 0}
+            />
             <div style={{ fontSize: 13, color: C.dim, letterSpacing: '.5px', marginTop: 4 }}>
               нажми на любую часть колеса, чтобы отметить прогресс
             </div>

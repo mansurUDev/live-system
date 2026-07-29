@@ -6,7 +6,8 @@ import { segs, totalMs } from '../../logic/segs'
 import { minuteOf, periodRange } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
-import { page, periodBtn, plainCard } from '../../theme'
+import { useIsMobile } from '../../hooks/useIsMobile'
+import { pageStyle, periodBtn, plainCard } from '../../theme'
 import { DonutCats } from './DonutCats'
 import { GoalsCard } from './GoalsCard'
 import { HintsCard } from './HintsCard'
@@ -24,6 +25,7 @@ const PERIODS: { key: Period; label: string }[] = [
 export function AnalyticsTab() {
   const { state } = useData()
   const now = useNow()
+  const isMobile = useIsMobile()
   const [period, setPeriod] = useState<Period>('week')
 
   const { sectors, acts, entries, snapshots } = state.doc
@@ -50,7 +52,7 @@ export function AnalyticsTab() {
   }, [entries, acts, sectors, period, minute])
 
   return (
-    <main style={{ ...page, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16 }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         {PERIODS.map((p) => (
           <button key={p.key} style={periodBtn(period === p.key)} onClick={() => setPeriod(p.key)}>
