@@ -5,11 +5,14 @@ import { localDateKey } from '../logic/time'
 import { useAuth } from './AuthProvider'
 import { initialState, reducer, type Action, type AppState } from './reducer'
 import { docKey, loadDoc, saveDoc, storageAvailable } from './storage'
+import { useCloudSync, type SyncState } from './useCloudSync'
 import { useToast } from './ToastProvider'
 
 interface DataContextValue {
   state: AppState
   dispatch: (action: Action) => void
+  /** состояние облачной синхронизации; 'off' — работаем только локально */
+  sync: SyncState
 }
 
 const DataContext = createContext<DataContextValue | null>(null)
@@ -67,7 +70,9 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [code])
 
-  return <DataContext.Provider value={{ state, dispatch }}>{children}</DataContext.Provider>
+  const sync = useCloudSync(code, state.doc, dispatch)
+
+  return <DataContext.Provider value={{ state, dispatch, sync }}>{children}</DataContext.Provider>
 }
 
 export function useData(): DataContextValue {
