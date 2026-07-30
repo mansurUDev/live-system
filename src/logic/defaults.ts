@@ -1,4 +1,6 @@
+import { emptyFinance, emptyLibrary } from './normalizeModules'
 import { pct } from './pct'
+import { DOC_VERSION } from '../types'
 import type { Doc, Sector } from '../types'
 
 type SectorSeed = Pick<Sector, 'id' | 'name' | 'color' | 'kind'> & Partial<Sector>
@@ -41,7 +43,7 @@ export function makeSector(seed: SectorSeed, now: number): Sector {
  */
 export function defaultDoc(now: number = Date.now()): Doc {
   return {
-    v: 1,
+    v: DOC_VERSION,
     sectors: [
       makeSector(
         { id: 's1', name: 'Накопить 1000 $', color: '#fbbf24', kind: 'number', target: 1000, unit: '$', current: 0 },
@@ -51,17 +53,22 @@ export function defaultDoc(now: number = Date.now()): Doc {
     ],
     acts: [
       { id: 'a1', name: 'Проснулся', color: '#fbbf24', cat: 'byt' },
-      { id: 'a2', name: 'Умылся', color: '#2dd4bf', cat: 'byt' },
-      { id: 'a3', name: 'Дорога', color: '#94a3b8', cat: 'byt' },
+      { id: 'a2', name: 'Гигиена', color: '#2dd4bf', cat: 'byt' },
+      // Направление вместо безликой «Дороги»: приехав, понятно, что нажать.
+      { id: 'a3', name: 'На работу', color: '#94a3b8', cat: 'byt' },
       { id: 'a4', name: 'Работа', color: '#22d3ee', cat: 'work' },
       { id: 'a5', name: 'Еда', color: '#fb923c', cat: 'byt' },
       { id: 'a6', name: 'Спорт', color: '#34d399', cat: 'health' },
-      { id: 'a7', name: 'Отдых', color: '#a78bfa', cat: 'rest' },
-      { id: 'a8', name: 'Учёба', color: '#f472b6', cat: 'work' },
-      { id: 'a9', name: 'Сон', color: '#818cf8', cat: 'sleep' },
+      { id: 'a7', name: 'Домой', color: '#60a5fa', cat: 'byt' },
+      { id: 'a8', name: 'Дома', color: '#a78bfa', cat: 'rest' },
+      { id: 'a9', name: 'Учёба', color: '#f472b6', cat: 'work' },
+      { id: 'a10', name: 'Сон', color: '#818cf8', cat: 'sleep' },
     ],
     entries: [],
     archive: [],
     snapshots: {},
+    habits: [],
+    fin: emptyFinance(now),
+    lib: emptyLibrary(),
   }
 }

@@ -1,0 +1,116 @@
+import { financeCalc, type FinanceCalc } from './finance'
+import { isDoneToday, streak } from './habits'
+import type { Doc, Habit } from '../types'
+
+export type Urgency = 'calm' | 'warn' | 'hot'
+
+export interface Priority {
+  urgency: Urgency
+  tag: string
+  title: string
+  sub: string
+  /** куда ведёт нажатие */
+  tab: 'fin' | 'habits' | 'wheel' | 'track'
+}
+
+/** Серия, которой стоит дорожить: короткие обрывать не жалко */
+const STREAK_AT_RISK = 3
+
+interface Candidate extends Priority {
+  score: number
+}
+
+/**
+ * Что показать наверху брифинга.
+ *
+ * Приложение не вываливает все цифры разом, а выбирает одно: ближайший
+ * денежный срок или серию привычек, которая вот-вот оборвётся. Вес растёт к
+ * вечеру — утром напоминать про несделанное рано.
+ */
+export function pickPriority(doc: Doc, now: number = Date.now()): Priority {
+  const fc = financeCalc(doc.fin, now)
+  const hour = new Date(now).getHours()
+  const cands: Candidate[] = []
+
+  if (fc.nearest && fc.nearestDays !== null) {
+    const d = fc.nearestDays
+    cands.push({
+      score: d <= 2 ? 3 : d <= 7 ? 2 : 1,
+      urgency: d <= 2 ? 'hot' : d <= 7 ? 'warn' : 'calm',
+      tag: 'финансы',
+      tab: 'fin',
+      title: `До «${fc.nearest.name}» — ${d === 0 ? 'сегодня' : d + ' дн.'}`,
+      sub: `нужно ${fc.nearest.amount} — сумма уже вычтена из дневного лимита`,
+    })
+  }
+
+  const risky = doc.habits
+    .filter((h) => h.type === 'do' && !isDoneToday(h, now))
+    .map((h) => ({ h, s: streak(h, now) }))
+    .filter((x) => x.s >= STREAK_AT_RISK)
+    .sort((a, b) => b.s - a.s)[0]
+
+  if (risky) {
+    const score = hour >= 18 ? 3 : hour >= 12 ? 2 : 1.5
+    cands.push({
+      score,
+      urgency: score >= 3 ? 'hot' : 'warn',
+      tag: 'привычки',
+      tab: 'habits',
+      title: `Серия по «${risky.h.name}» — ${risky.s} дн.`,
+      sub: 'не разорви сегодня — отметь до полуночи',
+    })
+  }
+
+  cands.sort((a, b) => b.score - a.score)
+  const top = cands[0]
+  if (top && top.score > 1) return top
+
+  return calmPriority(doc, fc)
+}
+
+function calmPriority(doc: Doc, fc: FinanceCalc): Priority {
+  const dos = doc.habits.filter((h) => h.type === 'do')
+  const bits: string[] = []
+  if (fc.limit > 0) bits.push(`можно ${fc.limit} сегодня`)
+  if (dos.length) bits.push(`привычки: ${dos.filter((h) => isDoneToday(h)).length} из ${dos.length}`)
+
+  return {
+    urgency: 'calm',
+    tag: 'всё ровно',
+    tab: 'fin',
+    title: 'Всё ровно — день под контролем',
+    sub: bits.join(' · ') || 'хорошего дня',
+  }
+}
+
+/** Привычки, которые показываются прямо в брифинге */
+export function todayHabits(doc: Doc, limit = 5): Habit[] {
+  return doc.habits.filter((h) => h.type === 'do').slice(0, limit)
+}
+
+/**
+ * Подсказки «куда дальше»: то, что ещё не сделано сегодня, и незакрытые этапы
+ * ближайшей цели. Показываем максимум две — список дел тут не нужен.
+ */
+export function nextSteps(doc: Doc, now: number = Date.now(), limit = 2): string[] {
+  const out: string[] = []
+
+  for (const h of doc.habits) {
+    if (h.type === 'do' && !isDoneToday(h, now)) {
+      out.push(`«${h.name}» сегодня ещё не отмечено`)
+      if (out.length >= limit) return out
+    }
+  }
+
+  for (const s of doc.sectors) {
+    if (s.kind !== 'steps') continue
+    const left = s.steps.filter((t) => !t.done).length
+    if (left > 0) {
+      out.push(`До «${s.name}» осталось ${left} эт.`)
+      if (out.length >= limit) return out
+    }
+  }
+
+  return out
+}

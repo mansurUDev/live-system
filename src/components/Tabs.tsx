@@ -25,25 +25,28 @@ interface Props {
   archiveCount: number
 }
 
+/** Полоса вкладок для большого экрана; на телефоне её заменяет нижняя панель */
 export function Tabs({ tab, onChange, archiveCount }: Props) {
   const isMobile = useIsMobile()
+  if (isMobile) return null
 
   const items: { key: Tab; label: string }[] = [
+    { key: 'brief', label: 'Брифинг' },
     { key: 'wheel', label: 'Колесо' },
-    { key: 'track', label: isMobile ? 'Трекер' : 'Трекер времени' },
+    { key: 'track', label: 'Трекер времени' },
+    { key: 'habits', label: 'Привычки' },
+    { key: 'fin', label: 'Финансы' },
+    { key: 'lib', label: 'Библиотека' },
     { key: 'an', label: 'Аналитика' },
     { key: 'arch', label: 'Архив' + (archiveCount ? ' · ' + archiveCount : '') },
   ]
 
   return (
-    <nav className="no-scrollbar" style={navStyle(isMobile)}>
+    <nav className="no-scrollbar" style={navStyle(false)}>
       {items.map((it) => (
         <button
           key={it.key}
-          style={{
-            ...tabBtn(tab === it.key),
-            ...(isMobile ? { padding: '9px 12px', fontSize: 13.5, flex: 'none' } : null),
-          }}
+          style={{ ...tabBtn(tab === it.key), padding: '10px 15px' }}
           onClick={() => onChange(it.key)}
         >
           {it.label}

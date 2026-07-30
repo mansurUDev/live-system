@@ -14,6 +14,17 @@ export function localDateKey(t: number | Date): string {
   return d.getFullYear() + '-' + p2(d.getMonth() + 1) + '-' + p2(d.getDate())
 }
 
+/** Ключ месяца YYYY-MM в локальном времени */
+export function monthKeyOf(t: number | Date): string {
+  const d = t instanceof Date ? t : new Date(t)
+  return d.getFullYear() + '-' + p2(d.getMonth() + 1)
+}
+
+/** Ключ дня, отстоящего на n суток назад от указанного момента */
+export function dayKeyAgo(n: number, now: number = Date.now()): string {
+  return localDateKey(addDays(startOfDay(now), -n))
+}
+
 /** Полночь того же локального дня */
 export function startOfDay(t: number | Date): number {
   const d = t instanceof Date ? new Date(t.getTime()) : new Date(t)

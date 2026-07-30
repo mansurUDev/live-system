@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { MAX_ACTS } from '../../constants'
 import { actBy } from '../../logic/analytics'
 import { runningEntry } from '../../logic/segs'
-import { addDays, startOfDay } from '../../logic/time'
+import { addDays, hhmm, startOfDay } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
@@ -12,6 +12,7 @@ import { pageStyle } from '../../theme'
 import { ActModal } from '../modals/ActModal'
 import { EntryModal } from '../modals/EntryModal'
 import { ActGrid } from './ActGrid'
+import { BackdateMenu, type BackdateTarget } from './BackdateMenu'
 import { DayView } from './DayView'
 import { RunningBar } from './RunningBar'
 import type { Activity, TimeEntry } from '../../types'
@@ -29,6 +30,7 @@ export function TrackerTab() {
   const [editing, setEditing] = useState(false)
   const [actForm, setActForm] = useState<ActForm>(null)
   const [entryForm, setEntryForm] = useState<EntryForm>(null)
+  const [backdate, setBackdate] = useState<BackdateTarget | null>(null)
 
   const { acts, entries } = state.doc
   const running = runningEntry(entries)
@@ -69,7 +71,20 @@ export function TrackerTab() {
         onEdit={(act) => setActForm({ act })}
         onToggleEditing={() => setEditing((v) => !v)}
         onAdd={openNewAct}
+        onLongPress={(act, x, y) => setBackdate({ id: act.id, name: act.name, color: act.color, x, y })}
       />
+
+      {backdate && (
+        <BackdateMenu
+          target={backdate}
+          onClose={() => setBackdate(null)}
+          onPick={(min) => {
+            dispatch(A.pressAct(backdate.id, min))
+            setBackdate(null)
+            toast(`«${backdate.name}» — идёт с ${hhmm(Date.now() - min * 60_000)}`)
+          }}
+        />
+      )}
 
       <DayView
         entries={entries}

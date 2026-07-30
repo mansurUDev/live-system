@@ -25,3 +25,6 @@ dist-ssr
 
 # личный стартовый набор данных
 sistema-zhizni-start.json
+
+# исходники дизайна из Claude Design — тяжёлые, в коде не нужны
+html/

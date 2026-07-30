@@ -15,7 +15,9 @@ import {
   CATS,
 } from '../constants'
 import { defaultDoc } from './defaults'
+import { normFinance, normHabits, normLibrary } from './normalizeModules'
 import { clamp } from './pct'
+import { DOC_VERSION } from '../types'
 import type {
   Activity,
   ArchiveRec,
@@ -221,12 +223,16 @@ function normSnapshots(x: unknown, nowIso: string): Snapshots {
 }
 
 /**
- * Приведение произвольных данных к валидному документу.
+ * Приведение произвольных данных к валидному документу текущей версии.
  *
  * Единая точка санитайзинга: через неё проходит и загрузка из localStorage, и
- * импорт файла. Каждый объект собирается литералом с явным перечислением полей,
- * поэтому посторонние ключи из чужого JSON (включая `__proto__`) не проходят.
- * Функция идемпотентна: normalize(normalize(x)) даёт то же самое.
+ * импорт файла, и приезжающее из облака. Каждый объект собирается литералом с
+ * явным перечислением полей, поэтому посторонние ключи из чужого JSON (включая
+ * `__proto__`) не проходят.
+ *
+ * Переход со старых версий бесшовный: документ первой версии просто не содержал
+ * привычек, финансов и библиотеки — они добавляются пустыми, остальное
+ * сохраняется как было. Функция идемпотентна.
  */
 export function normalize(input: unknown, now: number = Date.now()): Doc {
   const d = obj(input)
@@ -234,11 +240,14 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
 
   const nowIso = new Date(now).toISOString()
   return {
-    v: 1,
+    v: DOC_VERSION,
     sectors: normSectors(d.sectors, nowIso),
     acts: normActs(d.acts, defaultDoc(now).acts),
     entries: normEntries(d.entries),
     archive: normArchive(d.archive, nowIso),
     snapshots: normSnapshots(d.snapshots, nowIso),
+    habits: normHabits(d.habits, nowIso),
+    fin: normFinance(d.fin, now),
+    lib: normLibrary(d.lib, nowIso),
   }
 }

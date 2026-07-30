@@ -1,16 +1,9 @@
-import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { C } from '../theme'
 import { useIsMobile } from '../hooks/useIsMobile'
-import { useData } from '../state/DataProvider'
-import { useToast } from '../state/ToastProvider'
-import { A } from '../state/actions'
-import { backupCurrent, exportFile, parseImportFile } from '../state/storage'
-import { ImportConfirmModal } from './modals/ImportConfirmModal'
-import type { Doc } from '../types'
 
 // На телефоне шапка ужимается: заголовок мельче и плотнее, подзаголовок уходит,
-// кнопки переезжают в ту же строку — иначе она съедала треть экрана.
+// а выгрузка и загрузка переезжают в меню «Ещё» — иначе она съедала треть экрана.
 function headerStyle(mobile: boolean): CSSProperties {
   return {
     maxWidth: 1220,
@@ -53,87 +46,52 @@ const subtitleStyle: CSSProperties = {
   textTransform: 'uppercase',
 }
 
-function ioBtn(mobile: boolean): CSSProperties {
-  return {
-    fontFamily: 'inherit',
-    fontSize: mobile ? 12 : 13.5,
-    color: '#cbd5e1',
-    background: 'rgba(148,163,184,.08)',
-    border: '1px solid rgba(148,163,184,.28)',
-    borderRadius: 10,
-    padding: mobile ? '7px 10px' : '8px 14px',
-    cursor: 'pointer',
-    letterSpacing: '.4px',
-    whiteSpace: 'nowrap',
-  }
+const ioBtn: CSSProperties = {
+  fontFamily: 'inherit',
+  fontSize: 13.5,
+  color: '#cbd5e1',
+  background: 'rgba(148,163,184,.08)',
+  border: '1px solid rgba(148,163,184,.28)',
+  borderRadius: 10,
+  padding: '8px 14px',
+  cursor: 'pointer',
+  letterSpacing: '.4px',
+  whiteSpace: 'nowrap',
 }
 
-export function Header() {
-  const { state, dispatch } = useData()
-  const toast = useToast()
+interface Props {
+  onExport: () => void
+  onImport: () => void
+  onLogout: () => void
+}
+
+export function Header({ onExport, onImport, onLogout }: Props) {
   const isMobile = useIsMobile()
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [pending, setPending] = useState<Doc | null>(null)
-
-  const onExport = () => {
-    toast(exportFile(state.doc) ? 'Файл с резервной копией сохранён' : 'Не получилось сохранить файл')
-  }
-
-  const onFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    // Сброс обязателен: иначе повторный выбор того же файла не вызовет onChange.
-    e.target.value = ''
-    if (!file) return
-
-    const result = await parseImportFile(file)
-    if (!result.ok) {
-      toast(result.error)
-      return
-    }
-    setPending(result.doc)
-  }
-
-  const applyImport = () => {
-    if (!pending) return
-    backupCurrent()
-    dispatch(A.replaceDoc(pending))
-    setPending(null)
-    toast(
-      `Импортировано: ${pending.sectors.length} на колесе, ${pending.entries.length} записей времени`,
-    )
-  }
 
   return (
-    <>
-      <header style={headerStyle(isMobile)}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10 }}>
-            <span style={dotStyle} />
-            <h1 style={titleStyle(isMobile)}>Система жизни</h1>
-          </div>
-          {!isMobile && <div style={subtitleStyle}>командный центр баланса и целей</div>}
+    <header style={headerStyle(isMobile)}>
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10 }}>
+          <span style={dotStyle} />
+          <h1 style={titleStyle(isMobile)}>Система жизни</h1>
         </div>
-        <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', gap: isMobile ? 7 : 9, flexWrap: 'wrap', alignItems: 'center' }}>
-          <button className="h-ghost" style={ioBtn(isMobile)} onClick={onExport}>
-            {isMobile ? 'Экспорт' : 'Экспорт в JSON'}
-          </button>
-          <button className="h-ghost" style={ioBtn(isMobile)} onClick={() => fileRef.current?.click()}>
-            {isMobile ? 'Импорт' : 'Импорт из JSON'}
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".json,application/json"
-            onChange={onFile}
-            style={{ display: 'none' }}
-          />
-        </div>
-      </header>
+        {!isMobile && <div style={subtitleStyle}>командный центр баланса и целей</div>}
+      </div>
+      <div style={{ flex: 1 }} />
 
-      {pending && (
-        <ImportConfirmModal doc={pending} onCancel={() => setPending(null)} onConfirm={applyImport} />
+      {!isMobile && (
+        <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button className="h-ghost" style={ioBtn} onClick={onExport}>
+            Экспорт в JSON
+          </button>
+          <button className="h-ghost" style={ioBtn} onClick={onImport}>
+            Импорт из JSON
+          </button>
+          <button className="h-ghost" style={{ ...ioBtn, color: C.muted }} onClick={onLogout}>
+            Выйти
+          </button>
+        </div>
       )}
-    </>
+    </header>
   )
 }

@@ -1,6 +1,19 @@
 import { uid } from '../logic/uid'
 import type { Action } from './reducer'
-import type { Activity, Category, Doc, Sector, TimeEntry } from '../types'
+import type {
+  Activity,
+  Book,
+  Category,
+  Course,
+  Doc,
+  Finance,
+  Habit,
+  HabitType,
+  MandatoryExpense,
+  OneTimeExpense,
+  Sector,
+  TimeEntry,
+} from '../types'
 
 /**
  * Создатели действий — единственное место, где берётся текущее время и
@@ -51,15 +64,98 @@ export const A = {
   }),
   dismissCelebration: (): Action => ({ type: 'dismissCelebration' }),
 
-  pressAct: (actId: string): Action => ({
+  /**
+   * Нажатие кнопки активности. backMinutes сдвигает момент перехода назад —
+   * для случая «пришёл домой, а телефон достал позже»: предыдущий отрезок
+   * закроется тем же временем, что и начнётся новый.
+   */
+  pressAct: (actId: string, backMinutes = 0): Action => ({
     type: 'pressAct',
     actId,
     entryId: uid('e'),
-    now: Date.now(),
+    now: Date.now() - backMinutes * 60_000,
   }),
   stopTrack: (): Action => ({ type: 'stopTrack', now: Date.now() }),
   saveAct: (act: Activity): Action => ({ type: 'saveAct', act, now: Date.now() }),
   deleteAct: (id: string): Action => ({ type: 'deleteAct', id, now: Date.now() }),
   saveEntry: (entry: TimeEntry): Action => ({ type: 'saveEntry', entry, now: Date.now() }),
   deleteEntry: (id: string): Action => ({ type: 'deleteEntry', id, now: Date.now() }),
+
+  toggleHabit: (id: string): Action => ({ type: 'toggleHabit', id, now: Date.now() }),
+  breakQuit: (id: string): Action => ({ type: 'breakQuit', id, now: Date.now() }),
+  saveHabit: (habit: Habit): Action => ({ type: 'saveHabit', habit, now: Date.now() }),
+  deleteHabit: (id: string): Action => ({ type: 'deleteHabit', id, now: Date.now() }),
+  newHabit: (type: HabitType, name: string, color: string): Habit => ({
+    id: uid('h'),
+    type,
+    name,
+    color,
+    done: [],
+    record: 0,
+    start: new Date().toISOString(),
+    best: 0,
+    createdAt: new Date().toISOString(),
+  }),
+
+  patchFinance: (patch: Partial<Finance>): Action => ({ type: 'patchFinance', patch, now: Date.now() }),
+  rollFinanceMonth: (): Action => ({ type: 'rollFinanceMonth', now: Date.now() }),
+  saveMandatory: (item: MandatoryExpense): Action => ({ type: 'saveMandatory', item, now: Date.now() }),
+  deleteMandatory: (id: string): Action => ({ type: 'deleteMandatory', id, now: Date.now() }),
+  saveOneTime: (item: OneTimeExpense): Action => ({ type: 'saveOneTime', item, now: Date.now() }),
+  deleteOneTime: (id: string): Action => ({ type: 'deleteOneTime', id, now: Date.now() }),
+  newExpenseId: () => uid('x'),
+
+  saveBook: (book: Book): Action => ({ type: 'saveBook', book, now: Date.now() }),
+  saveCourse: (course: Course): Action => ({ type: 'saveCourse', course, now: Date.now() }),
+  toggleSection: (courseId: string, sectionId: string): Action => ({
+    type: 'toggleSection',
+    courseId,
+    sectionId,
+    now: Date.now(),
+  }),
+  addNote: (kind: 'book' | 'course', id: string, text: string): Action => ({
+    type: 'addNote',
+    kind,
+    id,
+    note: { d: new Date().toISOString(), text },
+    now: Date.now(),
+  }),
+  finishLibItem: (kind: 'book' | 'course', id: string, quote: string): Action => ({
+    type: 'finishLibItem',
+    kind,
+    id,
+    doneId: uid('ld'),
+    quote,
+    now: Date.now(),
+  }),
+  deleteLibItem: (kind: 'book' | 'course', id: string): Action => ({
+    type: 'deleteLibItem',
+    kind,
+    id,
+    now: Date.now(),
+  }),
+  newBook: (title: string, author: string, color: string, pageTotal: number, audioTotal: number): Book => ({
+    id: uid('b'),
+    title,
+    author,
+    color,
+    pageCur: 0,
+    pageTotal,
+    audioCur: 0,
+    audioTotal,
+    excerpt: '',
+    notes: [],
+    startedAt: new Date().toISOString(),
+  }),
+  newCourse: (title: string, platform: string, color: string, sections: string[]): Course => ({
+    id: uid('c'),
+    title,
+    platform,
+    color,
+    pos: '',
+    minute: 0,
+    sections: sections.map((text, i) => ({ id: uid('cs' + i + '-'), text, done: false })),
+    notes: [],
+    startedAt: new Date().toISOString(),
+  }),
 }

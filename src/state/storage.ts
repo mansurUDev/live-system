@@ -1,4 +1,4 @@
-import { BACKUP_KEY, LS_KEY, MAX_IMPORT_BYTES } from '../constants'
+import { BACKUP_KEY, CODE_KEY, LS_KEY, MAX_IMPORT_BYTES } from '../constants'
 import { defaultDoc } from '../logic/defaults'
 import { normalize } from '../logic/normalize'
 import { localDateKey } from '../logic/time'
@@ -22,24 +22,64 @@ export function storageAvailable(): boolean {
   return storage() !== null
 }
 
-/** Читает сохранённое состояние; любые повреждения чинит normalize */
-export function loadDoc(now: number = Date.now()): Doc {
+/**
+ * Данные каждого кода лежат отдельно — так на общем устройстве сессии не
+ * смешиваются. LS_KEY остался от версии без входа: если под кодом ещё пусто, а
+ * старые данные есть, они подхватываются при первом входе.
+ */
+export function docKey(code: string): string {
+  return `${LS_KEY}:${code}`
+}
+
+export function readCode(): string {
   try {
-    const raw = storage()?.getItem(LS_KEY)
+    return storage()?.getItem(CODE_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function writeCode(code: string): void {
+  try {
+    storage()?.setItem(CODE_KEY, code)
+  } catch {
+    /* без хранилища сессия проживёт до перезагрузки */
+  }
+}
+
+export function clearCode(): void {
+  try {
+    storage()?.removeItem(CODE_KEY)
+  } catch {
+    /* нечего чистить */
+  }
+}
+
+/** Читает сохранённое состояние; любые повреждения чинит normalize */
+export function loadDoc(code: string, now: number = Date.now()): Doc {
+  const s = storage()
+  try {
+    const raw = s?.getItem(docKey(code))
     if (raw) return normalize(JSON.parse(raw), now)
   } catch {
-    /* повреждённый JSON — начинаем с дефолта */
+    /* повреждённый JSON — пробуем то, что осталось от версии без входа */
+  }
+  try {
+    const legacy = s?.getItem(LS_KEY)
+    if (legacy) return normalize(JSON.parse(legacy), now)
+  } catch {
+    /* и его нет — начинаем с чистого листа */
   }
   return defaultDoc(now)
 }
 
 export type SaveResult = 'ok' | 'quota' | 'unavailable'
 
-export function saveDoc(doc: Doc): SaveResult {
+export function saveDoc(code: string, doc: Doc): SaveResult {
   const s = storage()
   if (!s) return 'unavailable'
   try {
-    s.setItem(LS_KEY, JSON.stringify(doc))
+    s.setItem(docKey(code), JSON.stringify(doc))
     return 'ok'
   } catch {
     return 'quota'
@@ -47,12 +87,12 @@ export function saveDoc(doc: Doc): SaveResult {
 }
 
 /** Копия текущих данных перед импортом — импорт иначе необратим */
-export function backupCurrent(): void {
+export function backupCurrent(code: string): void {
   const s = storage()
   if (!s) return
   try {
-    const raw = s.getItem(LS_KEY)
-    if (raw) s.setItem(BACKUP_KEY, raw)
+    const raw = s.getItem(docKey(code)) ?? s.getItem(LS_KEY)
+    if (raw) s.setItem(`${BACKUP_KEY}:${code}`, raw)
   } catch {
     /* нет места под копию — не повод срывать импорт */
   }

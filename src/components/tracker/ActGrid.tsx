@@ -1,4 +1,5 @@
-import type { CSSProperties } from 'react'
+import { useEffect, useRef } from 'react'
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from 'react'
 import { CATS, OTHER } from '../../constants'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { btnGhostSm, C } from '../../theme'
@@ -12,7 +13,11 @@ interface Props {
   onEdit: (act: Activity) => void
   onToggleEditing: () => void
   onAdd: () => void
+  /** долгое нажатие — предложить сдвиг начала назад */
+  onLongPress: (act: Activity, x: number, y: number) => void
 }
+
+const LONG_PRESS_MS = 430
 
 // На телефоне плитки чуть плотнее: так на экран помещается больше кнопок,
 // но палец по-прежнему попадает без промаха.
@@ -24,8 +29,48 @@ function gridStyle(mobile: boolean): CSSProperties {
   }
 }
 
-export function ActGrid({ acts, running, editing, onPress, onEdit, onToggleEditing, onAdd }: Props) {
+export function ActGrid({
+  acts,
+  running,
+  editing,
+  onPress,
+  onEdit,
+  onToggleEditing,
+  onAdd,
+  onLongPress,
+}: Props) {
   const isMobile = useIsMobile()
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // после срабатывания долгого нажатия обычный клик гасим, иначе отсчёт
+  // запустится дважды — и меню, и по отпусканию
+  const fired = useRef(false)
+
+  const startPress = (e: ReactPointerEvent<HTMLButtonElement>, act: Activity) => {
+    if (editing) return
+    fired.current = false
+    const { clientX, clientY } = e
+    timer.current = setTimeout(() => {
+      fired.current = true
+      onLongPress(act, clientX, clientY)
+    }, LONG_PRESS_MS)
+  }
+
+  const endPress = () => {
+    if (timer.current) clearTimeout(timer.current)
+  }
+
+  const click = (act: Activity) => {
+    if (fired.current) {
+      fired.current = false
+      return
+    }
+    if (editing) onEdit(act)
+    else onPress(act.id)
+  }
+
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current)
+  }, [])
 
   return (
     <div>
@@ -47,7 +92,12 @@ export function ActGrid({ acts, running, editing, onPress, onEdit, onToggleEditi
             <button
               key={a.id}
               className="h-tile"
-              onClick={() => (editing ? onEdit(a) : onPress(a.id))}
+              onClick={() => click(a)}
+              onPointerDown={(e) => startPress(e, a)}
+              onPointerUp={endPress}
+              onPointerLeave={endPress}
+              onPointerCancel={endPress}
+              onContextMenu={(e) => e.preventDefault()}
               style={
                 {
                   fontFamily: 'inherit',

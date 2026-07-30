@@ -78,6 +78,30 @@ textarea {
     opacity: 0.15;
   }
 }
+/* вспышка при отметке привычки — короткое подтверждение нажатия */
+@keyframes checkFlash {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.14);
+    filter: brightness(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+/* всплывающее меню у пальца при долгом нажатии */
+@keyframes lpIn {
+  0% {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
 @keyframes burst {
   0% {
     transform: scale(0.08);

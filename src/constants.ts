@@ -45,6 +45,32 @@ export const MAX_ACT_NAME = 40
 export const MAX_STEP_TEXT = 90
 export const MAX_UNIT = 14
 
+export const MAX_HABITS = 30
+export const MAX_HABIT_NAME = 50
+/** сколько отметок хранит привычка — с запасом больше года */
+export const MAX_HABIT_DAYS = 500
+
+export const MAX_MANDATORY = 40
+export const MAX_ONETIME = 60
+export const MAX_EXPENSE_NAME = 60
+
+export const MAX_BOOKS = 30
+export const MAX_COURSES = 30
+export const MAX_LIB_DONE = 100
+export const MAX_SECTIONS = 40
+export const MAX_NOTES = 40
+export const MAX_NOTE_TEXT = 400
+export const MAX_TITLE = 80
+export const MAX_BYLINE = 60
+export const MAX_EXCERPT = 400
+export const MAX_QUOTE = 300
+
+/** Ключ, под которым лежит код доступа текущей сессии */
+export const CODE_KEY = 'sistema-zhizni-code'
+
+/** Сдвиги для быстрой отметки задним числом, минуты */
+export const BACKDATE_OFFSETS = [5, 15, 30]
+
 /** Подсказка срабатывает, если на связанную категорию за неделю потрачено меньше */
 export const HINT_THRESHOLD_MS = 30 * 60 * 1000
 

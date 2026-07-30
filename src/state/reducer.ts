@@ -1,4 +1,17 @@
-import { MAX_ENTRIES, MAX_HISTORY, MAX_ARCHIVE } from '../constants'
+import {
+  MAX_ARCHIVE,
+  MAX_BOOKS,
+  MAX_COURSES,
+  MAX_ENTRIES,
+  MAX_HABITS,
+  MAX_HISTORY,
+  MAX_LIB_DONE,
+  MAX_MANDATORY,
+  MAX_NOTES,
+  MAX_ONETIME,
+} from '../constants'
+import { rollMonth } from '../logic/finance'
+import { resetQuit, toggleToday } from '../logic/habits'
 import { kindLabel, pct, summary } from '../logic/pct'
 import { runningEntry } from '../logic/segs'
 import { withTodaySnapshot } from '../logic/snapshot'
@@ -6,9 +19,17 @@ import { num } from '../logic/time'
 import type {
   Activity,
   ArchiveRec,
+  Book,
   Category,
+  Course,
   Doc,
+  Finance,
+  Habit,
   HistoryRec,
+  LibDone,
+  LibNote,
+  MandatoryExpense,
+  OneTimeExpense,
   Sector,
   TimeEntry,
 } from '../types'
@@ -40,6 +61,25 @@ export type Action =
   | { type: 'deleteAct'; id: string; now: number }
   | { type: 'saveEntry'; entry: TimeEntry; now: number }
   | { type: 'deleteEntry'; id: string; now: number }
+  // привычки
+  | { type: 'toggleHabit'; id: string; now: number }
+  | { type: 'breakQuit'; id: string; now: number }
+  | { type: 'saveHabit'; habit: Habit; now: number }
+  | { type: 'deleteHabit'; id: string; now: number }
+  // финансы
+  | { type: 'patchFinance'; patch: Partial<Finance>; now: number }
+  | { type: 'rollFinanceMonth'; now: number }
+  | { type: 'saveMandatory'; item: MandatoryExpense; now: number }
+  | { type: 'deleteMandatory'; id: string; now: number }
+  | { type: 'saveOneTime'; item: OneTimeExpense; now: number }
+  | { type: 'deleteOneTime'; id: string; now: number }
+  // библиотека
+  | { type: 'saveBook'; book: Book; now: number }
+  | { type: 'saveCourse'; course: Course; now: number }
+  | { type: 'toggleSection'; courseId: string; sectionId: string; now: number }
+  | { type: 'addNote'; kind: 'book' | 'course'; id: string; note: LibNote; now: number }
+  | { type: 'finishLibItem'; kind: 'book' | 'course'; id: string; doneId: string; quote: string; now: number }
+  | { type: 'deleteLibItem'; kind: 'book' | 'course'; id: string; now: number }
 
 function isoAtLeast(now: number, notBefore: string): string {
   const start = new Date(notBefore).getTime()
@@ -187,6 +227,174 @@ function coreReducer(doc: Doc, action: Action): Doc {
 
     case 'deleteEntry':
       return { ...doc, entries: doc.entries.filter((e) => e.id !== action.id) }
+
+    case 'toggleHabit':
+      return {
+        ...doc,
+        habits: doc.habits.map((h) => (h.id === action.id ? toggleToday(h, action.now) : h)),
+      }
+
+    case 'breakQuit':
+      return {
+        ...doc,
+        habits: doc.habits.map((h) => (h.id === action.id ? resetQuit(h, action.now) : h)),
+      }
+
+    case 'saveHabit': {
+      const exists = doc.habits.some((h) => h.id === action.habit.id)
+      return {
+        ...doc,
+        habits: exists
+          ? doc.habits.map((h) => (h.id === action.habit.id ? action.habit : h))
+          : [...doc.habits, action.habit].slice(0, MAX_HABITS),
+      }
+    }
+
+    case 'deleteHabit':
+      return { ...doc, habits: doc.habits.filter((h) => h.id !== action.id) }
+
+    case 'patchFinance':
+      return { ...doc, fin: { ...doc.fin, ...action.patch } }
+
+    case 'rollFinanceMonth':
+      return { ...doc, fin: rollMonth(doc.fin, action.now) }
+
+    case 'saveMandatory': {
+      const list = doc.fin.mandatory
+      const exists = list.some((x) => x.id === action.item.id)
+      return {
+        ...doc,
+        fin: {
+          ...doc.fin,
+          mandatory: exists
+            ? list.map((x) => (x.id === action.item.id ? action.item : x))
+            : [...list, action.item].slice(0, MAX_MANDATORY),
+        },
+      }
+    }
+
+    case 'deleteMandatory':
+      return {
+        ...doc,
+        fin: { ...doc.fin, mandatory: doc.fin.mandatory.filter((x) => x.id !== action.id) },
+      }
+
+    case 'saveOneTime': {
+      const list = doc.fin.oneTime
+      const exists = list.some((x) => x.id === action.item.id)
+      return {
+        ...doc,
+        fin: {
+          ...doc.fin,
+          oneTime: exists
+            ? list.map((x) => (x.id === action.item.id ? action.item : x))
+            : [...list, action.item].slice(0, MAX_ONETIME),
+        },
+      }
+    }
+
+    case 'deleteOneTime':
+      return {
+        ...doc,
+        fin: { ...doc.fin, oneTime: doc.fin.oneTime.filter((x) => x.id !== action.id) },
+      }
+
+    case 'saveBook': {
+      const exists = doc.lib.books.some((b) => b.id === action.book.id)
+      return {
+        ...doc,
+        lib: {
+          ...doc.lib,
+          books: exists
+            ? doc.lib.books.map((b) => (b.id === action.book.id ? action.book : b))
+            : [...doc.lib.books, action.book].slice(0, MAX_BOOKS),
+        },
+      }
+    }
+
+    case 'saveCourse': {
+      const exists = doc.lib.courses.some((c) => c.id === action.course.id)
+      return {
+        ...doc,
+        lib: {
+          ...doc.lib,
+          courses: exists
+            ? doc.lib.courses.map((c) => (c.id === action.course.id ? action.course : c))
+            : [...doc.lib.courses, action.course].slice(0, MAX_COURSES),
+        },
+      }
+    }
+
+    case 'toggleSection':
+      return {
+        ...doc,
+        lib: {
+          ...doc.lib,
+          courses: doc.lib.courses.map((c) =>
+            c.id !== action.courseId
+              ? c
+              : {
+                  ...c,
+                  sections: c.sections.map((s) =>
+                    s.id === action.sectionId ? { ...s, done: !s.done } : s,
+                  ),
+                },
+          ),
+        },
+      }
+
+    case 'addNote': {
+      const put = <T extends { id: string; notes: LibNote[] }>(list: T[]): T[] =>
+        list.map((x) =>
+          x.id === action.id ? { ...x, notes: [action.note, ...x.notes].slice(0, MAX_NOTES) } : x,
+        )
+      return {
+        ...doc,
+        lib:
+          action.kind === 'book'
+            ? { ...doc.lib, books: put(doc.lib.books) }
+            : { ...doc.lib, courses: put(doc.lib.courses) },
+      }
+    }
+
+    case 'finishLibItem': {
+      const item =
+        action.kind === 'book'
+          ? doc.lib.books.find((b) => b.id === action.id)
+          : doc.lib.courses.find((c) => c.id === action.id)
+      if (!item) return doc
+
+      const rec: LibDone = {
+        id: action.doneId,
+        kind: action.kind,
+        title: item.title,
+        byline: 'author' in item ? item.author : item.platform,
+        color: item.color,
+        startedAt: item.startedAt,
+        finishedAt: new Date(action.now).toISOString(),
+        quote: action.quote,
+      }
+      return {
+        ...doc,
+        lib: {
+          books: action.kind === 'book' ? doc.lib.books.filter((b) => b.id !== action.id) : doc.lib.books,
+          courses:
+            action.kind === 'course' ? doc.lib.courses.filter((c) => c.id !== action.id) : doc.lib.courses,
+          done: [rec, ...doc.lib.done].slice(0, MAX_LIB_DONE),
+        },
+      }
+    }
+
+    case 'deleteLibItem':
+      return {
+        ...doc,
+        lib: {
+          ...doc.lib,
+          books: action.kind === 'book' ? doc.lib.books.filter((b) => b.id !== action.id) : doc.lib.books,
+          courses:
+            action.kind === 'course' ? doc.lib.courses.filter((c) => c.id !== action.id) : doc.lib.courses,
+        },
+      }
 
     case 'dismissCelebration':
       return doc
