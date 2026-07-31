@@ -81,7 +81,9 @@ export function LoginScreen() {
               if (e.key === 'Enter') submit()
             }}
             autoFocus
-            placeholder="например, mansur"
+            maxLength={40}
+            // Без примера: подсказка в поле работала бы готовым ключом к чужим данным
+            placeholder="слово или число"
             style={{ ...input, fontFamily: MONO, letterSpacing: '1px' }}
           />
         </div>

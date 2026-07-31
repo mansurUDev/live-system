@@ -46,6 +46,21 @@ export async function pull(code: string, now: number = Date.now()): Promise<Pull
   }
 }
 
+/**
+ * Убирает документ из облака.
+ *
+ * Нужно при смене кода: данные к этому моменту уже лежат под новым, и старая
+ * запись — это оставшийся рабочий ключ к ним.
+ */
+export async function remove(code: string): Promise<boolean> {
+  try {
+    const res = await fetch('/api/doc', { method: 'DELETE', headers: headers(code) })
+    return res.ok
+  } catch {
+    return false
+  }
+}
+
 export async function push(code: string, doc: Doc, version: number): Promise<PushResult> {
   try {
     const res = await fetch('/api/doc', {

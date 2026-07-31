@@ -9,11 +9,12 @@ interface Props {
   onClose: () => void
   onExport: () => void
   onImport: () => void
+  onChangeCode: () => void
   onLogout: () => void
 }
 
 /** Разделы, которым не хватило места в нижней панели, плюс служебные действия */
-export function MoreMenu({ tab, archiveCount, onGo, onClose, onExport, onImport, onLogout }: Props) {
+export function MoreMenu({ tab, archiveCount, onGo, onClose, onExport, onImport, onChangeCode, onLogout }: Props) {
   const rows: { key: Tab; label: string }[] = [
     { key: 'habits', label: 'Привычки' },
     { key: 'fin', label: 'Финансы' },
@@ -38,6 +39,9 @@ export function MoreMenu({ tab, archiveCount, onGo, onClose, onExport, onImport,
         </button>
         <button onClick={onImport} style={dimRowStyle}>
           Импорт из JSON
+        </button>
+        <button onClick={onChangeCode} style={dimRowStyle}>
+          Сменить код
         </button>
         <button onClick={onLogout} style={{ ...dimRowStyle, color: C.danger }}>
           Выйти

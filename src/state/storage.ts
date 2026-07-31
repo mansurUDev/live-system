@@ -86,6 +86,15 @@ export function saveDoc(code: string, doc: Doc): SaveResult {
   }
 }
 
+/** Убирает локальные данные кода — после переезда под новый */
+export function dropDoc(code: string): void {
+  try {
+    storage()?.removeItem(docKey(code))
+  } catch {
+    /* нечего чистить */
+  }
+}
+
 /** Копия текущих данных перед импортом — импорт иначе необратим */
 export function backupCurrent(code: string): void {
   const s = storage()

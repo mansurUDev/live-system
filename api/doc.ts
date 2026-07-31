@@ -144,6 +144,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return
     }
 
+    // Смена кода: данные уже скопированы под новый, старую запись убираем,
+    // иначе прежний код так и остался бы рабочим ключом к ним.
+    if (req.method === 'DELETE') {
+      await redis.del(key)
+      res.status(200).json({ ok: true })
+      return
+    }
+
     res.status(405).json({ error: 'Метод не поддерживается' })
   } catch (e) {
     // текст ошибки виден в логах Vercel — по нему понятно, что с хранилищем

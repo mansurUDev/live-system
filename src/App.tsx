@@ -12,6 +12,7 @@ import { LoginScreen } from './components/LoginScreen'
 import { MoreMenu } from './components/MoreMenu'
 import { Tabs } from './components/Tabs'
 import { Toasts } from './components/Toasts'
+import { ChangeCodeModal } from './components/modals/ChangeCodeModal'
 import { BriefTab } from './components/brief/BriefTab'
 import { WheelTab } from './components/wheel/WheelTab'
 import { TrackerTab } from './components/tracker/TrackerTab'
@@ -47,6 +48,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   const isMobile = useIsMobile()
   const backup = useBackup()
   const [moreOpen, setMoreOpen] = useState(false)
+  const [changingCode, setChangingCode] = useState(false)
 
   const go = (t: Tab) => {
     setTab(t)
@@ -59,7 +61,13 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
       <div style={glowLayer} />
 
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <Header sync={sync} onExport={backup.onExport} onImport={backup.onImport} onLogout={logout} />
+        <Header
+          sync={sync}
+          onExport={backup.onExport}
+          onImport={backup.onImport}
+          onChangeCode={() => setChangingCode(true)}
+          onLogout={logout}
+        />
         <Tabs tab={tab} onChange={go} archiveCount={state.doc.archive.length} />
 
         {tab === 'brief' && <BriefTab onGo={go} />}
@@ -92,10 +100,15 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
             setMoreOpen(false)
             backup.onImport()
           }}
+          onChangeCode={() => {
+            setMoreOpen(false)
+            setChangingCode(true)
+          }}
           onLogout={logout}
         />
       )}
 
+      {changingCode && <ChangeCodeModal onClose={() => setChangingCode(false)} />}
       {backup.elements}
       <Toasts />
     </div>
