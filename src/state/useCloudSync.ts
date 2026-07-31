@@ -6,7 +6,7 @@ import type { Doc } from '../types'
 /** Пауза перед отправкой: серия правок уезжает одним запросом */
 const PUSH_DELAY_MS = 1500
 
-export type SyncState = 'off' | 'idle' | 'saving' | 'error'
+export type SyncState = 'off' | 'denied' | 'idle' | 'saving' | 'error'
 
 /**
  * Синхронизация с облаком.
@@ -64,7 +64,9 @@ export function useCloudSync(code: string, doc: Doc, dispatch: (a: Action) => vo
       if (!alive) return
 
       if (!res.ok) {
-        setStatus('off')
+        // код не подошёл — облако работает, но не для него; молчать об этом
+        // нельзя, иначе человек решит, что синхронизация сломалась
+        setStatus(res.denied ? 'denied' : 'off')
         return
       }
 

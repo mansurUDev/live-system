@@ -17,8 +17,10 @@ export interface CloudDoc {
 export type PullResult =
   | { ok: true; doc: Doc | null; version: number }
   /** облако не настроено — приложение просто продолжает работать локально */
-  | { ok: false; offline: true }
-  | { ok: false; offline: false; error: string }
+  | { ok: false; offline: true; denied?: false }
+  /** код не в списке разрешённых — облако есть, но не для этого кода */
+  | { ok: false; offline: false; denied: true }
+  | { ok: false; offline: false; denied?: false; error: string }
 
 export type PushResult =
   | { ok: true; version: number }
@@ -33,6 +35,9 @@ export async function pull(code: string, now: number = Date.now()): Promise<Pull
   try {
     const res = await fetch('/api/doc', { headers: headers(code) })
     if (res.status === 503 || res.status === 404) return { ok: false, offline: true }
+    // Облако работает, но этот код в списке разрешённых не значится — это
+    // отдельный случай, и путать его с «облака нет» нельзя.
+    if (res.status === 401) return { ok: false, offline: false, denied: true }
     if (!res.ok) return { ok: false, offline: false, error: 'Облако ответило ошибкой' }
 
     const body = (await res.json()) as { doc?: unknown; version?: number }
