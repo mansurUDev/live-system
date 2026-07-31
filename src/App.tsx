@@ -42,7 +42,7 @@ const glowLayer: CSSProperties = {
 }
 
 function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
-  const { state } = useData()
+  const { state, sync } = useData()
   const { logout } = useAuth()
   const isMobile = useIsMobile()
   const backup = useBackup()
@@ -59,7 +59,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
       <div style={glowLayer} />
 
       <div style={{ position: 'relative', zIndex: 1 }}>
-        <Header onExport={backup.onExport} onImport={backup.onImport} onLogout={logout} />
+        <Header sync={sync} onExport={backup.onExport} onImport={backup.onImport} onLogout={logout} />
         <Tabs tab={tab} onChange={go} archiveCount={state.doc.archive.length} />
 
         {tab === 'brief' && <BriefTab onGo={go} />}

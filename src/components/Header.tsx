@@ -1,6 +1,8 @@
 import type { CSSProperties } from 'react'
 import { C } from '../theme'
 import { useIsMobile } from '../hooks/useIsMobile'
+import { SyncBadge } from './SyncBadge'
+import type { SyncState } from '../state/useCloudSync'
 
 // На телефоне шапка ужимается: заголовок мельче и плотнее, подзаголовок уходит,
 // а выгрузка и загрузка переезжают в меню «Ещё» — иначе она съедала треть экрана.
@@ -60,12 +62,13 @@ const ioBtn: CSSProperties = {
 }
 
 interface Props {
+  sync: SyncState
   onExport: () => void
   onImport: () => void
   onLogout: () => void
 }
 
-export function Header({ onExport, onImport, onLogout }: Props) {
+export function Header({ sync, onExport, onImport, onLogout }: Props) {
   const isMobile = useIsMobile()
 
   return (
@@ -79,8 +82,11 @@ export function Header({ onExport, onImport, onLogout }: Props) {
       </div>
       <div style={{ flex: 1 }} />
 
-      {!isMobile && (
+      {isMobile ? (
+        <SyncBadge state={sync} compact />
+      ) : (
         <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', alignItems: 'center' }}>
+          <SyncBadge state={sync} />
           <button className="h-ghost" style={ioBtn} onClick={onExport}>
             Экспорт в JSON
           </button>
