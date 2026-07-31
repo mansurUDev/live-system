@@ -10,18 +10,31 @@
  * прочитать или перезаписать чужой документ.
  */
 
-interface Env {
-  ACCESS_CODES?: string
-  KV_REST_API_URL?: string
-  KV_REST_API_TOKEN?: string
-  UPSTASH_REDIS_REST_URL?: string
-  UPSTASH_REDIS_REST_TOKEN?: string
+const env = process.env as Record<string, string | undefined>
+
+/**
+ * Адрес и ключ хранилища.
+ *
+ * Vercel даёт переменным префикс, который выбирают при подключении базы:
+ * KV_REST_API_URL, UPSTASH_REDIS_REST_URL, STORAGE_REST_API_URL — всё это одно
+ * и то же. Вместо перечисления вариантов ищем любую пару «…REST_API_URL» и
+ * «…REST_API_TOKEN» с общим префиксом, чтобы выбор в диалоге ничего не ломал.
+ */
+function redisCredentials(): { url: string; token: string } {
+  // Ищем ключ, у которого есть парный TOKEN с тем же именем. Сначала среди
+  // REST-адресов: обычный REDIS_URL — это строка подключения по сокету, по ней
+  // из edge-функции не сходить.
+  const keys = Object.keys(env).filter((k) => k.endsWith('URL') && env[k])
+  const ordered = [...keys.filter((k) => k.includes('REST')), ...keys.filter((k) => !k.includes('REST'))]
+
+  for (const key of ordered) {
+    const token = env[key.replace(/URL$/, 'TOKEN')]
+    if (token && env[key]!.startsWith('http')) return { url: env[key]!, token }
+  }
+  return { url: '', token: '' }
 }
 
-const env = process.env as Env
-
-const REDIS_URL = env.KV_REST_API_URL ?? env.UPSTASH_REDIS_REST_URL ?? ''
-const REDIS_TOKEN = env.KV_REST_API_TOKEN ?? env.UPSTASH_REDIS_REST_TOKEN ?? ''
+const { url: REDIS_URL, token: REDIS_TOKEN } = redisCredentials()
 
 /** Разбирает «имя:код,имя:код» в соответствие код → имя пользователя */
 function accessMap(): Map<string, string> {
