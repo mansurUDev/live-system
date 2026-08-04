@@ -31,6 +31,32 @@ export function docKey(code: string): string {
   return `${LS_KEY}:${code}`
 }
 
+function versionKey(code: string): string {
+  return `${LS_KEY}:${code}:cv`
+}
+
+/**
+ * Версия облака, с которой локальные данные точно согласованы — либо оттуда
+ * забрана, либо туда же успешно отправлена. Без этой памяти при каждой
+ * перезагрузке пришлось бы слепо доверять тому, что вернуло облако, даже если
+ * оно ещё не увидело самую свежую правку с этого устройства.
+ */
+export function loadCloudVersion(code: string): number {
+  try {
+    return Number(storage()?.getItem(versionKey(code))) || 0
+  } catch {
+    return 0
+  }
+}
+
+export function saveCloudVersion(code: string, version: number): void {
+  try {
+    storage()?.setItem(versionKey(code), String(version))
+  } catch {
+    /* не критично — в худшем случае следующая загрузка спросит у облака заново */
+  }
+}
+
 export function readCode(): string {
   try {
     return storage()?.getItem(CODE_KEY) ?? ''
@@ -90,6 +116,7 @@ export function saveDoc(code: string, doc: Doc): SaveResult {
 export function dropDoc(code: string): void {
   try {
     storage()?.removeItem(docKey(code))
+    storage()?.removeItem(versionKey(code))
   } catch {
     /* нечего чистить */
   }

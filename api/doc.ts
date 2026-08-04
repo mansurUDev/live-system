@@ -37,6 +37,31 @@ function redisUrl(): string {
 
 const REDIS_URL = redisUrl()
 
+/**
+ * Сравнение-и-запись одним атомарным скриптом.
+ *
+ * GET, потом отдельный SET — это два похода в Redis с сравнением версий между
+ * ними в JS: два одновременных PUT могут оба прочитать одну и ту же
+ * «текущую» версию до того, как кто-то из них запишет свою, и оба получат
+ * в ответ «ok» — хотя реально сохранится только один. Lua-скрипт выполняется
+ * в Redis одним шагом, конкурентный запрос в середину не влезет.
+ */
+const CAS_SCRIPT = `
+local raw = redis.call('GET', KEYS[1])
+local stored = 0
+if raw then
+  local ok, parsed = pcall(cjson.decode, raw)
+  if ok and parsed and parsed.version then stored = tonumber(parsed.version) or 0 end
+end
+local incoming = tonumber(ARGV[2]) or 0
+if incoming < stored then
+  return {stored, 0}
+end
+local newVersion = stored + 1
+redis.call('SET', KEYS[1], cjson.encode({doc = cjson.decode(ARGV[1]), version = newVersion}))
+return {newVersion, 1}
+`
+
 // Клиент переиспользуется между вызовами: соединение переживает тёплый старт,
 // и каждый запрос не платит за рукопожатие заново.
 let clientPromise: Promise<RedisClientType> | null = null
@@ -124,23 +149,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // Версия защищает от затирания: если на другом устройстве уже сохранили
       // свежее, клиент сначала должен забрать чужие правки.
       const incoming = Number(body.version) || 0
-      const raw = await redis.get(key)
-      let stored = 0
-      if (typeof raw === 'string') {
-        try {
-          stored = Number((JSON.parse(raw) as { version?: number }).version) || 0
-        } catch {
-          stored = 0
-        }
-      }
-      if (incoming < stored) {
-        res.status(409).json({ error: 'Есть более свежая версия', version: stored })
+      const [resultVersion, accepted] = (await redis.eval(CAS_SCRIPT, {
+        keys: [key],
+        arguments: [JSON.stringify(body.doc), String(incoming)],
+      })) as [number, number]
+
+      if (!accepted) {
+        res.status(409).json({ error: 'Есть более свежая версия', version: resultVersion })
         return
       }
 
-      const version = stored + 1
-      await redis.set(key, JSON.stringify({ doc: body.doc, version }))
-      res.status(200).json({ ok: true, version })
+      res.status(200).json({ ok: true, version: resultVersion })
       return
     }
 

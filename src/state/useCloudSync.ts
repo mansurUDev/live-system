@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { pull, push } from './cloud'
+import { loadCloudVersion, saveCloudVersion } from './storage'
+import { reconcile } from './syncReconcile'
 import type { Action } from './reducer'
 import type { Doc } from '../types'
 
@@ -37,6 +39,7 @@ export function useCloudSync(code: string, doc: Doc, dispatch: (a: Action) => vo
 
       if (res.ok) {
         version.current = res.version
+        saveCloudVersion(code, res.version)
         setStatus('idle')
         return
       }
@@ -45,6 +48,7 @@ export function useCloudSync(code: string, doc: Doc, dispatch: (a: Action) => vo
         const fresh = await pull(code)
         if (fresh.ok && fresh.doc) {
           version.current = fresh.version
+          saveCloudVersion(code, fresh.version)
           dispatch({ type: 'replaceDoc', doc: fresh.doc, now: Date.now() })
         }
         setStatus('idle')
@@ -58,7 +62,10 @@ export function useCloudSync(code: string, doc: Doc, dispatch: (a: Action) => vo
   useEffect(() => {
     let alive = true
     enabled.current = false
-    version.current = 0
+    // версия, с которой точно согласованы данные этого устройства — известна
+    // только по прошлой сверке с облаком, не всегда «0»
+    const known = loadCloudVersion(code)
+    version.current = known
 
     pull(code).then((res) => {
       if (!alive) return
@@ -70,15 +77,26 @@ export function useCloudSync(code: string, doc: Doc, dispatch: (a: Action) => vo
         return
       }
 
-      version.current = res.version
       enabled.current = true
       setStatus('idle')
 
-      if (res.doc) {
-        dispatch({ type: 'replaceDoc', doc: res.doc, now: Date.now() })
-      } else {
-        // облако пустое — заселяем его тем, что накопилось на устройстве
-        void sendNow(latest.current)
+      const pulledDoc = res.doc
+      const decision = reconcile({ doc: pulledDoc, version: res.version }, known, latest.current)
+      switch (decision.kind) {
+        case 'push-initial':
+          void sendNow(latest.current)
+          break
+        case 'apply-cloud':
+          if (pulledDoc) {
+            version.current = decision.version
+            saveCloudVersion(code, decision.version)
+            dispatch({ type: 'replaceDoc', doc: pulledDoc, now: Date.now() })
+          }
+          break
+        case 'keep-local':
+          version.current = decision.version
+          if (decision.push) void sendNow(latest.current)
+          break
       }
     })
 
