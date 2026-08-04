@@ -178,8 +178,14 @@ export function FinanceTab() {
           <div style={{ fontSize: 14, color: C.textSoft, marginTop: 4 }}>можно тратить в день</div>
           <div style={{ fontSize: 12, color: C.faint, marginTop: 8, lineHeight: 1.5 }}>
             (на руках {num(fin.onHand)} − обязательные {num(calc.mandatory)} − запланированные{' '}
-            {num(calc.upcomingTotal)} − запас {num(fin.cushion)}) ÷ {calc.days}
+            {num(calc.reservedTotal)} − запас {num(fin.cushion)}) ÷ {calc.days}
           </div>
+          {calc.upcomingTotal > calc.reservedTotal && (
+            <div style={{ fontSize: 12, color: C.faint, marginTop: 4, lineHeight: 1.5 }}>
+              Ещё {num(calc.upcomingTotal - calc.reservedTotal)} запланировано позже следующего
+              поступления — их пока не вычитаю, они лягут на будущую зарплату.
+            </div>
+          )}
           {calc.limit > 0 && (
             <div style={{ fontSize: 13, color: C.muted, marginTop: 8 }}>
               при этом темпе хватит до {fmtD(calc.lastDay, now)}
@@ -275,6 +281,7 @@ export function FinanceTab() {
               item={o}
               now={now}
               highlight={i === 0}
+              reserved={new Date(o.date + 'T00:00:00').getTime() < calc.reserveCutoff}
               onDelete={() => dispatch(A.deleteOneTime(o.id))}
             />
           ))}
@@ -322,12 +329,15 @@ function ExpenseRow({
   now,
   highlight,
   past,
+  reserved,
   onDelete,
 }: {
   item: OneTimeExpense
   now: number
   highlight?: boolean
   past?: boolean
+  /** попадает ли расход в резерв текущего дневного лимита */
+  reserved?: boolean
   onDelete: () => void
 }) {
   return (
@@ -347,7 +357,7 @@ function ExpenseRow({
         <div style={{ fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>{item.name}</div>
         <div style={{ fontSize: 12.5, color: C.faint, marginTop: 1 }}>
           {item.date ? fmtD(item.date + 'T00:00:00', now) : 'без даты'}
-          {past ? ' · прошло' : ''}
+          {past ? ' · прошло' : !reserved ? ' · после зарплаты, лимит не трогает' : ''}
         </div>
       </div>
       <span style={{ fontFamily: MONO, fontSize: 15, color: highlight ? '#fbbf24' : C.textSoft }}>

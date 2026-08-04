@@ -12,8 +12,12 @@ export interface FinanceCalc {
   dateOk: boolean
   /** сумма обязательных расходов месяца */
   mandatory: number
-  /** сумма предстоящих разовых расходов */
+  /** сумма ВСЕХ предстоящих разовых расходов — для отображения списком */
   upcomingTotal: number
+  /** сумма тех из них, что реально вычтены из сегодняшнего лимита */
+  reservedTotal: number
+  /** момент, раньше которого разовый расход резервируется из текущих денег */
+  reserveCutoff: number
   upcoming: OneTimeExpense[]
   past: OneTimeExpense[]
   /** свободные деньги после вычета обязательств и подушки */
@@ -49,6 +53,7 @@ export function financeCalc(fin: Finance, now: number = Date.now()): FinanceCalc
     }
   }
 
+  const reserveCutoff = today + days * DAY_MS
   const mandatory = fin.mandatory.reduce((a, x) => a + x.amount, 0)
 
   const upcoming = fin.oneTime
@@ -59,7 +64,16 @@ export function financeCalc(fin: Finance, now: number = Date.now()): FinanceCalc
     .sort((a, b) => (a.date < b.date ? 1 : -1))
 
   const upcomingTotal = upcoming.reduce((a, x) => a + x.amount, 0)
-  const free = fin.onHand - mandatory - upcomingTotal - fin.cushion
+
+  // Из сегодняшних денег резервируем только то, что нужно закрыть до следующего
+  // поступления — более поздний расход покроет будущая зарплата, а не текущий
+  // остаток. Без этого разбиения далёкий крупный платёж (день рождения через
+  // полгода) обнулял бы дневной лимит на месяцы вперёд.
+  const reservedTotal = upcoming
+    .filter((o) => new Date(o.date + 'T00:00:00').getTime() < reserveCutoff)
+    .reduce((a, x) => a + x.amount, 0)
+
+  const free = fin.onHand - mandatory - reservedTotal - fin.cushion
   const limit = Math.max(0, Math.floor(free / days))
 
   const spendable = Math.max(0, fin.onHand - fin.cushion)
@@ -75,6 +89,8 @@ export function financeCalc(fin: Finance, now: number = Date.now()): FinanceCalc
     dateOk,
     mandatory,
     upcomingTotal,
+    reservedTotal,
+    reserveCutoff,
     upcoming,
     past,
     free,

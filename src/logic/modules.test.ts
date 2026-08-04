@@ -141,6 +141,31 @@ describe('финансы — дневной лимит', () => {
     expect(c.limit).toBe(60)
   })
 
+  it('не резервирует расход, который наступит позже следующей зарплаты', () => {
+    // без этого разбиения день рождения через полгода обнулил бы лимит уже сегодня
+    const c = financeCalc(
+      fin({
+        onHand: 1000,
+        nextIncome: '2026-03-20',
+        oneTime: [{ id: 'o1', name: 'Подарок брату', amount: 800, date: '2026-09-27' }],
+      }),
+      NOW,
+    )
+    expect(c.reservedTotal).toBe(0)
+    expect(c.upcomingTotal).toBe(800)
+    expect(c.limit).toBeGreaterThan(0)
+    // но в списке он всё равно виден — просто не в счёт сегодняшнего лимита
+    expect(c.upcoming[0]!.name).toBe('Подарок брату')
+  })
+
+  it('резервирует расход ровно на границе следующей зарплаты', () => {
+    const c = financeCalc(
+      fin({ onHand: 1000, nextIncome: '2026-03-20', oneTime: [{ id: 'o1', name: 'X', amount: 100, date: '2026-03-19' }] }),
+      NOW,
+    )
+    expect(c.reservedTotal).toBe(100)
+  })
+
   it('не уходит в минус при перерасходе', () => {
     const c = financeCalc(fin({ onHand: 50, cushion: 200, nextIncome: '2026-03-25' }), NOW)
     expect(c.free).toBeLessThan(0)
