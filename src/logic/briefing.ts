@@ -1,5 +1,6 @@
 import { financeCalc, type FinanceCalc } from './finance'
 import { isDoneToday, streak } from './habits'
+import { daysOverdue, isOverdue } from './reminders'
 import type { Doc, Habit } from '../types'
 
 export type Urgency = 'calm' | 'warn' | 'hot'
@@ -59,6 +60,22 @@ export function pickPriority(doc: Doc, now: number = Date.now()): Priority {
       tab: 'habits',
       title: `Серия по «${risky.h.name}» — ${risky.s} дн.`,
       sub: 'не разорви сегодня — отметь до полуночи',
+    })
+  }
+
+  const overdueReminder = doc.reminders
+    .filter((r) => isOverdue(r, now))
+    .sort((a, b) => daysOverdue(b, now) - daysOverdue(a, now))[0]
+
+  if (overdueReminder) {
+    const by = daysOverdue(overdueReminder, now)
+    cands.push({
+      score: by >= 14 ? 2.5 : 1.5,
+      urgency: by >= 14 ? 'hot' : 'warn',
+      tag: 'напоминание',
+      tab: 'habits',
+      title: `«${overdueReminder.name}» просрочено на ${by} дн.`,
+      sub: 'загляни и отметь выполненным, когда обновишь',
     })
   }
 

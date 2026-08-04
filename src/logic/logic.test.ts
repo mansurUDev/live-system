@@ -239,7 +239,7 @@ describe('analytics', () => {
 describe('forecast', () => {
   it('считает темп и дату достижения', () => {
     const goal = numberGoal(150, 200, {
-      history: [{ d: new Date(NOW - 5 * DAY_MS).toISOString(), p: 50, label: 'старт', v: 100 }],
+      history: [{ id: 'h1', d: new Date(NOW - 5 * DAY_MS).toISOString(), p: 50, label: 'старт', v: 100 }],
     })
     const f = numberForecast(goal, NOW)
     expect(f.kind).toBe('ok')
@@ -254,14 +254,14 @@ describe('forecast', () => {
     expect(numberForecast(numberGoal(50, 200, { history: [] }), NOW).kind).toBe('no-data')
 
     const stalled = numberGoal(100, 200, {
-      history: [{ d: new Date(NOW - 5 * DAY_MS).toISOString(), p: 50, label: 'старт', v: 100 }],
+      history: [{ id: 'h1', d: new Date(NOW - 5 * DAY_MS).toISOString(), p: 50, label: 'старт', v: 100 }],
     })
     expect(numberForecast(stalled, NOW).kind).toBe('negative')
   })
 
   it('не делит на ноль дней, когда вся история за сегодня', () => {
     const goal = numberGoal(150, 200, {
-      history: [{ d: new Date(NOW).toISOString(), p: 50, label: 'старт', v: 100 }],
+      history: [{ id: 'h1', d: new Date(NOW).toISOString(), p: 50, label: 'старт', v: 100 }],
     })
     const f = numberForecast(goal, NOW)
     expect(f.kind).toBe('ok')
@@ -270,7 +270,7 @@ describe('forecast', () => {
 
   it('показывает темп цели по этапам', () => {
     const goal = stepsGoal(3, 10, {
-      history: [{ d: new Date(NOW - DAY_MS).toISOString(), p: 30, label: '✓ Подвеска' }],
+      history: [{ id: 'h1', d: new Date(NOW - DAY_MS).toISOString(), p: 30, label: '✓ Подвеска' }],
     })
     const f = stepsForecast(goal, NOW)
     expect(f.kind).toBe('pace')

@@ -1,4 +1,7 @@
 import {
+  CURRENCY_CODES,
+  DEFAULT_CURRENCY,
+  DEFAULT_QUICK_AMOUNTS,
   HEX_RE,
   MAX_ACT_NAME,
   MAX_ACTS,
@@ -6,6 +9,9 @@ import {
   MAX_ENTRIES,
   MAX_HISTORY,
   MAX_NAME,
+  MAX_QUICK_AMOUNT_VALUE,
+  MAX_QUICK_AMOUNTS,
+  MAX_RATE,
   MAX_SECTORS,
   MAX_SNAPSHOT_DAYS,
   MAX_STEP_TEXT,
@@ -15,13 +21,14 @@ import {
   CATS,
 } from '../constants'
 import { defaultDoc } from './defaults'
-import { normFinance, normHabits, normLibrary } from './normalizeModules'
+import { normFinance, normHabits, normLibrary, normReminders } from './normalizeModules'
 import { clamp } from './pct'
 import { DOC_VERSION } from '../types'
 import type {
   Activity,
   ArchiveRec,
   Category,
+  CurrencyCode,
   Doc,
   HistoryRec,
   Sector,
@@ -86,10 +93,11 @@ function normSteps(x: unknown): Step[] {
 
 function normHistory(x: unknown, fallbackIso: string): HistoryRec[] {
   if (!Array.isArray(x)) return []
-  return x.slice(0, MAX_HISTORY).map((raw) => {
+  return x.slice(0, MAX_HISTORY).map((raw, j) => {
     const h = obj(raw)
     const v = Number(h.v)
     const rec: HistoryRec = {
+      id: str(h.id, 60, 'hr' + j),
       d: iso(h.d, fallbackIso),
       p: int(h.p, 0, 0, 100),
       label: str(h.label, 120),
@@ -97,6 +105,22 @@ function normHistory(x: unknown, fallbackIso: string): HistoryRec[] {
     if (typeof h.v === 'number' && Number.isFinite(v)) rec.v = v
     return rec
   })
+}
+
+/** Суммы быстрых кнопок +N: мусор и неположительные отбрасываются, пусто → дефолт */
+export function normQuickAmounts(x: unknown): number[] {
+  if (!Array.isArray(x)) return DEFAULT_QUICK_AMOUNTS
+  const nums = x
+    .map((v) => Number(v))
+    .filter((n) => Number.isFinite(n) && n > 0)
+    .map((n) => clamp(n, 1, MAX_QUICK_AMOUNT_VALUE))
+    .slice(0, MAX_QUICK_AMOUNTS)
+  return nums.length ? nums : DEFAULT_QUICK_AMOUNTS
+}
+
+/** То же самое, но из текстового поля формы («10, 50, 100») — та же нормализация суммы, что и при сохранении */
+export function parseQuickAmounts(text: string): number[] {
+  return normQuickAmounts(text.split(',').map((s) => s.trim()))
 }
 
 function normSectors(x: unknown, nowIso: string): Sector[] {
@@ -113,6 +137,8 @@ function normSectors(x: unknown, nowIso: string): Sector[] {
       current: dec(s.current, 0, 0, 1e12),
       target: dec(s.target, 0, 0, 1e12),
       unit: str(s.unit, MAX_UNIT),
+      isMoney: !!s.isMoney,
+      quickAmounts: normQuickAmounts(s.quickAmounts),
       steps: normSteps(s.steps),
       history: normHistory(s.history, nowIso),
       createdAt: iso(s.createdAt, nowIso),
@@ -222,6 +248,23 @@ function normSnapshots(x: unknown, nowIso: string): Snapshots {
   return out
 }
 
+function normCurrency(x: unknown): CurrencyCode {
+  return typeof x === 'string' && (CURRENCY_CODES as string[]).includes(x) ? (x as CurrencyCode) : DEFAULT_CURRENCY
+}
+
+function normRate(x: unknown): number {
+  const n = Number(x)
+  return Number.isFinite(n) && n > 0 ? clamp(n, 1e-9, MAX_RATE) : 1
+}
+
+/** Курс каждой валюты к внутренней базе — вводится вручную, битые/неположительные значения нейтрализуются к 1 */
+function normRates(x: unknown): Record<CurrencyCode, number> {
+  const src = obj(x)
+  const out = {} as Record<CurrencyCode, number>
+  for (const code of CURRENCY_CODES) out[code] = normRate(src[code])
+  return out
+}
+
 /**
  * Приведение произвольных данных к валидному документу текущей версии.
  *
@@ -241,12 +284,15 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
   const nowIso = new Date(now).toISOString()
   return {
     v: DOC_VERSION,
+    currency: normCurrency(d.currency),
+    rates: normRates(d.rates),
     sectors: normSectors(d.sectors, nowIso),
     acts: normActs(d.acts, defaultDoc(now).acts),
     entries: normEntries(d.entries),
     archive: normArchive(d.archive, nowIso),
     snapshots: normSnapshots(d.snapshots, nowIso),
     habits: normHabits(d.habits, nowIso),
+    reminders: normReminders(d.reminders, nowIso),
     fin: normFinance(d.fin, now),
     lib: normLibrary(d.lib, nowIso),
   }

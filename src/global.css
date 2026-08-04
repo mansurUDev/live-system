@@ -115,6 +115,38 @@ textarea {
     opacity: 0;
   }
 }
+/* мягкое дыхание превью-колеса на лендинге */
+@keyframes heroBreathe {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  50% {
+    transform: scale(1.015);
+    filter: brightness(1.06);
+  }
+}
+/* карточки модулей на лендинге проявляются по мере скролла */
+@keyframes cardRise {
+  0% {
+    transform: translateY(18px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+/* мягкая подача экрана вместо резкой замены — лендинг ↔ логин */
+@keyframes fadeSwap {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
 
 /* Ховеры мока: в дизайне они заданы атрибутом style-hover, здесь — классами. */
 .h-ghost:hover {

@@ -12,13 +12,23 @@ import {
 import { financeCalc, goalHistory, goalProgress, rollMonth } from './finance'
 import { bookProgress, courseProgress, fmtAudio, parseAudio } from './library'
 import { nextSteps, pickPriority } from './briefing'
+import { money } from './currency'
 import { normalize } from './normalize'
 import { emptyFinance, emptyLibrary, normHabits } from './normalizeModules'
 import { defaultDoc } from './defaults'
+import { daysOverdue, daysSince, isOverdue, markDone } from './reminders'
 import { dayKeyAgo, localDateKey } from './time'
-import { DAY_MS } from '../constants'
+import {
+  CURRENCY_CODES,
+  DEFAULT_CURRENCY,
+  DEFAULT_QUICK_AMOUNTS,
+  DEFAULT_REMINDER_INTERVAL_DAYS,
+  MAX_QUICK_AMOUNTS,
+  MAX_REMINDER_INTERVAL_DAYS,
+  DAY_MS,
+} from '../constants'
 import { DOC_VERSION } from '../types'
-import type { Book, Course, Doc, Finance, Habit } from '../types'
+import type { Book, Course, Doc, Finance, Habit, Reminder } from '../types'
 
 const NOW = new Date('2026-03-15T14:00:00').getTime()
 
@@ -39,6 +49,17 @@ function habit(patch: Partial<Habit> = {}): Habit {
 
 function fin(patch: Partial<Finance> = {}): Finance {
   return { ...emptyFinance(NOW), ...patch }
+}
+
+function reminder(patch: Partial<Reminder> = {}): Reminder {
+  return {
+    id: 'rm1',
+    name: 'Обновить LinkedIn',
+    intervalDays: 30,
+    lastDone: null,
+    createdAt: new Date(NOW).toISOString(),
+    ...patch,
+  }
 }
 
 describe('привычки — серия «делаю»', () => {
@@ -305,6 +326,19 @@ describe('брифинг', () => {
     expect(pickPriority(doc({ habits: [h] }), NOW).tag).toBe('всё ровно')
   })
 
+  it('поднимает наверх просроченное напоминание', () => {
+    const r = reminder({ intervalDays: 30, createdAt: new Date(NOW - 40 * DAY_MS).toISOString() })
+    const p = pickPriority(doc({ reminders: [r] }), NOW)
+    expect(p.tab).toBe('habits')
+    expect(p.tag).toBe('напоминание')
+    expect(p.title).toContain('LinkedIn')
+  })
+
+  it('напоминание, до которого ещё не дошёл срок, не мешает спокойному дню', () => {
+    const r = reminder({ intervalDays: 30, createdAt: new Date(NOW - 5 * DAY_MS).toISOString() })
+    expect(pickPriority(doc({ reminders: [r] }), NOW).tag).toBe('всё ровно')
+  })
+
   it('когда всё спокойно — показывает сводку, а не тревогу', () => {
     const p = pickPriority(doc({ fin: fin({ onHand: 3000 }) }), NOW)
     expect(p.urgency).toBe('calm')
@@ -326,6 +360,8 @@ describe('брифинг', () => {
           current: 0,
           target: 0,
           unit: '',
+          isMoney: false,
+          quickAmounts: [10, 50],
           steps: [
             { id: 't1', text: 'a', done: true },
             { id: 't2', text: 'b', done: false },
@@ -397,5 +433,141 @@ describe('схема — переход со старой версии', () => {
     )
     expect(normalize(once, NOW)).toEqual(once)
     expect(normalize(JSON.parse(JSON.stringify(once)), NOW)).toEqual(once)
+  })
+
+  it('запись истории без id получает позиционный фолбэк, существующий id не трогается', () => {
+    const d = normalize(
+      {
+        sectors: [
+          {
+            id: 's1',
+            kind: 'number',
+            history: [
+              { d: new Date(NOW).toISOString(), p: 10, label: 'без id' },
+              { id: 'keep-me', d: new Date(NOW).toISOString(), p: 20, label: 'с id' },
+            ],
+          },
+        ],
+      },
+      NOW,
+    )
+    const h = d.sectors[0]!.history
+    expect(h[0]!.id).toBe('hr0')
+    expect(h[1]!.id).toBe('keep-me')
+    expect(normalize(d, NOW).sectors[0]!.history).toEqual(h)
+  })
+})
+
+describe('персональные быстрые суммы', () => {
+  it('пусто или мусор → дефолт', () => {
+    expect(normalize({ sectors: [{ id: 's1', kind: 'number' }] }, NOW).sectors[0]!.quickAmounts).toEqual(
+      DEFAULT_QUICK_AMOUNTS,
+    )
+    expect(
+      normalize({ sectors: [{ id: 's1', kind: 'number', quickAmounts: ['x', -5, 0] }] }, NOW).sectors[0]!
+        .quickAmounts,
+    ).toEqual(DEFAULT_QUICK_AMOUNTS)
+  })
+
+  it('фильтрует мусор, клампит и обрезает до максимума', () => {
+    const d = normalize(
+      { sectors: [{ id: 's1', kind: 'number', quickAmounts: ['x', -5, 0, 10, 1e12, 1, 2, 3, 4, 5] }] },
+      NOW,
+    )
+    const amounts = d.sectors[0]!.quickAmounts
+    expect(amounts.length).toBeLessThanOrEqual(MAX_QUICK_AMOUNTS)
+    expect(amounts).toContain(10)
+    expect(amounts.every((n) => n > 0)).toBe(true)
+  })
+})
+
+describe('мультивалютность', () => {
+  it('документ без currency/rates получает дефолты по всем кодам', () => {
+    const d = normalize({ sectors: [] }, NOW)
+    expect(d.currency).toBe(DEFAULT_CURRENCY)
+    for (const code of CURRENCY_CODES) expect(d.rates[code]).toBe(1)
+  })
+
+  it('невалидный код валюты откатывается на дефолт', () => {
+    expect(normalize({ sectors: [], currency: 'XXX' }, NOW).currency).toBe(DEFAULT_CURRENCY)
+  })
+
+  it('курс — только положительное число, иначе нейтральный 1', () => {
+    const d = normalize({ sectors: [], rates: { USD: 12500, EUR: -1, RUB: 'мусор' } }, NOW)
+    expect(d.rates.USD).toBe(12500)
+    expect(d.rates.EUR).toBe(1)
+    expect(d.rates.RUB).toBe(1)
+  })
+
+  it('money() ставит символ доллара/евро перед числом, сум/рубль — после', () => {
+    const n1000 = (1000).toLocaleString('ru-RU')
+    expect(money(1000, 'USD')).toBe('$' + n1000)
+    expect(money(1000, 'EUR')).toBe('€' + n1000)
+    expect(money(1000, 'UZS')).toBe(n1000 + ' сум')
+    expect(money(1000, 'RUB')).toBe(n1000 + ' ₽')
+    expect(money(0, 'USD')).toBe('$0')
+    expect(money(12.5, 'USD')).toBe('$' + (12.5).toLocaleString('ru-RU'))
+  })
+})
+
+describe('напоминания', () => {
+  it('дни считает от последней отметки, а не всегда от создания', () => {
+    const r = reminder({
+      createdAt: new Date(NOW - 100 * DAY_MS).toISOString(),
+      lastDone: new Date(NOW - 5 * DAY_MS).toISOString(),
+    })
+    expect(daysSince(r, NOW)).toBe(5)
+  })
+
+  it('ни разу не отмеченное считает от createdAt', () => {
+    const r = reminder({ lastDone: null, createdAt: new Date(NOW - 12 * DAY_MS).toISOString() })
+    expect(daysSince(r, NOW)).toBe(12)
+  })
+
+  it('просрочено, когда дней с отметки больше интервала', () => {
+    const r = reminder({ intervalDays: 30, createdAt: new Date(NOW - 31 * DAY_MS).toISOString() })
+    expect(isOverdue(r, NOW)).toBe(true)
+    expect(daysOverdue(r, NOW)).toBe(1)
+  })
+
+  it('не просрочено, пока срок не подошёл', () => {
+    const r = reminder({ intervalDays: 30, createdAt: new Date(NOW - 10 * DAY_MS).toISOString() })
+    expect(isOverdue(r, NOW)).toBe(false)
+    expect(daysOverdue(r, NOW)).toBe(-20)
+  })
+
+  it('markDone фиксирует момент отметки и обнуляет просрочку', () => {
+    const r = reminder({ intervalDays: 30, createdAt: new Date(NOW - 40 * DAY_MS).toISOString() })
+    expect(isOverdue(r, NOW)).toBe(true)
+    const done = markDone(r, NOW)
+    expect(done.lastDone).toBe(new Date(NOW).toISOString())
+    expect(isOverdue(done, NOW)).toBe(false)
+  })
+
+  it('normalize: без id получает позиционный фолбэк, интервал клампится, пусто → []', () => {
+    const d = normalize(
+      {
+        sectors: [],
+        reminders: [
+          { name: 'Обновить Upwork', intervalDays: 999999 },
+          { id: 'keep', name: 'Обновить LinkedIn', intervalDays: 'мусор' },
+        ],
+      },
+      NOW,
+    )
+    expect(d.reminders[0]!.id).toBe('rm0')
+    expect(d.reminders[0]!.intervalDays).toBe(MAX_REMINDER_INTERVAL_DAYS)
+    expect(d.reminders[1]!.id).toBe('keep')
+    expect(d.reminders[1]!.intervalDays).toBe(DEFAULT_REMINDER_INTERVAL_DAYS)
+    expect(normalize({ sectors: [] }, NOW).reminders).toEqual([])
+  })
+
+  it('normalize: lastDone — валидная дата, null или мусор → null', () => {
+    const d = normalize(
+      { sectors: [], reminders: [{ id: 'a', name: 'x', lastDone: 'не дата' }, { id: 'b', name: 'y', lastDone: null }] },
+      NOW,
+    )
+    expect(d.reminders[0]!.lastDone).toBeNull()
+    expect(d.reminders[1]!.lastDone).toBeNull()
   })
 })

@@ -1,8 +1,9 @@
+import { money } from '../../logic/currency'
 import { numberForecast, stepsForecast } from '../../logic/forecast'
 import { pct } from '../../logic/pct'
 import { fmtD, num, plural } from '../../logic/time'
 import { C, chipDot, MONO, plainCard, sectionLabel } from '../../theme'
-import type { Sector } from '../../types'
+import type { CurrencyCode, Sector } from '../../types'
 
 interface Props {
   sectors: Sector[]
@@ -21,8 +22,7 @@ function forecastText(s: Sector, now: number): string {
       case 'ok':
         return (
           'при +' +
-          num(f.perDay) +
-          (s.unit ? ' ' + s.unit : '') +
+          (s.isMoney ? money(f.perDay, s.unit as CurrencyCode) : num(f.perDay) + (s.unit ? ' ' + s.unit : '')) +
           ' в день — через ' +
           f.days +
           ' ' +
@@ -54,7 +54,9 @@ function forecastText(s: Sector, now: number): string {
 function progressText(s: Sector): string {
   const p = pct(s)
   if (s.kind === 'number') {
-    return `${num(s.current)} / ${num(s.target)}${s.unit ? ' ' + s.unit : ''} · ${p}%`
+    return s.isMoney
+      ? `${money(s.current, s.unit as CurrencyCode)} / ${money(s.target, s.unit as CurrencyCode)} · ${p}%`
+      : `${num(s.current)} / ${num(s.target)}${s.unit ? ' ' + s.unit : ''} · ${p}%`
   }
   const done = s.steps.filter((t) => t.done).length
   return `${done} / ${s.steps.length} · ${p}%`

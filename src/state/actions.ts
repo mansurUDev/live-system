@@ -1,5 +1,6 @@
 import { uid } from '../logic/uid'
 import type { Action } from './reducer'
+import { DEFAULT_REMINDER_INTERVAL_DAYS } from '../constants'
 import type {
   Activity,
   Book,
@@ -11,6 +12,7 @@ import type {
   HabitType,
   MandatoryExpense,
   OneTimeExpense,
+  Reminder,
   Sector,
   TimeEntry,
 } from '../types'
@@ -54,12 +56,29 @@ export const A = {
     cat,
     now: Date.now(),
   }),
+  deleteHistoryEntry: (id: string, historyId: string): Action => ({
+    type: 'deleteHistoryEntry',
+    id,
+    historyId,
+    now: Date.now(),
+  }),
+  setQuickAmounts: (id: string, amounts: number[]): Action => ({
+    type: 'setQuickAmounts',
+    id,
+    amounts,
+    now: Date.now(),
+  }),
   addSector: (sector: Sector): Action => ({ type: 'addSector', sector, now: Date.now() }),
   removeSector: (id: string): Action => ({ type: 'removeSector', id, now: Date.now() }),
   archiveSector: (id: string): Action => ({
     type: 'archiveSector',
     id,
     archiveId: uid('ar'),
+    now: Date.now(),
+  }),
+  patchDoc: (patch: Partial<Pick<Doc, 'currency' | 'rates'>>): Action => ({
+    type: 'patchDoc',
+    patch,
     now: Date.now(),
   }),
   dismissCelebration: (): Action => ({ type: 'dismissCelebration' }),
@@ -94,6 +113,17 @@ export const A = {
     record: 0,
     start: new Date().toISOString(),
     best: 0,
+    createdAt: new Date().toISOString(),
+  }),
+
+  saveReminder: (reminder: Reminder): Action => ({ type: 'saveReminder', reminder, now: Date.now() }),
+  deleteReminder: (id: string): Action => ({ type: 'deleteReminder', id, now: Date.now() }),
+  markReminderDone: (id: string): Action => ({ type: 'markReminderDone', id, now: Date.now() }),
+  newReminder: (name: string, intervalDays: number = DEFAULT_REMINDER_INTERVAL_DAYS): Reminder => ({
+    id: uid('rm'),
+    name,
+    intervalDays,
+    lastDone: null,
     createdAt: new Date().toISOString(),
   }),
 

@@ -28,6 +28,7 @@ export function LoginScreen() {
         background: 'rgba(5,9,18,.9)',
         backdropFilter: 'blur(10px)',
         WebkitBackdropFilter: 'blur(10px)',
+        animation: 'fadeSwap .18s ease',
       }}
     >
       <div

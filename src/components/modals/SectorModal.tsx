@@ -1,10 +1,11 @@
 import { useState } from 'react'
 import { Modal } from './Modal'
-import { CAT_KEYS, CATS, MAX_STEPS, MAX_STEP_TEXT, MAX_NAME, MAX_UNIT, PAL } from '../../constants'
+import { CAT_KEYS, CATS, CURRENCIES, MAX_STEPS, MAX_STEP_TEXT, MAX_NAME, MAX_UNIT, PAL } from '../../constants'
 import { makeSector } from '../../logic/defaults'
+import { parseQuickAmounts } from '../../logic/normalize'
 import { uid } from '../../logic/uid'
 import { btnAccent, btnGhost, C, chipBtn, errText, fieldLabel, input, swatch } from '../../theme'
-import type { Category, Sector, SectorKind } from '../../types'
+import type { Category, CurrencyCode, Sector, SectorKind } from '../../types'
 
 const TYPES: { key: SectorKind; label: string; hint: string }[] = [
   { key: 'sphere', label: 'Сфера · оценка 1–10', hint: 'Здоровье, отношения, отдых…' },
@@ -31,6 +32,9 @@ export function SectorModal({ usedColors, onCancel, onCreate }: Props) {
   )
   const [target, setTarget] = useState('')
   const [unit, setUnit] = useState('')
+  const [isMoney, setIsMoney] = useState(false)
+  const [currency, setCurrency] = useState<CurrencyCode>('UZS')
+  const [quickText, setQuickText] = useState('')
   const [stepsText, setStepsText] = useState('')
   const [cat, setCat] = useState<Category | null>(null)
   const [error, setError] = useState('')
@@ -51,7 +55,17 @@ export function SectorModal({ usedColors, onCancel, onCreate }: Props) {
       const value = parseFloat(target.replace(',', '.'))
       if (!(value > 0)) return setError('Укажи целевое значение — число больше нуля')
       onCreate(
-        makeSector({ ...seed, target: value, current: 0, unit: unit.trim().slice(0, MAX_UNIT) }, Date.now()),
+        makeSector(
+          {
+            ...seed,
+            target: value,
+            current: 0,
+            unit: isMoney ? currency : unit.trim().slice(0, MAX_UNIT),
+            isMoney,
+            quickAmounts: parseQuickAmounts(quickText),
+          },
+          Date.now(),
+        ),
       )
       return
     }
@@ -148,33 +162,112 @@ export function SectorModal({ usedColors, onCancel, onCreate }: Props) {
       </div>
 
       {kind === 'number' && (
-        <div style={{ display: 'flex', gap: 10, marginTop: 13 }}>
-          <div style={{ flex: 1 }}>
-            <div style={fieldLabel}>Целевое значение</div>
-            <input
-              value={target}
-              onChange={(e) => {
-                setTarget(e.target.value)
-                setError('')
+        <>
+          <div style={{ display: 'flex', gap: 10, marginTop: 13 }}>
+            <div style={{ flex: 1 }}>
+              <div style={fieldLabel}>Целевое значение</div>
+              <input
+                value={target}
+                onChange={(e) => {
+                  setTarget(e.target.value)
+                  setError('')
+                }}
+                type="text"
+                inputMode="decimal"
+                placeholder="1000"
+                style={input}
+              />
+            </div>
+            {!isMoney && (
+              <div style={{ width: 130 }}>
+                <div style={fieldLabel}>Единица</div>
+                <input
+                  value={unit}
+                  onChange={(e) => setUnit(e.target.value)}
+                  type="text"
+                  maxLength={MAX_UNIT}
+                  placeholder="км, книг, раз"
+                  style={input}
+                />
+              </div>
+            )}
+          </div>
+
+          <div style={{ marginTop: 13 }}>
+            <button
+              onClick={() => setIsMoney((v) => !v)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontFamily: 'inherit',
+                fontSize: 13.5,
+                color: isMoney ? C.textBright : C.muted,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: 0,
               }}
+            >
+              <span
+                style={{
+                  width: 34,
+                  height: 19,
+                  borderRadius: 10,
+                  background: isMoney ? 'rgba(94,234,255,.5)' : 'rgba(148,163,184,.25)',
+                  position: 'relative',
+                  transition: 'background .15s',
+                  flex: 'none',
+                }}
+              >
+                <span
+                  style={{
+                    position: 'absolute',
+                    top: 2,
+                    left: isMoney ? 17 : 2,
+                    width: 15,
+                    height: 15,
+                    borderRadius: '50%',
+                    background: '#e2e8f0',
+                    transition: 'left .15s',
+                  }}
+                />
+              </span>
+              Это деньги?
+            </button>
+          </div>
+
+          {isMoney && (
+            <div style={{ marginTop: 10 }}>
+              <div style={fieldLabel}>Валюта</div>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 6 }}>
+                {CURRENCIES.map((c) => (
+                  <button
+                    key={c.code}
+                    style={chipBtn(currency === c.code, '#fbbf24')}
+                    onClick={() => setCurrency(c.code)}
+                  >
+                    {c.symbol}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={{ marginTop: 13 }}>
+            <div style={fieldLabel}>
+              Кнопки быстрого добавления <span style={{ color: C.faint }}>— через запятую</span>
+            </div>
+            <input
+              value={quickText}
+              onChange={(e) => setQuickText(e.target.value)}
               type="text"
               inputMode="decimal"
-              placeholder="1000"
+              placeholder="10, 50"
               style={input}
             />
           </div>
-          <div style={{ width: 130 }}>
-            <div style={fieldLabel}>Единица</div>
-            <input
-              value={unit}
-              onChange={(e) => setUnit(e.target.value)}
-              type="text"
-              maxLength={MAX_UNIT}
-              placeholder="$, км, книг"
-              style={input}
-            />
-          </div>
-        </div>
+        </>
       )}
 
       {kind === 'steps' && (

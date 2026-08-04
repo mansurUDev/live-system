@@ -14,8 +14,13 @@ import {
   MAX_NOTES,
   MAX_ONETIME,
   MAX_QUOTE,
+  MAX_REMINDER_INTERVAL_DAYS,
+  MAX_REMINDER_NAME,
+  MAX_REMINDERS,
   MAX_SECTIONS,
   MAX_TITLE,
+  MIN_REMINDER_INTERVAL_DAYS,
+  DEFAULT_REMINDER_INTERVAL_DAYS,
   PAL,
 } from '../constants'
 import { monthKeyOf } from './time'
@@ -29,6 +34,7 @@ import type {
   LibNote,
   MandatoryExpense,
   OneTimeExpense,
+  Reminder,
 } from '../types'
 
 type Unknown = Record<string, unknown>
@@ -96,6 +102,32 @@ export function normHabits(x: unknown, nowIso: string): Habit[] {
       start: iso(h.start, nowIso),
       best: count(h.best),
       createdAt: iso(h.createdAt, nowIso),
+    }
+  })
+}
+
+function intervalDays(x: unknown): number {
+  const n = Number(x)
+  if (!Number.isFinite(n)) return DEFAULT_REMINDER_INTERVAL_DAYS
+  return Math.max(MIN_REMINDER_INTERVAL_DAYS, Math.min(Math.round(n), MAX_REMINDER_INTERVAL_DAYS))
+}
+
+function isoOrNull(x: unknown): string | null {
+  if (typeof x !== 'string') return null
+  const t = new Date(x).getTime()
+  return Number.isFinite(t) ? new Date(t).toISOString() : null
+}
+
+export function normReminders(x: unknown, nowIso: string): Reminder[] {
+  if (!Array.isArray(x)) return []
+  return x.slice(0, MAX_REMINDERS).map((raw, i) => {
+    const r = obj(raw)
+    return {
+      id: str(r.id, 60, 'rm' + i),
+      name: str(r.name, MAX_REMINDER_NAME, 'Напоминание ' + (i + 1)),
+      intervalDays: intervalDays(r.intervalDays),
+      lastDone: isoOrNull(r.lastDone),
+      createdAt: iso(r.createdAt, nowIso),
     }
   })
 }

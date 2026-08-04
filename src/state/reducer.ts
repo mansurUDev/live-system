@@ -9,19 +9,24 @@ import {
   MAX_MANDATORY,
   MAX_NOTES,
   MAX_ONETIME,
+  MAX_REMINDERS,
 } from '../constants'
+import { money } from '../logic/currency'
 import { rollMonth } from '../logic/finance'
 import { resetQuit, toggleToday } from '../logic/habits'
 import { kindLabel, pct, summary } from '../logic/pct'
+import { markDone } from '../logic/reminders'
 import { runningEntry } from '../logic/segs'
 import { withTodaySnapshot } from '../logic/snapshot'
 import { num } from '../logic/time'
+import { uid } from '../logic/uid'
 import type {
   Activity,
   ArchiveRec,
   Book,
   Category,
   Course,
+  CurrencyCode,
   Doc,
   Finance,
   Habit,
@@ -30,6 +35,7 @@ import type {
   LibNote,
   MandatoryExpense,
   OneTimeExpense,
+  Reminder,
   Sector,
   TimeEntry,
 } from '../types'
@@ -51,9 +57,12 @@ export type Action =
   | { type: 'addAmount'; id: string; delta: number; now: number }
   | { type: 'toggleStep'; id: string; stepId: string; now: number }
   | { type: 'setSectorCat'; id: string; cat: Category | null; now: number }
+  | { type: 'deleteHistoryEntry'; id: string; historyId: string; now: number }
+  | { type: 'setQuickAmounts'; id: string; amounts: number[]; now: number }
   | { type: 'addSector'; sector: Sector; now: number }
   | { type: 'removeSector'; id: string; now: number }
   | { type: 'archiveSector'; id: string; archiveId: string; now: number }
+  | { type: 'patchDoc'; patch: Partial<Pick<Doc, 'currency' | 'rates'>>; now: number }
   | { type: 'dismissCelebration' }
   | { type: 'pressAct'; actId: string; entryId: string; now: number }
   | { type: 'stopTrack'; now: number }
@@ -66,6 +75,10 @@ export type Action =
   | { type: 'breakQuit'; id: string; now: number }
   | { type: 'saveHabit'; habit: Habit; now: number }
   | { type: 'deleteHabit'; id: string; now: number }
+  // напоминания
+  | { type: 'saveReminder'; reminder: Reminder; now: number }
+  | { type: 'deleteReminder'; id: string; now: number }
+  | { type: 'markReminderDone'; id: string; now: number }
   // финансы
   | { type: 'patchFinance'; patch: Partial<Finance>; now: number }
   | { type: 'rollFinanceMonth'; now: number }
@@ -90,6 +103,7 @@ function isoAtLeast(now: number, notBefore: string): string {
 /** Дописывает запись в историю сектора; процент берётся уже после изменения */
 function pushHistory(s: Sector, label: string, now: number): Sector {
   const rec: HistoryRec = {
+    id: uid('hr'),
     d: new Date(now).toISOString(),
     p: pct(s),
     label,
@@ -138,8 +152,10 @@ function coreReducer(doc: Doc, action: Action): Doc {
         if (s.kind !== 'number') return s
         const current = Math.max(0, Math.round((s.current + action.delta) * 100) / 100)
         const sign = action.delta > 0 ? '+' : '−'
-        const unit = s.unit ? ' ' + s.unit : ''
-        const label = sign + num(Math.abs(action.delta)) + unit + ' → ' + num(current)
+        const abs = Math.abs(action.delta)
+        const label = s.isMoney
+          ? sign + money(abs, s.unit as CurrencyCode) + ' → ' + money(current, s.unit as CurrencyCode)
+          : sign + num(abs) + (s.unit ? ' ' + s.unit : '') + ' → ' + num(current)
         return pushHistory({ ...s, current }, label, action.now)
       })
 
@@ -157,11 +173,23 @@ function coreReducer(doc: Doc, action: Action): Doc {
     case 'setSectorCat':
       return mapSector(doc, action.id, (s) => ({ ...s, cat: action.cat }))
 
+    case 'deleteHistoryEntry':
+      return mapSector(doc, action.id, (s) => ({
+        ...s,
+        history: s.history.filter((h) => h.id !== action.historyId),
+      }))
+
+    case 'setQuickAmounts':
+      return mapSector(doc, action.id, (s) => ({ ...s, quickAmounts: action.amounts }))
+
     case 'addSector':
       return { ...doc, sectors: [...doc.sectors, action.sector] }
 
     case 'removeSector':
       return { ...doc, sectors: doc.sectors.filter((s) => s.id !== action.id) }
+
+    case 'patchDoc':
+      return { ...doc, ...action.patch }
 
     case 'archiveSector': {
       const s = doc.sectors.find((x) => x.id === action.id)
@@ -252,6 +280,25 @@ function coreReducer(doc: Doc, action: Action): Doc {
 
     case 'deleteHabit':
       return { ...doc, habits: doc.habits.filter((h) => h.id !== action.id) }
+
+    case 'saveReminder': {
+      const exists = doc.reminders.some((r) => r.id === action.reminder.id)
+      return {
+        ...doc,
+        reminders: exists
+          ? doc.reminders.map((r) => (r.id === action.reminder.id ? action.reminder : r))
+          : [...doc.reminders, action.reminder].slice(0, MAX_REMINDERS),
+      }
+    }
+
+    case 'deleteReminder':
+      return { ...doc, reminders: doc.reminders.filter((r) => r.id !== action.id) }
+
+    case 'markReminderDone':
+      return {
+        ...doc,
+        reminders: doc.reminders.map((r) => (r.id === action.id ? markDone(r, action.now) : r)),
+      }
 
     case 'patchFinance':
       return { ...doc, fin: { ...doc.fin, ...action.patch } }

@@ -66,10 +66,11 @@ interface Props {
   onExport: () => void
   onImport: () => void
   onChangeCode: () => void
+  onSettings: () => void
   onLogout: () => void
 }
 
-export function Header({ sync, onExport, onImport, onChangeCode, onLogout }: Props) {
+export function Header({ sync, onExport, onImport, onChangeCode, onSettings, onLogout }: Props) {
   const isMobile = useIsMobile()
 
   return (
@@ -96,6 +97,9 @@ export function Header({ sync, onExport, onImport, onChangeCode, onLogout }: Pro
           </button>
           <button className="h-ghost" style={{ ...ioBtn, color: C.muted }} onClick={onChangeCode}>
             Сменить код
+          </button>
+          <button className="h-ghost" style={{ ...ioBtn, color: C.muted }} onClick={onSettings}>
+            Настройки
           </button>
           <button className="h-ghost" style={{ ...ioBtn, color: C.muted }} onClick={onLogout}>
             Выйти

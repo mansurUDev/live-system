@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { AuthProvider, useAuth } from './state/AuthProvider'
 import { DataProvider, useData } from './state/DataProvider'
@@ -8,11 +8,13 @@ import { useIsMobile } from './hooks/useIsMobile'
 import { useBackup } from './hooks/useBackup'
 import { BottomNav } from './components/BottomNav'
 import { Header } from './components/Header'
+import { LandingScreen } from './components/LandingScreen'
 import { LoginScreen } from './components/LoginScreen'
 import { MoreMenu } from './components/MoreMenu'
 import { Tabs } from './components/Tabs'
 import { Toasts } from './components/Toasts'
 import { ChangeCodeModal } from './components/modals/ChangeCodeModal'
+import { SettingsModal } from './components/modals/SettingsModal'
 import { BriefTab } from './components/brief/BriefTab'
 import { WheelTab } from './components/wheel/WheelTab'
 import { TrackerTab } from './components/tracker/TrackerTab'
@@ -49,6 +51,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   const backup = useBackup()
   const [moreOpen, setMoreOpen] = useState(false)
   const [changingCode, setChangingCode] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   const go = (t: Tab) => {
     setTab(t)
@@ -66,6 +69,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
           onExport={backup.onExport}
           onImport={backup.onImport}
           onChangeCode={() => setChangingCode(true)}
+          onSettings={() => setSettingsOpen(true)}
           onLogout={logout}
         />
         <Tabs tab={tab} onChange={go} archiveCount={state.doc.archive.length} />
@@ -104,11 +108,16 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
             setMoreOpen(false)
             setChangingCode(true)
           }}
+          onSettings={() => {
+            setMoreOpen(false)
+            setSettingsOpen(true)
+          }}
           onLogout={logout}
         />
       )}
 
       {changingCode && <ChangeCodeModal onClose={() => setChangingCode(false)} />}
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {backup.elements}
       <Toasts />
     </div>
@@ -118,8 +127,15 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
 function Authed() {
   const { code } = useAuth()
   const [tab, setTab] = useState<Tab>('brief')
+  const [showLanding, setShowLanding] = useState(true)
 
-  if (!code) return <LoginScreen />
+  useEffect(() => {
+    if (!code) setShowLanding(true)
+  }, [code])
+
+  if (!code) {
+    return showLanding ? <LandingScreen onEnter={() => setShowLanding(false)} /> : <LoginScreen />
+  }
 
   return (
     // ключ по коду: смена пользователя поднимает данные заново, а не мешает их

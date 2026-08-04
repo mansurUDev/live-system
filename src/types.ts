@@ -4,6 +4,7 @@ export type Period = 'day' | 'week' | 'month'
 export type Tab = 'brief' | 'wheel' | 'track' | 'habits' | 'fin' | 'lib' | 'an' | 'arch'
 
 export interface HistoryRec {
+  id: string
   /** ISO-момент записи */
   d: string
   /** процент выполнения на момент записи */
@@ -30,8 +31,12 @@ export interface Sector {
   current: number
   /** number: целевое значение */
   target: number
-  /** number: единица измерения */
+  /** number: единица измерения — если isMoney, хранит код валюты */
   unit: string
+  /** number: сектор в деньгах — unit тогда код валюты, отображение через money() */
+  isMoney: boolean
+  /** number: суммы быстрых кнопок +N в панели */
+  quickAmounts: number[]
   /** steps: чек-лист этапов */
   steps: Step[]
   /** новые записи в начале массива */
@@ -99,6 +104,17 @@ export interface Habit {
   start: string
   /** quit: лучшая серия без срывов, в днях */
   best: number
+  createdAt: string
+}
+
+/** Периодическое напоминание — не привычка на каждый день, а «раз в N дней» */
+export interface Reminder {
+  id: string
+  name: string
+  /** через сколько дней после последней отметки считается просроченным */
+  intervalDays: number
+  /** ISO момент последней отметки; null — ни разу не отмечался с создания */
+  lastDone: string | null
   createdAt: string
 }
 
@@ -194,17 +210,25 @@ export interface Library {
   done: LibDone[]
 }
 
+/** Фиксированный список поддерживаемых валют */
+export type CurrencyCode = 'UZS' | 'USD' | 'EUR' | 'RUB'
+
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 2
+export const DOC_VERSION = 3
 
 export interface Doc {
   v: number
+  /** валюта отображения — общая для Финансов и денежных целей на колесе */
+  currency: CurrencyCode
+  /** курс каждой валюты к фиксированной внутренней базе; вводится вручную, ни в одном расчёте пока не участвует */
+  rates: Record<CurrencyCode, number>
   sectors: Sector[]
   acts: Activity[]
   entries: TimeEntry[]
   archive: ArchiveRec[]
   snapshots: Snapshots
   habits: Habit[]
+  reminders: Reminder[]
   fin: Finance
   lib: Library
 }

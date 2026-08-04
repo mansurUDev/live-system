@@ -1,6 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent } from 'react'
 import { CAT_KEYS, CATS } from '../../constants'
+import { money } from '../../logic/currency'
+import { parseQuickAmounts } from '../../logic/normalize'
 import { pct, typeLabel } from '../../logic/pct'
 import { fmtD, num } from '../../logic/time'
 import {
@@ -18,7 +20,7 @@ import { useData } from '../../state/DataProvider'
 import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
 import { StepsList } from './StepsList'
-import type { Category, Sector } from '../../types'
+import type { Category, CurrencyCode, Sector } from '../../types'
 
 const SLIDER_PAD = 14
 
@@ -33,8 +35,16 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
   const toast = useToast()
   const [amount, setAmount] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [confirmHistoryId, setConfirmHistoryId] = useState<string | null>(null)
+  const [editingQuick, setEditingQuick] = useState(false)
+  const [quickText, setQuickText] = useState('')
   const dragging = useRef(false)
   const valueAtDragStart = useRef<number | null>(null)
+
+  useEffect(() => {
+    setConfirmHistoryId(null)
+    setEditingQuick(false)
+  }, [sector.id])
 
   const p = pct(sector)
   const done = sector.kind === 'steps' ? sector.steps.filter((t) => t.done).length : 0
@@ -144,7 +154,9 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
           {sector.kind === 'sphere'
             ? `оценка ${sector.value} из 10`
             : sector.kind === 'number'
-              ? `${num(sector.current)} из ${num(sector.target)}${sector.unit ? ' ' + sector.unit : ''}`
+              ? sector.isMoney
+                ? `${money(sector.current, sector.unit as CurrencyCode)} из ${money(sector.target, sector.unit as CurrencyCode)}`
+                : `${num(sector.current)} из ${num(sector.target)}${sector.unit ? ' ' + sector.unit : ''}`
               : `${done} из ${sector.steps.length} этапов`}
         </div>
       </div>
@@ -254,18 +266,91 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
       {sector.kind === 'number' && (
         <div style={{ marginTop: 14 }}>
           <div style={{ fontSize: 14, color: C.textSoft }}>
-            Сейчас: {num(sector.current)}
-            {sector.unit ? ' ' + sector.unit : ''} · осталось {num(Math.max(0, sector.target - sector.current))}
-            {sector.unit ? ' ' + sector.unit : ''}
+            {sector.isMoney ? (
+              <>
+                Сейчас: {money(sector.current, sector.unit as CurrencyCode)} · осталось{' '}
+                {money(Math.max(0, sector.target - sector.current), sector.unit as CurrencyCode)}
+              </>
+            ) : (
+              <>
+                Сейчас: {num(sector.current)}
+                {sector.unit ? ' ' + sector.unit : ''} · осталось {num(Math.max(0, sector.target - sector.current))}
+                {sector.unit ? ' ' + sector.unit : ''}
+              </>
+            )}
           </div>
-          <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', marginTop: 10 }}>
-            <button className="h-amount" style={amountBtn} onClick={() => dispatch(A.addAmount(sector.id, 10))}>
-              +10
-            </button>
-            <button className="h-amount" style={amountBtn} onClick={() => dispatch(A.addAmount(sector.id, 50))}>
-              +50
-            </button>
-          </div>
+
+          {editingQuick ? (
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <input
+                value={quickText}
+                onChange={(e) => setQuickText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    dispatch(A.setQuickAmounts(sector.id, parseQuickAmounts(quickText)))
+                    setEditingQuick(false)
+                  }
+                }}
+                type="text"
+                inputMode="decimal"
+                placeholder="10, 50, 100"
+                autoFocus
+                style={{
+                  fontFamily: 'inherit',
+                  fontSize: 14,
+                  color: '#e2e8f0',
+                  background: C.inputBg,
+                  border: '1px solid rgba(120,170,255,.25)',
+                  borderRadius: 9,
+                  padding: '7px 11px',
+                  outline: 'none',
+                  flex: 1,
+                  minWidth: 0,
+                  boxSizing: 'border-box',
+                }}
+              />
+              <button
+                style={{ ...btnCancelSm, fontSize: 13, borderRadius: 9, padding: '7px 12px' }}
+                onClick={() => {
+                  dispatch(A.setQuickAmounts(sector.id, parseQuickAmounts(quickText)))
+                  setEditingQuick(false)
+                }}
+              >
+                ✓
+              </button>
+              <button
+                style={{ ...btnCancelSm, fontSize: 13, borderRadius: 9, padding: '7px 12px' }}
+                onClick={() => setEditingQuick(false)}
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 9, flexWrap: 'wrap', alignItems: 'center', marginTop: 10 }}>
+              {sector.quickAmounts.map((n) => (
+                <button
+                  key={n}
+                  className="h-amount"
+                  style={amountBtn}
+                  onClick={() => dispatch(A.addAmount(sector.id, n))}
+                >
+                  +{num(n)}
+                </button>
+              ))}
+              <button
+                className="h-ghost-bright"
+                style={iconBtn(26)}
+                aria-label="Настроить кнопки быстрого добавления"
+                onClick={() => {
+                  setQuickText(sector.quickAmounts.join(', '))
+                  setEditingQuick(true)
+                }}
+              >
+                ✎
+              </button>
+            </div>
+          )}
+
           <div style={{ display: 'flex', gap: 8, marginTop: 9 }}>
             <input
               value={amount}
@@ -351,10 +436,38 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
         </div>
         {sector.history.length ? (
           <div style={{ maxHeight: 180, overflow: 'auto', marginTop: 6, display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {sector.history.slice(0, 14).map((h, i) => (
-              <div key={h.d + i} style={{ display: 'flex', gap: 10, fontSize: 13, alignItems: 'baseline' }}>
+            {sector.history.slice(0, 14).map((h) => (
+              <div key={h.id} style={{ display: 'flex', gap: 10, fontSize: 13, alignItems: 'baseline' }}>
                 <span style={{ fontFamily: MONO, color: C.faint, flex: 'none', minWidth: 86 }}>{fmtD(h.d)}</span>
-                <span style={{ color: C.textSoft, overflowWrap: 'anywhere' }}>{h.label || h.p + '%'}</span>
+                <span style={{ color: C.textSoft, overflowWrap: 'anywhere', flex: 1 }}>{h.label || h.p + '%'}</span>
+                {confirmHistoryId === h.id ? (
+                  <span style={{ display: 'flex', gap: 5, flex: 'none' }}>
+                    <button
+                      style={{ ...btnDeleteConfirm, fontSize: 11, padding: '2px 8px' }}
+                      onClick={() => {
+                        dispatch(A.deleteHistoryEntry(sector.id, h.id))
+                        setConfirmHistoryId(null)
+                      }}
+                    >
+                      ✓
+                    </button>
+                    <button
+                      style={{ ...btnCancelSm, fontSize: 11, padding: '2px 8px' }}
+                      onClick={() => setConfirmHistoryId(null)}
+                    >
+                      ✕
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    className="h-ghost-bright"
+                    style={{ ...btnDeleteLink, flex: 'none', fontSize: 12, padding: '2px 4px' }}
+                    aria-label="Удалить запись"
+                    onClick={() => setConfirmHistoryId(h.id)}
+                  >
+                    ✕
+                  </button>
+                )}
               </div>
             ))}
           </div>

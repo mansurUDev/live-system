@@ -179,6 +179,95 @@ describe('история сектора', () => {
     expect(s.doc.sectors[0]!.history).toHaveLength(before + 1)
     expect(s.doc.sectors[0]!.history[0]!.label).toBe('оценка 8/10')
   })
+
+  it('addAmount на денежной цели форматирует лейбл через money()', () => {
+    const money5 = makeSector(
+      { id: 'm', name: 'Накопить', color: '#fbbf24', kind: 'number', current: 0, target: 1000, unit: 'USD', isMoney: true },
+      NOW,
+    )
+    let s = stateWith({ sectors: [money5] })
+    s = run(s, { type: 'addAmount', id: 'm', delta: 50, now: NOW })
+    expect(s.doc.sectors[0]!.history[0]!.label).toBe('+$50 → $50')
+  })
+
+  it('deleteHistoryEntry убирает запись по id, не трогая current', () => {
+    let s = stateWith({ sectors: [goalAt(0, 1000)] })
+    s = run(s, { type: 'addAmount', id: 'g', delta: 50, now: NOW })
+    s = run(s, { type: 'addAmount', id: 'g', delta: 20, now: NOW + 1000 })
+    expect(s.doc.sectors[0]!.history).toHaveLength(3)
+    const victimId = s.doc.sectors[0]!.history[0]!.id
+
+    s = run(s, { type: 'deleteHistoryEntry', id: 'g', historyId: victimId, now: NOW })
+    expect(s.doc.sectors[0]!.history).toHaveLength(2)
+    expect(s.doc.sectors[0]!.history.some((h) => h.id === victimId)).toBe(false)
+    expect(s.doc.sectors[0]!.current).toBe(70)
+  })
+
+  it('deleteHistoryEntry с несуществующим id — no-op', () => {
+    let s = stateWith({ sectors: [goalAt(0, 1000)] })
+    s = run(s, { type: 'addAmount', id: 'g', delta: 50, now: NOW })
+    const before = s.doc.sectors[0]!.history
+    s = run(s, { type: 'deleteHistoryEntry', id: 'g', historyId: 'нет-такого', now: NOW })
+    expect(s.doc.sectors[0]!.history).toEqual(before)
+  })
+
+  it('setQuickAmounts заменяет список сумм, не трогая остальной сектор', () => {
+    let s = stateWith({ sectors: [goalAt(0, 1000)] })
+    s = run(s, { type: 'setQuickAmounts', id: 'g', amounts: [5, 25, 100], now: NOW })
+    expect(s.doc.sectors[0]!.quickAmounts).toEqual([5, 25, 100])
+    expect(s.doc.sectors[0]!.current).toBe(0)
+    expect(s.doc.sectors[0]!.target).toBe(1000)
+  })
+})
+
+describe('patchDoc', () => {
+  it('меняет только currency/rates, остальной документ не трогает', () => {
+    const s = stateWith({})
+    const before = s.doc
+    const next = run(s, {
+      type: 'patchDoc',
+      patch: { currency: 'USD', rates: { ...before.rates, USD: 12500 } },
+      now: NOW,
+    })
+    expect(next.doc.currency).toBe('USD')
+    expect(next.doc.rates.USD).toBe(12500)
+    expect(next.doc.sectors).toBe(before.sectors)
+    expect(next.doc.fin).toBe(before.fin)
+  })
+})
+
+describe('напоминания', () => {
+  const reminder = {
+    id: 'rm1',
+    name: 'Обновить LinkedIn',
+    intervalDays: 30,
+    lastDone: null,
+    createdAt: new Date(NOW).toISOString(),
+  }
+
+  it('saveReminder добавляет новое и обновляет существующее по id', () => {
+    let s = stateWith({ reminders: [] })
+    s = run(s, { type: 'saveReminder', reminder, now: NOW })
+    expect(s.doc.reminders).toHaveLength(1)
+
+    s = run(s, { type: 'saveReminder', reminder: { ...reminder, intervalDays: 90 }, now: NOW })
+    expect(s.doc.reminders).toHaveLength(1)
+    expect(s.doc.reminders[0]!.intervalDays).toBe(90)
+  })
+
+  it('deleteReminder убирает по id', () => {
+    let s = stateWith({ reminders: [reminder] })
+    s = run(s, { type: 'deleteReminder', id: reminder.id, now: NOW })
+    expect(s.doc.reminders).toHaveLength(0)
+  })
+
+  it('markReminderDone фиксирует lastDone только у нужного напоминания', () => {
+    const other = { ...reminder, id: 'rm2', name: 'Обновить Upwork' }
+    let s = stateWith({ reminders: [reminder, other] })
+    s = run(s, { type: 'markReminderDone', id: reminder.id, now: NOW })
+    expect(s.doc.reminders.find((r) => r.id === reminder.id)!.lastDone).toBe(new Date(NOW).toISOString())
+    expect(s.doc.reminders.find((r) => r.id === other.id)!.lastDone).toBeNull()
+  })
 })
 
 describe('снимок дня', () => {

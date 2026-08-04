@@ -1,6 +1,7 @@
 import { useState } from 'react'
+import { money } from '../../logic/currency'
 import { financeCalc, goalHistory, goalProgress } from '../../logic/finance'
-import { fmtD, num, plural } from '../../logic/time'
+import { fmtD, plural } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { A } from '../../state/actions'
@@ -17,13 +18,14 @@ import {
   sectionLabel,
 } from '../../theme'
 import { MoneyField } from './MoneyField'
-import type { MandatoryExpense, OneTimeExpense } from '../../types'
+import type { CurrencyCode, MandatoryExpense, OneTimeExpense } from '../../types'
 
 export function FinanceTab() {
   const { state, dispatch } = useData()
   const now = useNow()
   const isMobile = useIsMobile()
   const fin = state.doc.fin
+  const currency = state.doc.currency
   const calc = financeCalc(fin, now)
   const progress = goalProgress(fin)
   const months = goalHistory(fin, isMobile ? 8 : 12, now)
@@ -62,10 +64,10 @@ export function FinanceTab() {
 
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, margin: '10px 0 6px', flexWrap: 'wrap' }}>
           <div style={{ fontFamily: MONO, fontSize: 30, fontWeight: 600, lineHeight: 1, color: C.textBright }}>
-            {num(fin.got)}
+            {money(fin.got, currency)}
           </div>
           <div style={{ fontSize: 14, color: C.muted }}>
-            из {num(fin.goal)} в этом месяце
+            из {money(fin.goal, currency)} в этом месяце
             {fin.goal > 0 && fin.got >= fin.goal ? ' · планка взята' : ''}
           </div>
         </div>
@@ -173,16 +175,16 @@ export function FinanceTab() {
               textShadow: '0 0 20px rgba(34,211,238,.5)',
             }}
           >
-            {num(calc.limit)}
+            {money(calc.limit, currency)}
           </div>
           <div style={{ fontSize: 14, color: C.textSoft, marginTop: 4 }}>можно тратить в день</div>
           <div style={{ fontSize: 12, color: C.faint, marginTop: 8, lineHeight: 1.5 }}>
-            (на руках {num(fin.onHand)} − обязательные {num(calc.mandatory)} − запланированные{' '}
-            {num(calc.reservedTotal)} − запас {num(fin.cushion)}) ÷ {calc.days}
+            (на руках {money(fin.onHand, currency)} − обязательные {money(calc.mandatory, currency)} − запланированные{' '}
+            {money(calc.reservedTotal, currency)} − запас {money(fin.cushion, currency)}) ÷ {calc.days}
           </div>
           {calc.upcomingTotal > calc.reservedTotal && (
             <div style={{ fontSize: 12, color: C.faint, marginTop: 4, lineHeight: 1.5 }}>
-              Ещё {num(calc.upcomingTotal - calc.reservedTotal)} запланировано позже следующего
+              Ещё {money(calc.upcomingTotal - calc.reservedTotal, currency)} запланировано позже следующего
               поступления — их пока не вычитаю, они лягут на будущую зарплату.
             </div>
           )}
@@ -211,7 +213,7 @@ export function FinanceTab() {
 
       {/* ── обязательные расходы ── */}
       <div style={plainCard({ padding: '16px 18px' })}>
-        <div style={sectionLabel}>Обязательные в месяц · {num(calc.mandatory)}</div>
+        <div style={sectionLabel}>Обязательные в месяц · {money(calc.mandatory, currency)}</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
           {fin.mandatory.map((m) => (
@@ -221,7 +223,7 @@ export function FinanceTab() {
               style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderRadius: 8 }}
             >
               <span style={{ flex: 1, fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>{m.name}</span>
-              <span style={{ fontFamily: MONO, fontSize: 14, color: C.textSoft }}>{num(m.amount)}</span>
+              <span style={{ fontFamily: MONO, fontSize: 14, color: C.textSoft }}>{money(m.amount, currency)}</span>
               <button
                 onClick={() => dispatch(A.deleteMandatory(m.id))}
                 aria-label="Убрать"
@@ -272,7 +274,7 @@ export function FinanceTab() {
 
       {/* ── разовые запланированные ── */}
       <div style={plainCard({ padding: '16px 18px' })}>
-        <div style={sectionLabel}>Запланированные · {num(calc.upcomingTotal)}</div>
+        <div style={sectionLabel}>Запланированные · {money(calc.upcomingTotal, currency)}</div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
           {calc.upcoming.map((o, i) => (
@@ -280,13 +282,14 @@ export function FinanceTab() {
               key={o.id}
               item={o}
               now={now}
+              currency={currency}
               highlight={i === 0}
               reserved={new Date(o.date + 'T00:00:00').getTime() < calc.reserveCutoff}
               onDelete={() => dispatch(A.deleteOneTime(o.id))}
             />
           ))}
           {calc.past.map((o) => (
-            <ExpenseRow key={o.id} item={o} now={now} past onDelete={() => dispatch(A.deleteOneTime(o.id))} />
+            <ExpenseRow key={o.id} item={o} now={now} currency={currency} past onDelete={() => dispatch(A.deleteOneTime(o.id))} />
           ))}
           {!fin.oneTime.length && (
             <div style={{ fontSize: 13.5, color: C.faint }}>
@@ -327,6 +330,7 @@ export function FinanceTab() {
 function ExpenseRow({
   item,
   now,
+  currency,
   highlight,
   past,
   reserved,
@@ -334,6 +338,7 @@ function ExpenseRow({
 }: {
   item: OneTimeExpense
   now: number
+  currency: CurrencyCode
   highlight?: boolean
   past?: boolean
   /** попадает ли расход в резерв текущего дневного лимита */
@@ -361,7 +366,7 @@ function ExpenseRow({
         </div>
       </div>
       <span style={{ fontFamily: MONO, fontSize: 15, color: highlight ? '#fbbf24' : C.textSoft }}>
-        {num(item.amount)}
+        {money(item.amount, currency)}
       </span>
       <button
         onClick={onDelete}

@@ -1,7 +1,9 @@
+import { CURRENCY_CODES, DEFAULT_CURRENCY, DEFAULT_QUICK_AMOUNTS } from '../constants'
 import { emptyFinance, emptyLibrary } from './normalizeModules'
 import { pct } from './pct'
+import { uid } from './uid'
 import { DOC_VERSION } from '../types'
-import type { Doc, Sector } from '../types'
+import type { CurrencyCode, Doc, Sector } from '../types'
 
 type SectorSeed = Pick<Sector, 'id' | 'name' | 'color' | 'kind'> & Partial<Sector>
 
@@ -16,6 +18,8 @@ export function makeSector(seed: SectorSeed, now: number): Sector {
     current: 0,
     target: 0,
     unit: '',
+    isMoney: false,
+    quickAmounts: DEFAULT_QUICK_AMOUNTS,
     steps: [],
     history: [],
     celebrated: false,
@@ -25,6 +29,7 @@ export function makeSector(seed: SectorSeed, now: number): Sector {
   }
   s.history = [
     {
+      id: uid('hr'),
       d: createdAt,
       p: pct(s),
       label: 'начало',
@@ -32,6 +37,13 @@ export function makeSector(seed: SectorSeed, now: number): Sector {
     },
   ]
   return s
+}
+
+/** Курс 1 по каждой валюте — нейтральная заглушка до первого визита в настройки */
+function neutralRates(): Record<CurrencyCode, number> {
+  const out = {} as Record<CurrencyCode, number>
+  for (const code of CURRENCY_CODES) out[code] = 1
+  return out
 }
 
 /**
@@ -44,6 +56,8 @@ export function makeSector(seed: SectorSeed, now: number): Sector {
 export function defaultDoc(now: number = Date.now()): Doc {
   return {
     v: DOC_VERSION,
+    currency: DEFAULT_CURRENCY,
+    rates: neutralRates(),
     sectors: [
       makeSector(
         { id: 's1', name: 'Накопить 1000 $', color: '#fbbf24', kind: 'number', target: 1000, unit: '$', current: 0 },
@@ -68,6 +82,7 @@ export function defaultDoc(now: number = Date.now()): Doc {
     archive: [],
     snapshots: {},
     habits: [],
+    reminders: [],
     fin: emptyFinance(now),
     lib: emptyLibrary(),
   }

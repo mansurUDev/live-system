@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MAX_HABITS } from '../../constants'
+import { MAX_HABITS, MAX_REMINDERS } from '../../constants'
 import { bestStreak, bestWithout, daysWithout, isDoneToday, recentDays, streak } from '../../logic/habits'
 import { plural } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
@@ -9,11 +9,14 @@ import { A } from '../../state/actions'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { btnAccent, C, pageStyle, plainCard } from '../../theme'
 import { HabitModal } from '../modals/HabitModal'
+import { ReminderModal } from '../modals/ReminderModal'
 import { DoHabitCard } from './DoHabitCard'
 import { QuitHabitCard } from './QuitHabitCard'
-import type { Habit } from '../../types'
+import { ReminderCard } from './ReminderCard'
+import type { Habit, Reminder } from '../../types'
 
 type Form = { habit: Habit | null } | null
+type ReminderForm = { reminder: Reminder | null } | null
 
 export function HabitsTab() {
   const { state, dispatch } = useData()
@@ -21,12 +24,14 @@ export function HabitsTab() {
   const now = useNow()
   const isMobile = useIsMobile()
   const [form, setForm] = useState<Form>(null)
+  const [reminderForm, setReminderForm] = useState<ReminderForm>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [flashId, setFlashId] = useState<string | null>(null)
 
   const habits = state.doc.habits
   const dos = habits.filter((h) => h.type === 'do')
   const quits = habits.filter((h) => h.type === 'quit')
+  const reminders = state.doc.reminders
 
   const toggle = (h: Habit) => {
     const wasDone = isDoneToday(h, now)
@@ -50,6 +55,14 @@ export function HabitsTab() {
       return
     }
     setForm({ habit: null })
+  }
+
+  const openNewReminder = () => {
+    if (reminders.length >= MAX_REMINDERS) {
+      toast(`Напоминаний уже ${MAX_REMINDERS} — больше не поместится`)
+      return
+    }
+    setReminderForm({ reminder: null })
   }
 
   return (
@@ -120,6 +133,41 @@ export function HabitsTab() {
         </div>
       )}
 
+      <div style={{ marginTop: 6, display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+        <div>
+          <div style={{ fontSize: 17, fontWeight: 600, color: C.textBright }}>Напоминания</div>
+          <div style={{ fontSize: 13, color: C.dim, marginTop: 2 }}>
+            для того, что нужно делать не каждый день, а раз в период — обновить профиль, продлить
+            подписку и т.п.
+          </div>
+        </div>
+        <div style={{ flex: 1 }} />
+        <button className="h-accent" style={{ ...btnAccent, fontSize: 13.5, padding: '8px 14px' }} onClick={openNewReminder}>
+          + Напоминание
+        </button>
+      </div>
+
+      {reminders.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {reminders.map((r) => (
+            <ReminderCard
+              key={r.id}
+              reminder={r}
+              now={now}
+              onMarkDone={() => {
+                dispatch(A.markReminderDone(r.id))
+                toast('Отмечено — отсчёт пошёл заново')
+              }}
+              onEdit={() => setReminderForm({ reminder: r })}
+            />
+          ))}
+        </div>
+      ) : (
+        <div style={plainCard({ padding: '20px 18px', color: C.faint, fontSize: 14, lineHeight: 1.5 })}>
+          Например: «Обновить LinkedIn» или «Обновить профиль Upwork» — раз в месяц достаточно
+        </div>
+      )}
+
       {form && (
         <HabitModal
           habit={form.habit}
@@ -133,6 +181,22 @@ export function HabitsTab() {
             dispatch(A.deleteHabit(id))
             setForm(null)
             toast('Привычка удалена')
+          }}
+        />
+      )}
+
+      {reminderForm && (
+        <ReminderModal
+          reminder={reminderForm.reminder}
+          onCancel={() => setReminderForm(null)}
+          onSave={(r) => {
+            dispatch(A.saveReminder(r))
+            setReminderForm(null)
+          }}
+          onDelete={(id) => {
+            dispatch(A.deleteReminder(id))
+            setReminderForm(null)
+            toast('Напоминание удалено')
           }}
         />
       )}

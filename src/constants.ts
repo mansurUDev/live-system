@@ -1,4 +1,4 @@
-import type { Category } from './types'
+import type { Category, CurrencyCode } from './types'
 
 export const LS_KEY = 'sistema-zhizni-v1'
 export const BACKUP_KEY = 'sistema-zhizni-v1-backup'
@@ -50,6 +50,13 @@ export const MAX_HABIT_NAME = 50
 /** сколько отметок хранит привычка — с запасом больше года */
 export const MAX_HABIT_DAYS = 500
 
+export const MAX_REMINDERS = 20
+export const MAX_REMINDER_NAME = 60
+export const MIN_REMINDER_INTERVAL_DAYS = 1
+export const MAX_REMINDER_INTERVAL_DAYS = 3650
+/** раз в месяц — обычный ритм для «поддерживать в актуальном виде», а не «сделать один раз» */
+export const DEFAULT_REMINDER_INTERVAL_DAYS = 30
+
 export const MAX_MANDATORY = 40
 export const MAX_ONETIME = 60
 export const MAX_EXPENSE_NAME = 60
@@ -64,6 +71,31 @@ export const MAX_TITLE = 80
 export const MAX_BYLINE = 60
 export const MAX_EXCERPT = 400
 export const MAX_QUOTE = 300
+
+/** number-цель: сумма быстрого добавления по умолчанию — сегодняшнее фиксированное +10/+50 */
+export const DEFAULT_QUICK_AMOUNTS = [10, 50]
+export const MAX_QUICK_AMOUNTS = 6
+export const MAX_QUICK_AMOUNT_VALUE = 1_000_000
+
+export interface CurrencyDef {
+  code: CurrencyCode
+  label: string
+  symbol: string
+}
+
+export const CURRENCIES: CurrencyDef[] = [
+  { code: 'UZS', label: 'Узбекский сум', symbol: 'сум' },
+  { code: 'USD', label: 'Доллар США', symbol: '$' },
+  { code: 'EUR', label: 'Евро', symbol: '€' },
+  { code: 'RUB', label: 'Российский рубль', symbol: '₽' },
+]
+
+export const CURRENCY_CODES = CURRENCIES.map((c) => c.code) as CurrencyCode[]
+
+/** Валюта документов, у которых её ещё не выбрали — нейтральный дефолт до похода в настройки */
+export const DEFAULT_CURRENCY: CurrencyCode = 'UZS'
+
+export const MAX_RATE = 1e9
 
 /** Ключ, под которым лежит код доступа текущей сессии */
 export const CODE_KEY = 'sistema-zhizni-code'
