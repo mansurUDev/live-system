@@ -1,0 +1,182 @@
+import { useState } from 'react'
+import { btnCancelSm, btnDeleteConfirm, btnDeleteLink, C, chipDot, plainCard } from '../../theme'
+import type { Idea } from '../../types'
+
+interface Props {
+  idea: Idea
+  confirmingDelete: boolean
+  onToggleDone: () => void
+  onEdit: () => void
+  onAskDelete: () => void
+  onCancelDelete: () => void
+  onDelete: () => void
+}
+
+/** После этой длины текст сворачивается в ~4 строки — точный подсчёт строк не нужен, это не типографика */
+const COLLAPSE_AT = 220
+
+function hostname(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
+export function IdeaCard({ idea, confirmingDelete, onToggleDone, onEdit, onAskDelete, onCancelDelete, onDelete }: Props) {
+  const [expanded, setExpanded] = useState(false)
+  const long = idea.text.length > COLLAPSE_AT
+
+  return (
+    <div style={plainCard({ padding: '13px 15px', opacity: idea.done ? 0.7 : 1 })}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        <button
+          onClick={onToggleDone}
+          aria-label={idea.done ? 'Не воплощена' : 'Воплощена'}
+          style={{
+            marginTop: 2,
+            width: 20,
+            height: 20,
+            borderRadius: 6,
+            border: `1.5px solid ${idea.done ? C.ok : 'rgba(148,163,184,.4)'}`,
+            background: idea.done ? C.ok : 'transparent',
+            color: '#031018',
+            fontSize: 13,
+            lineHeight: '17px',
+            cursor: 'pointer',
+            flex: 'none',
+          }}
+        >
+          {idea.done ? '✓' : ''}
+        </button>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span
+              style={{
+                fontSize: 15.5,
+                fontWeight: 600,
+                color: C.textBright,
+                overflowWrap: 'anywhere',
+                textDecoration: idea.done ? 'line-through' : 'none',
+              }}
+            >
+              {idea.title}
+            </span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: C.muted }}>
+              <span style={chipDot('#fbbf24')} />
+              {idea.category}
+            </span>
+          </div>
+
+          {idea.text && (
+            <>
+              <div
+                style={{
+                  fontSize: 14,
+                  color: C.textSoft,
+                  marginTop: 7,
+                  overflowWrap: 'anywhere',
+                  whiteSpace: 'pre-wrap',
+                  lineHeight: 1.5,
+                  ...(expanded
+                    ? null
+                    : {
+                        display: '-webkit-box',
+                        WebkitLineClamp: 4,
+                        WebkitBoxOrient: 'vertical' as const,
+                        overflow: 'hidden',
+                      }),
+                }}
+              >
+                {idea.text}
+              </div>
+              {long && (
+                <button
+                  onClick={() => setExpanded((v) => !v)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    marginTop: 4,
+                    cursor: 'pointer',
+                    fontFamily: 'inherit',
+                    fontSize: 12.5,
+                    color: C.cyanBright,
+                  }}
+                >
+                  {expanded ? 'свернуть' : 'развернуть'}
+                </button>
+              )}
+            </>
+          )}
+
+          {idea.images.length > 0 && (
+            <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 10 }}>
+              {idea.images.map((url) => (
+                <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+                  <img
+                    src={url}
+                    alt=""
+                    style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                  />
+                </a>
+              ))}
+            </div>
+          )}
+
+          {idea.links.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 9 }}>
+              {idea.links.map((l) => (
+                <a
+                  key={l.id}
+                  href={l.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 13, color: C.cyanBright, overflowWrap: 'anywhere' }}
+                >
+                  {l.label} <span style={{ color: C.faint }}>· {hostname(l.url)}</span>
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 9, marginTop: 11, alignItems: 'center' }}>
+        <button
+          className="h-edit"
+          onClick={onEdit}
+          aria-label="Изменить идею"
+          style={{
+            fontFamily: 'inherit',
+            fontSize: 13,
+            color: C.muted,
+            background: 'none',
+            border: '1px solid rgba(148,163,184,.3)',
+            borderRadius: 9,
+            padding: '7px 10px',
+            cursor: 'pointer',
+          }}
+        >
+          ✎
+        </button>
+        <div style={{ flex: 1 }} />
+        {confirmingDelete ? (
+          <>
+            <button style={btnDeleteConfirm} onClick={onDelete}>
+              Точно убрать
+            </button>
+            <button style={btnCancelSm} onClick={onCancelDelete}>
+              Отмена
+            </button>
+          </>
+        ) : (
+          <button style={btnDeleteLink} onClick={onAskDelete}>
+            Убрать
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}

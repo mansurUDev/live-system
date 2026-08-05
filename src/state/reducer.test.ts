@@ -4,7 +4,7 @@ import { defaultDoc, makeSector } from '../logic/defaults'
 import { runningEntry } from '../logic/segs'
 import { localDateKey } from '../logic/time'
 import { pct } from '../logic/pct'
-import type { Doc, Sector, Video } from '../types'
+import type { Doc, Idea, Sector, Show, Video } from '../types'
 
 const NOW = new Date('2026-03-15T12:00:00').getTime()
 
@@ -33,6 +33,35 @@ function video(patch: Partial<Video> = {}): Video {
     color: '#22d3ee',
     note: '',
     addedAt: new Date(NOW).toISOString(),
+    ...patch,
+  }
+}
+
+function show(patch: Partial<Show> = {}): Show {
+  return {
+    id: 'sh1',
+    title: 'Сериал',
+    kind: 'series',
+    color: '#a78bfa',
+    season: 1,
+    episode: 3,
+    minute: 12,
+    link: '',
+    startedAt: new Date(NOW).toISOString(),
+    ...patch,
+  }
+}
+
+function idea(patch: Partial<Idea> = {}): Idea {
+  return {
+    id: 'i1',
+    title: 'Робот на Ардуино',
+    category: 'Ардуино',
+    text: '',
+    links: [],
+    images: [],
+    done: false,
+    createdAt: new Date(NOW).toISOString(),
     ...patch,
   }
 }
@@ -313,6 +342,54 @@ describe('видео', () => {
     expect(s.doc.lib.videos.map((v) => v.id)).toEqual(['v2'])
     expect(s.doc.lib.books).toBe(before.doc.lib.books)
     expect(s.doc.lib.courses).toBe(before.doc.lib.courses)
+  })
+})
+
+describe('полка «Смотреть»', () => {
+  const lib = (shows: Show[]) => ({ ...defaultDoc(NOW).lib, shows })
+
+  it('saveShow добавляет новое и обновляет существующее по id', () => {
+    let s = stateWith({ lib: lib([]) })
+    s = run(s, { type: 'saveShow', show: show(), now: NOW })
+    expect(s.doc.lib.shows).toHaveLength(1)
+
+    s = run(s, { type: 'saveShow', show: show({ episode: 4 }), now: NOW })
+    expect(s.doc.lib.shows).toHaveLength(1)
+    expect(s.doc.lib.shows[0]!.episode).toBe(4)
+  })
+
+  it('finishLibItem(show) переезжает в lib.done с byline = метка вида', () => {
+    let s = stateWith({ lib: lib([show()]) })
+    s = run(s, { type: 'finishLibItem', kind: 'show', id: 'sh1', doneId: 'ld1', quote: '', now: NOW })
+    expect(s.doc.lib.shows).toHaveLength(0)
+    expect(s.doc.lib.done).toHaveLength(1)
+    expect(s.doc.lib.done[0]!.kind).toBe('show')
+    expect(s.doc.lib.done[0]!.byline).toBe('Сериал')
+  })
+
+  it('deleteLibItem(show) убирает из очереди, не трогая видео', () => {
+    const before = stateWith({ lib: { ...lib([show(), show({ id: 'sh2' })]), videos: [video()] } })
+    const s = run(before, { type: 'deleteLibItem', kind: 'show', id: 'sh1', now: NOW })
+    expect(s.doc.lib.shows.map((x) => x.id)).toEqual(['sh2'])
+    expect(s.doc.lib.videos).toBe(before.doc.lib.videos)
+  })
+})
+
+describe('идеи', () => {
+  it('saveIdea добавляет новую и обновляет существующую по id', () => {
+    let s = stateWith({ ideas: [] })
+    s = run(s, { type: 'saveIdea', idea: idea(), now: NOW })
+    expect(s.doc.ideas).toHaveLength(1)
+
+    s = run(s, { type: 'saveIdea', idea: idea({ done: true }), now: NOW })
+    expect(s.doc.ideas).toHaveLength(1)
+    expect(s.doc.ideas[0]!.done).toBe(true)
+  })
+
+  it('deleteIdea убирает по id', () => {
+    const before = stateWith({ ideas: [idea(), idea({ id: 'i2' })] })
+    const s = run(before, { type: 'deleteIdea', id: 'i1', now: NOW })
+    expect(s.doc.ideas.map((x) => x.id)).toEqual(['i2'])
   })
 })
 

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Modal } from './Modal'
 import { MAX_VIDEO_NOTE, PAL } from '../../constants'
+import { cleanShareUrl } from '../../logic/links'
 import { fetchYoutubeMeta, type YoutubeMeta } from '../../state/youtube'
 import { A } from '../../state/actions'
 import { btnAccent, btnGhost, C, errText, fieldLabel, input } from '../../theme'
@@ -57,18 +58,19 @@ export function VideoModal({ video, usedColors, onCancel, onCreate }: Props) {
     } catch {
       return setError('Это не похоже на ссылку')
     }
+    const cleaned = cleanShareUrl(trimmed)
 
-    const title = preview?.title || trimmed
+    const title = preview?.title || cleaned
     const channel = preview?.channel ?? ''
     const thumbnail = preview?.thumbnail ?? ''
     const trimmedNote = note.trim().slice(0, MAX_VIDEO_NOTE)
 
     if (video) {
-      onCreate({ ...video, url: trimmed, title, channel, thumbnail, note: trimmedNote })
+      onCreate({ ...video, url: cleaned, title, channel, thumbnail, note: trimmedNote })
       return
     }
     const color = PAL.find((c) => !usedColors.includes(c)) ?? PAL[4]!
-    onCreate(A.newVideo(trimmed, title, channel, thumbnail, color, trimmedNote))
+    onCreate(A.newVideo(cleaned, title, channel, thumbnail, color, trimmedNote))
   }
 
   return (

@@ -76,6 +76,27 @@ export const MAX_BYLINE = 60
 export const MAX_EXCERPT = 400
 export const MAX_QUOTE = 300
 
+export const MAX_SHOWS = 50
+/** для сериала/аниме/мультфильма — с большим запасом на нестандартную нумерацию */
+export const MAX_SHOW_NUMBER = 99999
+
+export const SHOW_KIND_LABELS: Record<'film' | 'series' | 'anime' | 'cartoon', string> = {
+  film: 'Фильм',
+  series: 'Сериал',
+  anime: 'Аниме',
+  cartoon: 'Мультфильм',
+}
+export const SHOW_KINDS = Object.keys(SHOW_KIND_LABELS) as (keyof typeof SHOW_KIND_LABELS)[]
+
+export const MAX_IDEAS = 100
+export const MAX_IDEA_TITLE = 80
+export const MAX_IDEA_CATEGORY = 24
+export const MAX_IDEA_TEXT = 4000
+export const MAX_IDEA_LINKS = 10
+export const MAX_IDEA_LINK_LABEL = 80
+export const MAX_IDEA_IMAGES = 6
+export const IDEA_CATEGORY_SUGGESTIONS = ['Ардуино', 'Кулинария', 'Разное']
+
 /** number-цель: сумма быстрого добавления по умолчанию — сегодняшнее фиксированное +10/+50 */
 export const DEFAULT_QUICK_AMOUNTS = [10, 50]
 export const MAX_QUICK_AMOUNTS = 6

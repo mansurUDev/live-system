@@ -1,5 +1,6 @@
 import {
   HEX_RE,
+  IDEA_CATEGORY_SUGGESTIONS,
   MAX_BOOKS,
   MAX_BYLINE,
   MAX_COURSES,
@@ -8,6 +9,13 @@ import {
   MAX_HABIT_DAYS,
   MAX_HABIT_NAME,
   MAX_HABITS,
+  MAX_IDEA_CATEGORY,
+  MAX_IDEA_IMAGES,
+  MAX_IDEA_LINK_LABEL,
+  MAX_IDEA_LINKS,
+  MAX_IDEA_TEXT,
+  MAX_IDEA_TITLE,
+  MAX_IDEAS,
   MAX_LIB_DONE,
   MAX_MANDATORY,
   MAX_NOTE_TEXT,
@@ -18,6 +26,8 @@ import {
   MAX_REMINDER_NAME,
   MAX_REMINDERS,
   MAX_SECTIONS,
+  MAX_SHOW_NUMBER,
+  MAX_SHOWS,
   MAX_TITLE,
   MAX_VIDEO_NOTE,
   MAX_VIDEO_URL,
@@ -25,6 +35,7 @@ import {
   MIN_REMINDER_INTERVAL_DAYS,
   DEFAULT_REMINDER_INTERVAL_DAYS,
   PAL,
+  SHOW_KINDS,
 } from '../constants'
 import { monthKeyOf } from './time'
 import type {
@@ -32,12 +43,15 @@ import type {
   Course,
   Finance,
   Habit,
+  Idea,
+  IdeaLink,
   Library,
   LibDone,
   LibNote,
   MandatoryExpense,
   OneTimeExpense,
   Reminder,
+  Show,
   Video,
 } from '../types'
 
@@ -208,8 +222,12 @@ export function normFinance(x: unknown, now: number): Finance {
   }
 }
 
+function showNumber(x: unknown): number {
+  return Math.min(count(x), MAX_SHOW_NUMBER)
+}
+
 export function emptyLibrary(): Library {
-  return { books: [], courses: [], videos: [], done: [] }
+  return { books: [], courses: [], videos: [], shows: [], done: [] }
 }
 
 export function normLibrary(x: unknown, nowIso: string): Library {
@@ -276,12 +294,30 @@ export function normLibrary(x: unknown, nowIso: string): Library {
       })
     : []
 
+  const shows: Show[] = Array.isArray(l.shows)
+    ? l.shows.slice(0, MAX_SHOWS).map((raw, i) => {
+        const s = obj(raw)
+        return {
+          id: str(s.id, 60, 'sh' + i),
+          title: str(s.title, MAX_TITLE, 'Без названия'),
+          kind: (SHOW_KINDS as string[]).includes(s.kind as string) ? (s.kind as Show['kind']) : 'film',
+          color: color(s.color, i + 9),
+          season: showNumber(s.season),
+          episode: showNumber(s.episode),
+          minute: showNumber(s.minute),
+          link: safeUrl(s.link, MAX_VIDEO_URL),
+          startedAt: iso(s.startedAt, nowIso),
+        }
+      })
+    : []
+
+  const DONE_KINDS = new Set(['book', 'course', 'video', 'show'])
   const done: LibDone[] = Array.isArray(l.done)
     ? l.done.slice(0, MAX_LIB_DONE).map((raw, i) => {
         const d = obj(raw)
         return {
           id: str(d.id, 60, 'ld' + i),
-          kind: d.kind === 'course' ? 'course' : d.kind === 'video' ? 'video' : 'book',
+          kind: (DONE_KINDS.has(d.kind as string) ? d.kind : 'book') as LibDone['kind'],
           title: str(d.title, MAX_TITLE, '—'),
           byline: str(d.byline, MAX_BYLINE),
           color: color(d.color, i),
@@ -292,5 +328,42 @@ export function normLibrary(x: unknown, nowIso: string): Library {
       })
     : []
 
-  return { books, courses, videos, done }
+  return { books, courses, videos, shows, done }
+}
+
+export function normIdeas(x: unknown, nowIso: string): Idea[] {
+  if (!Array.isArray(x)) return []
+  return x.slice(0, MAX_IDEAS).map((raw, i) => {
+    const it = obj(raw)
+    const links: IdeaLink[] = Array.isArray(it.links)
+      ? it.links
+          .slice(0, MAX_IDEA_LINKS)
+          .map((rawL, j) => {
+            const l = obj(rawL)
+            return {
+              id: str(l.id, 60, 'il' + j),
+              url: safeUrl(l.url, MAX_VIDEO_URL),
+              label: str(l.label, MAX_IDEA_LINK_LABEL),
+            }
+          })
+          .filter((l) => l.url)
+      : []
+    const images: string[] = Array.isArray(it.images)
+      ? it.images
+          .slice(0, MAX_IDEA_IMAGES)
+          .map((raw2) => safeUrl(raw2, MAX_VIDEO_URL))
+          .filter(Boolean)
+      : []
+
+    return {
+      id: str(it.id, 60, 'i' + i),
+      title: str(it.title, MAX_IDEA_TITLE, 'Идея'),
+      category: str(it.category, MAX_IDEA_CATEGORY, IDEA_CATEGORY_SUGGESTIONS[2]!),
+      text: str(it.text, MAX_IDEA_TEXT),
+      links,
+      images,
+      done: !!it.done,
+      createdAt: iso(it.createdAt, nowIso),
+    }
+  })
 }

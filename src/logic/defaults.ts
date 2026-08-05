@@ -83,6 +83,7 @@ export function defaultDoc(now: number = Date.now()): Doc {
     snapshots: {},
     habits: [],
     reminders: [],
+    ideas: [],
     fin: emptyFinance(now),
     lib: emptyLibrary(),
   }

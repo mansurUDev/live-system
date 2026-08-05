@@ -22,6 +22,7 @@ export function BottomNav({ tab, onGo, moreOpen, onToggleMore }: Props) {
     { key: 'wheel', label: 'Колесо', icon: <IconWheel /> },
     { key: 'track', label: 'Трекер', icon: <IconClock /> },
     { key: 'lib', label: 'Книги', icon: <IconBook /> },
+    { key: 'ideas', label: 'Идеи', icon: <IconIdea /> },
   ]
 
   return (
@@ -110,6 +111,14 @@ function IconBook() {
     <svg {...SVG}>
       <path d="M5 4.5h9a3 3 0 0 1 3 3v12a2.5 2.5 0 0 0-2.5-2.5H5z" strokeLinejoin="round" />
       <path d="M19 6.5v13" strokeLinecap="round" />
+    </svg>
+  )
+}
+function IconIdea() {
+  return (
+    <svg {...SVG}>
+      <path d="M9 18h6M10 21h4" strokeLinecap="round" />
+      <path d="M12 3.5a5.5 5.5 0 0 0-3 10.1c.6.4 1 1 1 1.7V16h4v-.7c0-.7.4-1.3 1-1.7A5.5 5.5 0 0 0 12 3.5Z" strokeLinejoin="round" />
     </svg>
   )
 }

@@ -37,6 +37,7 @@ export function Tabs({ tab, onChange, archiveCount }: Props) {
     { key: 'habits', label: 'Привычки' },
     { key: 'fin', label: 'Финансы' },
     { key: 'lib', label: 'Библиотека' },
+    { key: 'ideas', label: 'Идеи' },
     { key: 'an', label: 'Аналитика' },
     { key: 'arch', label: 'Архив' + (archiveCount ? ' · ' + archiveCount : '') },
   ]

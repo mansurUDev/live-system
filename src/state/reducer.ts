@@ -5,12 +5,15 @@ import {
   MAX_ENTRIES,
   MAX_HABITS,
   MAX_HISTORY,
+  MAX_IDEAS,
   MAX_LIB_DONE,
   MAX_MANDATORY,
   MAX_NOTES,
   MAX_ONETIME,
   MAX_REMINDERS,
+  MAX_SHOWS,
   MAX_VIDEOS,
+  SHOW_KIND_LABELS,
 } from '../constants'
 import { money } from '../logic/currency'
 import { rollMonth } from '../logic/finance'
@@ -32,12 +35,14 @@ import type {
   Finance,
   Habit,
   HistoryRec,
+  Idea,
   LibDone,
   LibNote,
   MandatoryExpense,
   OneTimeExpense,
   Reminder,
   Sector,
+  Show,
   TimeEntry,
   Video,
 } from '../types'
@@ -81,6 +86,9 @@ export type Action =
   | { type: 'saveReminder'; reminder: Reminder; now: number }
   | { type: 'deleteReminder'; id: string; now: number }
   | { type: 'markReminderDone'; id: string; now: number }
+  // идеи
+  | { type: 'saveIdea'; idea: Idea; now: number }
+  | { type: 'deleteIdea'; id: string; now: number }
   // финансы
   | { type: 'patchFinance'; patch: Partial<Finance>; now: number }
   | { type: 'rollFinanceMonth'; now: number }
@@ -92,17 +100,18 @@ export type Action =
   | { type: 'saveBook'; book: Book; now: number }
   | { type: 'saveCourse'; course: Course; now: number }
   | { type: 'saveVideo'; video: Video; now: number }
+  | { type: 'saveShow'; show: Show; now: number }
   | { type: 'toggleSection'; courseId: string; sectionId: string; now: number }
   | { type: 'addNote'; kind: 'book' | 'course'; id: string; note: LibNote; now: number }
   | {
       type: 'finishLibItem'
-      kind: 'book' | 'course' | 'video'
+      kind: 'book' | 'course' | 'video' | 'show'
       id: string
       doneId: string
       quote: string
       now: number
     }
-  | { type: 'deleteLibItem'; kind: 'book' | 'course' | 'video'; id: string; now: number }
+  | { type: 'deleteLibItem'; kind: 'book' | 'course' | 'video' | 'show'; id: string; now: number }
 
 /**
  * Действия, которые диспатчатся сами — при загрузке страницы или из ответа
@@ -325,6 +334,19 @@ function coreReducer(doc: Doc, action: Action): Doc {
         reminders: doc.reminders.map((r) => (r.id === action.id ? markDone(r, action.now) : r)),
       }
 
+    case 'saveIdea': {
+      const exists = doc.ideas.some((i) => i.id === action.idea.id)
+      return {
+        ...doc,
+        ideas: exists
+          ? doc.ideas.map((i) => (i.id === action.idea.id ? action.idea : i))
+          : [...doc.ideas, action.idea].slice(0, MAX_IDEAS),
+      }
+    }
+
+    case 'deleteIdea':
+      return { ...doc, ideas: doc.ideas.filter((i) => i.id !== action.id) }
+
     case 'patchFinance':
       return { ...doc, fin: { ...doc.fin, ...action.patch } }
 
@@ -410,6 +432,19 @@ function coreReducer(doc: Doc, action: Action): Doc {
       }
     }
 
+    case 'saveShow': {
+      const exists = doc.lib.shows.some((s) => s.id === action.show.id)
+      return {
+        ...doc,
+        lib: {
+          ...doc.lib,
+          shows: exists
+            ? doc.lib.shows.map((s) => (s.id === action.show.id ? action.show : s))
+            : [...doc.lib.shows, action.show].slice(0, MAX_SHOWS),
+        },
+      }
+    }
+
     case 'toggleSection':
       return {
         ...doc,
@@ -448,7 +483,9 @@ function coreReducer(doc: Doc, action: Action): Doc {
           ? doc.lib.books.find((b) => b.id === action.id)
           : action.kind === 'course'
             ? doc.lib.courses.find((c) => c.id === action.id)
-            : doc.lib.videos.find((v) => v.id === action.id)
+            : action.kind === 'video'
+              ? doc.lib.videos.find((v) => v.id === action.id)
+              : doc.lib.shows.find((s) => s.id === action.id)
       if (!item) return doc
 
       const byline =
@@ -456,9 +493,12 @@ function coreReducer(doc: Doc, action: Action): Doc {
           ? (item as Book).author
           : action.kind === 'course'
             ? (item as Course).platform
-            : (item as Video).channel
-      // у видео нет startedAt — очередь на посмотреть начинается с момента добавления
-      const startedAt = action.kind === 'video' ? (item as Video).addedAt : (item as Book | Course).startedAt
+            : action.kind === 'video'
+              ? (item as Video).channel
+              : SHOW_KIND_LABELS[(item as Show).kind]
+      // у видео и шоу нет startedAt-до-начала — очередь на посмотреть начинается с момента добавления
+      const startedAt =
+        action.kind === 'video' ? (item as Video).addedAt : (item as Book | Course | Show).startedAt
 
       const rec: LibDone = {
         id: action.doneId,
@@ -478,6 +518,7 @@ function coreReducer(doc: Doc, action: Action): Doc {
           courses:
             action.kind === 'course' ? doc.lib.courses.filter((c) => c.id !== action.id) : doc.lib.courses,
           videos: action.kind === 'video' ? doc.lib.videos.filter((v) => v.id !== action.id) : doc.lib.videos,
+          shows: action.kind === 'show' ? doc.lib.shows.filter((s) => s.id !== action.id) : doc.lib.shows,
           done: [rec, ...doc.lib.done].slice(0, MAX_LIB_DONE),
         },
       }
@@ -492,6 +533,7 @@ function coreReducer(doc: Doc, action: Action): Doc {
           courses:
             action.kind === 'course' ? doc.lib.courses.filter((c) => c.id !== action.id) : doc.lib.courses,
           videos: action.kind === 'video' ? doc.lib.videos.filter((v) => v.id !== action.id) : doc.lib.videos,
+          shows: action.kind === 'show' ? doc.lib.shows.filter((s) => s.id !== action.id) : doc.lib.shows,
         },
       }
 

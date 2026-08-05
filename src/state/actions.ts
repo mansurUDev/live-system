@@ -10,10 +10,14 @@ import type {
   Finance,
   Habit,
   HabitType,
+  Idea,
+  IdeaLink,
   MandatoryExpense,
   OneTimeExpense,
   Reminder,
   Sector,
+  Show,
+  ShowKind,
   TimeEntry,
   Video,
 } from '../types'
@@ -138,6 +142,20 @@ export const A = {
     createdAt: new Date().toISOString(),
   }),
 
+  saveIdea: (idea: Idea): Action => ({ type: 'saveIdea', idea, now: Date.now() }),
+  deleteIdea: (id: string): Action => ({ type: 'deleteIdea', id, now: Date.now() }),
+  newIdea: (title: string, category: string, text: string, links: IdeaLink[], images: string[]): Idea => ({
+    id: uid('i'),
+    title,
+    category,
+    text,
+    links,
+    images,
+    done: false,
+    createdAt: new Date().toISOString(),
+  }),
+  newIdeaLink: (url: string, label: string): IdeaLink => ({ id: uid('il'), url, label }),
+
   patchFinance: (patch: Partial<Finance>): Action => ({ type: 'patchFinance', patch, now: Date.now() }),
   rollFinanceMonth: (): Action => ({ type: 'rollFinanceMonth', now: Date.now() }),
   saveMandatory: (item: MandatoryExpense): Action => ({ type: 'saveMandatory', item, now: Date.now() }),
@@ -149,6 +167,7 @@ export const A = {
   saveBook: (book: Book): Action => ({ type: 'saveBook', book, now: Date.now() }),
   saveCourse: (course: Course): Action => ({ type: 'saveCourse', course, now: Date.now() }),
   saveVideo: (video: Video): Action => ({ type: 'saveVideo', video, now: Date.now() }),
+  saveShow: (show: Show): Action => ({ type: 'saveShow', show, now: Date.now() }),
   toggleSection: (courseId: string, sectionId: string): Action => ({
     type: 'toggleSection',
     courseId,
@@ -162,7 +181,7 @@ export const A = {
     note: { d: new Date().toISOString(), text },
     now: Date.now(),
   }),
-  finishLibItem: (kind: 'book' | 'course' | 'video', id: string, quote: string): Action => ({
+  finishLibItem: (kind: 'book' | 'course' | 'video' | 'show', id: string, quote: string): Action => ({
     type: 'finishLibItem',
     kind,
     id,
@@ -170,7 +189,7 @@ export const A = {
     quote,
     now: Date.now(),
   }),
-  deleteLibItem: (kind: 'book' | 'course' | 'video', id: string): Action => ({
+  deleteLibItem: (kind: 'book' | 'course' | 'video' | 'show', id: string): Action => ({
     type: 'deleteLibItem',
     kind,
     id,
@@ -209,5 +228,16 @@ export const A = {
     color,
     note,
     addedAt: new Date().toISOString(),
+  }),
+  newShow: (title: string, kind: ShowKind, color: string, link: string): Show => ({
+    id: uid('sh'),
+    title,
+    kind,
+    color,
+    season: 0,
+    episode: 0,
+    minute: 0,
+    link,
+    startedAt: new Date().toISOString(),
   }),
 }

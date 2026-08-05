@@ -1,7 +1,7 @@
 export type Category = 'work' | 'health' | 'rest' | 'byt' | 'sleep'
 export type SectorKind = 'sphere' | 'number' | 'steps'
 export type Period = 'day' | 'week' | 'month'
-export type Tab = 'brief' | 'wheel' | 'track' | 'habits' | 'fin' | 'lib' | 'an' | 'arch'
+export type Tab = 'brief' | 'wheel' | 'track' | 'habits' | 'fin' | 'lib' | 'an' | 'arch' | 'ideas'
 
 export interface HistoryRec {
   id: string
@@ -208,9 +208,26 @@ export interface Video {
   addedAt: string
 }
 
+/** Фильм / сериал / аниме / мультфильм — очередь на посмотреть с позицией */
+export type ShowKind = 'film' | 'series' | 'anime' | 'cartoon'
+
+export interface Show {
+  id: string
+  title: string
+  kind: ShowKind
+  color: string
+  /** для сериалов/аниме/мультфильмов; у фильма всегда 0 */
+  season: number
+  episode: number
+  minute: number
+  /** где смотрю — необязательно */
+  link: string
+  startedAt: string
+}
+
 export interface LibDone {
   id: string
-  kind: 'book' | 'course' | 'video'
+  kind: 'book' | 'course' | 'video' | 'show'
   title: string
   byline: string
   color: string
@@ -223,14 +240,37 @@ export interface Library {
   books: Book[]
   courses: Course[]
   videos: Video[]
+  shows: Show[]
   done: LibDone[]
 }
 
 /** Фиксированный список поддерживаемых валют */
 export type CurrencyCode = 'UZS' | 'USD' | 'EUR' | 'RUB'
 
+export interface IdeaLink {
+  id: string
+  url: string
+  /** название или домен — то, что видно вместо голой ссылки */
+  label: string
+}
+
+/** Идея на будущее — заметка + фото + ссылки, без срока и без прогресса */
+export interface Idea {
+  id: string
+  title: string
+  /** своя категория текстом — «Ардуино», «Кулинария» и т.п. */
+  category: string
+  text: string
+  links: IdeaLink[]
+  /** URL в Supabase Storage — в документе только адреса */
+  images: string[]
+  /** воплощена в жизнь */
+  done: boolean
+  createdAt: string
+}
+
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 4
+export const DOC_VERSION = 5
 
 export interface Doc {
   v: number
@@ -245,6 +285,7 @@ export interface Doc {
   snapshots: Snapshots
   habits: Habit[]
   reminders: Reminder[]
+  ideas: Idea[]
   fin: Finance
   lib: Library
 }

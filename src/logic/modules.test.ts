@@ -18,14 +18,18 @@ import { emptyFinance, emptyLibrary, normHabits } from './normalizeModules'
 import { defaultDoc } from './defaults'
 import { daysOverdue, daysSince, isOverdue, markDone } from './reminders'
 import { dayKeyAgo, localDateKey } from './time'
+import { cleanShareUrl } from './links'
 import { youtubeId, youtubeThumbnail } from './video'
 import {
   CURRENCY_CODES,
   DEFAULT_CURRENCY,
   DEFAULT_QUICK_AMOUNTS,
   DEFAULT_REMINDER_INTERVAL_DAYS,
+  MAX_IDEAS,
   MAX_QUICK_AMOUNTS,
   MAX_REMINDER_INTERVAL_DAYS,
+  MAX_SHOW_NUMBER,
+  MAX_SHOWS,
   MAX_VIDEOS,
   DAY_MS,
 } from '../constants'
@@ -635,5 +639,112 @@ describe('видео', () => {
       NOW,
     )
     expect(d.lib.done[0]!.kind).toBe('video')
+  })
+})
+
+describe('чистка ссылок от трекеров', () => {
+  it('инстаграм: query и hash отбрасываются целиком', () => {
+    expect(
+      cleanShareUrl('https://www.instagram.com/p/DblixPfE0Ho/?utm_source=ig_web_copy_link&igsh=NTc4MTIwNjQ2YQ=='),
+    ).toBe('https://www.instagram.com/p/DblixPfE0Ho/')
+    expect(cleanShareUrl('https://instagr.am/p/abc123/?igsh=xyz')).toBe('https://instagr.am/p/abc123/')
+  })
+
+  it('youtube: si/feature/utm_ уходят, v/t/list остаются', () => {
+    expect(cleanShareUrl('https://youtu.be/W1SfFSxlhI8?si=FEPhgXBudcCTrzM_')).toBe('https://youtu.be/W1SfFSxlhI8')
+    expect(cleanShareUrl('https://www.youtube.com/watch?v=W1SfFSxlhI8&t=42s&feature=share')).toBe(
+      'https://www.youtube.com/watch?v=W1SfFSxlhI8&t=42s',
+    )
+    expect(cleanShareUrl('https://m.youtube.com/watch?v=abc&list=PL123&utm_source=x')).toBe(
+      'https://m.youtube.com/watch?v=abc&list=PL123',
+    )
+  })
+
+  it('прочие сайты: денылист убирается, остальные параметры остаются', () => {
+    expect(cleanShareUrl('https://example.com/page?utm_campaign=x&fbclid=y&keep=1')).toBe(
+      'https://example.com/page?keep=1',
+    )
+  })
+
+  it('не-ссылка возвращается как есть (обрезанная)', () => {
+    expect(cleanShareUrl('  просто текст  ')).toBe('просто текст')
+    expect(cleanShareUrl('')).toBe('')
+  })
+})
+
+describe('идеи', () => {
+  it('id-фолбэк, обрезка по MAX_IDEAS, категория-фолбэк', () => {
+    const many = Array.from({ length: MAX_IDEAS + 5 }, (_, i) => ({ title: 'Идея ' + i }))
+    const d = normalize({ sectors: [], ideas: many }, NOW)
+    expect(d.ideas).toHaveLength(MAX_IDEAS)
+    expect(d.ideas[0]!.id).toBe('i0')
+    expect(d.ideas[0]!.category).toBe('Разное')
+  })
+
+  it('javascript: в ссылках и фото отбрасывается, http(s) проходит', () => {
+    const d = normalize(
+      {
+        sectors: [],
+        ideas: [
+          {
+            id: 'x',
+            title: 'Робот на Ардуино',
+            links: [
+              { id: 'l1', url: 'javascript:alert(1)', label: 'плохая' },
+              { id: 'l2', url: 'https://youtu.be/aaaaaaaaaaa', label: 'хорошая' },
+            ],
+            images: ['javascript:alert(2)', 'https://example.com/photo.jpg'],
+          },
+        ],
+      },
+      NOW,
+    )
+    expect(d.ideas[0]!.links).toHaveLength(1)
+    expect(d.ideas[0]!.links[0]!.url).toBe('https://youtu.be/aaaaaaaaaaa')
+    expect(d.ideas[0]!.images).toEqual(['https://example.com/photo.jpg'])
+  })
+
+  it('done по умолчанию false, мусор приводится к булеву', () => {
+    const d = normalize({ sectors: [], ideas: [{ title: 'X' }, { title: 'Y', done: true }] }, NOW)
+    expect(d.ideas[0]!.done).toBe(false)
+    expect(d.ideas[1]!.done).toBe(true)
+  })
+})
+
+describe('полка «Смотреть»', () => {
+  it('kind-фолбэк на film, обрезка по MAX_SHOWS', () => {
+    const many = Array.from({ length: MAX_SHOWS + 5 }, (_, i) => ({ title: 'Шоу ' + i, kind: 'мусор' }))
+    const d = normalize({ sectors: [], lib: { shows: many } }, NOW)
+    expect(d.lib.shows).toHaveLength(MAX_SHOWS)
+    expect(d.lib.shows[0]!.kind).toBe('film')
+  })
+
+  it('season/episode/minute клампятся до MAX_SHOW_NUMBER, отрицательные → 0', () => {
+    const d = normalize(
+      {
+        sectors: [],
+        lib: { shows: [{ title: 'Сериал', kind: 'series', season: -5, episode: 1e9, minute: 30 }] },
+      },
+      NOW,
+    )
+    expect(d.lib.shows[0]!.season).toBe(0)
+    expect(d.lib.shows[0]!.episode).toBe(MAX_SHOW_NUMBER)
+    expect(d.lib.shows[0]!.minute).toBe(30)
+  })
+
+  it('javascript: в ссылке «где смотрю» отбрасывается', () => {
+    const d = normalize(
+      { sectors: [], lib: { shows: [{ title: 'X', kind: 'anime', link: 'javascript:alert(1)' }] } },
+      NOW,
+    )
+    expect(d.lib.shows[0]!.link).toBe('')
+  })
+
+  it('kind шоу в done проходит нормализацию', () => {
+    const d = normalize(
+      { sectors: [], lib: { done: [{ id: 'ld1', kind: 'show', title: 'X', byline: 'Аниме' }] } },
+      NOW,
+    )
+    expect(d.lib.done[0]!.kind).toBe('show')
   })
 })

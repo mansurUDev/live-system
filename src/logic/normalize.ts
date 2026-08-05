@@ -21,7 +21,7 @@ import {
   CATS,
 } from '../constants'
 import { defaultDoc } from './defaults'
-import { normFinance, normHabits, normLibrary, normReminders } from './normalizeModules'
+import { normFinance, normHabits, normIdeas, normLibrary, normReminders } from './normalizeModules'
 import { clamp } from './pct'
 import { DOC_VERSION } from '../types'
 import type {
@@ -297,6 +297,7 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
     snapshots: normSnapshots(d.snapshots, nowIso),
     habits: normHabits(d.habits, nowIso),
     reminders: normReminders(d.reminders, nowIso),
+    ideas: normIdeas(d.ideas, nowIso),
     fin: normFinance(d.fin, now),
     lib: normLibrary(d.lib, nowIso),
   }

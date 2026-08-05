@@ -23,6 +23,7 @@ import { TrackerTab } from './components/tracker/TrackerTab'
 import { HabitsTab } from './components/habits/HabitsTab'
 import { FinanceTab } from './components/finance/FinanceTab'
 import { LibraryTab } from './components/library/LibraryTab'
+import { IdeasTab } from './components/ideas/IdeasTab'
 import { AnalyticsTab } from './components/analytics/AnalyticsTab'
 import { ArchiveTab } from './components/archive/ArchiveTab'
 import type { Tab } from './types'
@@ -82,6 +83,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
         {tab === 'habits' && <HabitsTab />}
         {tab === 'fin' && <FinanceTab />}
         {tab === 'lib' && <LibraryTab />}
+        {tab === 'ideas' && <IdeasTab />}
         {tab === 'an' && <AnalyticsTab />}
         {tab === 'arch' && <ArchiveTab />}
 

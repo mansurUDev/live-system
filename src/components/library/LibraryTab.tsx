@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MAX_BOOKS, MAX_COURSES, MAX_VIDEOS } from '../../constants'
+import { MAX_BOOKS, MAX_COURSES, MAX_SHOWS, MAX_VIDEOS } from '../../constants'
 import { fmtD } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
@@ -10,13 +10,15 @@ import { btnAccent, C, chipSquare, MONO, pageStyle, plainCard } from '../../them
 import { LibraryModal } from '../modals/LibraryModal'
 import { FinishModal } from '../modals/FinishModal'
 import { VideoModal } from '../modals/VideoModal'
+import { ShowModal } from '../modals/ShowModal'
 import { BookCard } from './BookCard'
 import { CourseCard } from './CourseCard'
 import { VideoCard } from './VideoCard'
+import { ShowCard } from './ShowCard'
 import type { Video } from '../../types'
 
 type Shelf = 'book' | 'course'
-type Finishing = { kind: Shelf | 'video'; id: string; title: string } | null
+type Finishing = { kind: Shelf | 'video' | 'show'; id: string; title: string } | null
 type VideoForm = { video: Video | null } | null
 
 export function LibraryTab() {
@@ -30,9 +32,10 @@ export function LibraryTab() {
   const [adding, setAdding] = useState<Shelf | null>(null)
   const [videoForm, setVideoForm] = useState<VideoForm>(null)
   const [deleteVideoId, setDeleteVideoId] = useState<string | null>(null)
+  const [showForm, setShowForm] = useState(false)
   const [finishing, setFinishing] = useState<Finishing>(null)
 
-  const usedColors = [...lib.books, ...lib.courses, ...lib.videos].map((x) => x.color)
+  const usedColors = [...lib.books, ...lib.courses, ...lib.videos, ...lib.shows].map((x) => x.color)
 
   const toggleOpen = (id: string) => setOpenId((cur) => (cur === id ? null : id))
 
@@ -51,6 +54,14 @@ export function LibraryTab() {
       return
     }
     setVideoForm({ video: null })
+  }
+
+  const openAddShow = () => {
+    if (lib.shows.length >= MAX_SHOWS) {
+      toast('Слишком много в очереди — досмотри или убери лишние')
+      return
+    }
+    setShowForm(true)
   }
 
   return (
@@ -135,6 +146,30 @@ export function LibraryTab() {
         <Empty text="Нашёл видео для саморазвития, но занят — сохрани ссылку сюда" />
       )}
 
+      {/* ── смотреть ── */}
+      <Shelf title="Смотреть" subtitle="фильмы, сериалы, аниме и мультфильмы — с позицией" onAdd={openAddShow} />
+      {lib.shows.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {lib.shows.map((s) => (
+            <ShowCard
+              key={s.id}
+              show={s}
+              open={openId === s.id}
+              onToggle={() => toggleOpen(s.id)}
+              onSave={(next) => dispatch(A.saveShow(next))}
+              onFinish={() => setFinishing({ kind: 'show', id: s.id, title: s.title })}
+              onDelete={() => {
+                dispatch(A.deleteLibItem('show', s.id))
+                setOpenId(null)
+                toast('Убрано из очереди')
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <Empty text="Сохрани название — посмотришь, когда будет время" />
+      )}
+
       {/* ── полка завершённого ── */}
       {lib.done.length > 0 && (
         <>
@@ -153,7 +188,13 @@ export function LibraryTab() {
                   <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
                     {d.byline}
                     {d.byline ? ' · ' : ''}
-                    {d.kind === 'book' ? 'книга' : d.kind === 'course' ? 'курс' : 'видео'}
+                    {d.kind === 'book'
+                      ? 'книга'
+                      : d.kind === 'course'
+                        ? 'курс'
+                        : d.kind === 'video'
+                          ? 'видео'
+                          : 'просмотрено'}
                   </div>
                   <div style={{ fontFamily: MONO, fontSize: 12.5, color: C.faint, marginTop: 3 }}>
                     {fmtD(d.startedAt, now)} → {fmtD(d.finishedAt, now)}
@@ -202,6 +243,17 @@ export function LibraryTab() {
           onCreate={(v) => {
             dispatch(A.saveVideo(v))
             setVideoForm(null)
+          }}
+        />
+      )}
+
+      {showForm && (
+        <ShowModal
+          usedColors={usedColors}
+          onCancel={() => setShowForm(false)}
+          onCreate={(show) => {
+            dispatch(A.saveShow(show))
+            setShowForm(false)
           }}
         />
       )}
