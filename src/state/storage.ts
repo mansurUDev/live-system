@@ -121,14 +121,21 @@ export function loadDoc(code: string, now: number = Date.now()): Doc {
 
 export type SaveResult = 'ok' | 'quota' | 'unavailable'
 
-export function saveDoc(code: string, doc: Doc): SaveResult {
+/**
+ * Записывает документ и возвращает вместе с результатом сам JSON — по нему
+ * вкладка потом узнаёт собственную запись в событии `storage` соседней вкладки
+ * (см. DataProvider): без этого две открытые вкладки будили бы друг друга без
+ * конца.
+ */
+export function saveDoc(code: string, doc: Doc): { result: SaveResult; json: string } {
+  const json = JSON.stringify(doc)
   const s = storage()
-  if (!s) return 'unavailable'
+  if (!s) return { result: 'unavailable', json }
   try {
-    s.setItem(docKey(code), JSON.stringify(doc))
-    return 'ok'
+    s.setItem(docKey(code), json)
+    return { result: 'ok', json }
   } catch {
-    return 'quota'
+    return { result: 'quota', json }
   }
 }
 

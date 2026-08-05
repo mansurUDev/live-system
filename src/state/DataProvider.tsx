@@ -56,8 +56,13 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [state.doc.snapshots, toast])
 
+  // Последний JSON, записанный этой вкладкой: соседняя вкладка сохранит ровно
+  // его же, и её событие `storage` не должно приниматься за чужую правку.
+  const lastWritten = useRef('')
+
   useEffect(() => {
-    const result = saveDoc(code, state.doc)
+    const { result, json } = saveDoc(code, state.doc)
+    lastWritten.current = json
     if (result === 'ok' || warned.current) return
     warned.current = true
     toast(
@@ -73,6 +78,12 @@ export function DataProvider({ children }: { children: ReactNode }) {
     const key = docKey(code)
     const onStorage = (e: StorageEvent) => {
       if (e.key !== key || !e.newValue) return
+      // Соседняя вкладка сохранила ровно то же, что лежит и здесь — это эхо
+      // общего состояния, а не правка. Принимать его за новость нельзя: обе
+      // вкладки пересобирали бы документ по кругу, вхолостую переписывая
+      // хранилище тысячи раз в секунду, и правка, сделанная в этот момент,
+      // тонула бы в этом потоке.
+      if (e.newValue === lastWritten.current) return
       try {
         dispatch({ type: 'replaceDoc', doc: normalize(JSON.parse(e.newValue)), now: Date.now() })
       } catch {
