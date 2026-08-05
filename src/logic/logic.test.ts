@@ -357,6 +357,27 @@ describe('normalize', () => {
     expect(doc.entries[0]!.id).toBe('e200')
   })
 
+  it('обрезает секунды у границ записей — ручная правка оперирует минутами', () => {
+    const doc = normalize(
+      {
+        sectors: [],
+        entries: [
+          {
+            id: 'e1',
+            actId: 'a1',
+            start: new Date('2026-03-15T06:04:37').toISOString(),
+            end: new Date('2026-03-15T06:15:22').toISOString(),
+          },
+        ],
+      },
+      NOW,
+    )
+    expect(new Date(doc.entries[0]!.start).getSeconds()).toBe(0)
+    expect(new Date(doc.entries[0]!.end!).getSeconds()).toBe(0)
+    expect(doc.entries[0]!.start).toBe(new Date('2026-03-15T06:04:00').toISOString())
+    expect(doc.entries[0]!.end).toBe(new Date('2026-03-15T06:15:00').toISOString())
+  })
+
   it('не пропускает служебные ключи из чужого JSON', () => {
     const raw = JSON.parse('{"sectors":[{"id":"a","__proto__":{"polluted":1}}],"snapshots":{"__proto__":{"x":1}}}')
     const doc = normalize(raw, NOW)

@@ -172,13 +172,17 @@ function normEntries(x: unknown): TimeEntry[] {
   const parsed: TimeEntry[] = []
   for (const [i, raw] of x.entries()) {
     const e = obj(raw)
-    const s = new Date(String(e.start)).getTime()
-    if (!Number.isFinite(s)) continue
+    // границы записей живут с точностью до минуты — секунды от старых нажатий
+    // кнопок давали ложные пересечения при ручной правке (см. actions.ts)
+    const parsedStart = new Date(String(e.start)).getTime()
+    if (!Number.isFinite(parsedStart)) continue
+    const s = parsedStart - (parsedStart % 60_000)
 
     let end: string | null = null
     if (e.end != null) {
       const t = new Date(String(e.end)).getTime()
-      end = Number.isFinite(t) ? new Date(Math.max(t, s)).toISOString() : new Date(s).toISOString()
+      const floored = Number.isFinite(t) ? t - (t % 60_000) : s
+      end = new Date(Math.max(floored, s)).toISOString()
     }
     parsed.push({
       id: str(e.id, 60, 'e' + i),

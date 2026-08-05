@@ -100,6 +100,9 @@ export const MAX_RATE = 1e9
 /** Ключ, под которым лежит код доступа текущей сессии */
 export const CODE_KEY = 'sistema-zhizni-code'
 
+/** Ключ последней открытой вкладки — перезагрузка возвращает туда же */
+export const TAB_KEY = 'sistema-zhizni-tab'
+
 /** Сдвиги для быстрой отметки задним числом, минуты */
 export const BACKDATE_OFFSETS = [5, 15, 30]
 

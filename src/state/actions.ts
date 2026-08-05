@@ -18,6 +18,16 @@ import type {
 } from '../types'
 
 /**
+ * Границы записей времени живут с точностью до минуты: кнопка, нажатая в
+ * 6:04:37, писала бы 6:04:37, а ручная правка оперирует «6:04» — и невидимые
+ * секунды давали ложные пересечения при редактировании соседних записей.
+ */
+function minuteStart(backMinutes = 0): number {
+  const t = Date.now() - backMinutes * 60_000
+  return t - (t % 60_000)
+}
+
+/**
  * Создатели действий — единственное место, где берётся текущее время и
  * генерируются идентификаторы. Благодаря этому редьюсер остаётся чистым и
  * полностью проверяемым в тестах.
@@ -92,11 +102,11 @@ export const A = {
     type: 'pressAct',
     actId,
     entryId: uid('e'),
-    now: Date.now() - backMinutes * 60_000,
+    now: minuteStart(backMinutes),
   }),
-  stopTrack: (): Action => ({ type: 'stopTrack', now: Date.now() }),
+  stopTrack: (): Action => ({ type: 'stopTrack', now: minuteStart() }),
   saveAct: (act: Activity): Action => ({ type: 'saveAct', act, now: Date.now() }),
-  deleteAct: (id: string): Action => ({ type: 'deleteAct', id, now: Date.now() }),
+  deleteAct: (id: string): Action => ({ type: 'deleteAct', id, now: minuteStart() }),
   saveEntry: (entry: TimeEntry): Action => ({ type: 'saveEntry', entry, now: Date.now() }),
   deleteEntry: (id: string): Action => ({ type: 'deleteEntry', id, now: Date.now() }),
 

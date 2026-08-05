@@ -6,11 +6,13 @@ import { NowProvider } from './state/NowProvider'
 import { ToastProvider } from './state/ToastProvider'
 import { useIsMobile } from './hooks/useIsMobile'
 import { useBackup } from './hooks/useBackup'
+import { readTab, writeTab } from './state/storage'
 import { BottomNav } from './components/BottomNav'
 import { Header } from './components/Header'
 import { LandingScreen } from './components/LandingScreen'
 import { LoginScreen } from './components/LoginScreen'
 import { MoreMenu } from './components/MoreMenu'
+import { PullToRefresh } from './components/PullToRefresh'
 import { Tabs } from './components/Tabs'
 import { Toasts } from './components/Toasts'
 import { ChangeCodeModal } from './components/modals/ChangeCodeModal'
@@ -126,8 +128,13 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
 
 function Authed() {
   const { code } = useAuth()
-  const [tab, setTab] = useState<Tab>('brief')
+  const [tab, setTab] = useState<Tab>(() => readTab())
   const [showLanding, setShowLanding] = useState(true)
+
+  const changeTab = (t: Tab) => {
+    writeTab(t)
+    setTab(t)
+  }
 
   useEffect(() => {
     if (!code) setShowLanding(true)
@@ -141,7 +148,7 @@ function Authed() {
     // ключ по коду: смена пользователя поднимает данные заново, а не мешает их
     <DataProvider key={code}>
       <NowProvider trackerOpen={tab === 'track' || tab === 'brief'}>
-        <Shell tab={tab} setTab={setTab} />
+        <Shell tab={tab} setTab={changeTab} />
       </NowProvider>
     </DataProvider>
   )
@@ -152,6 +159,7 @@ export default function App() {
     <ToastProvider>
       <AuthProvider>
         <Authed />
+        <PullToRefresh />
       </AuthProvider>
     </ToastProvider>
   )

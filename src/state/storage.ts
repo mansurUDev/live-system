@@ -1,8 +1,8 @@
-import { BACKUP_KEY, CODE_KEY, LS_KEY, MAX_IMPORT_BYTES } from '../constants'
+import { BACKUP_KEY, CODE_KEY, LS_KEY, MAX_IMPORT_BYTES, TAB_KEY } from '../constants'
 import { defaultDoc } from '../logic/defaults'
 import { normalize } from '../logic/normalize'
 import { localDateKey } from '../logic/time'
-import type { Doc } from '../types'
+import type { Doc, Tab } from '../types'
 
 function storage(): Storage | null {
   try {
@@ -78,6 +78,26 @@ export function clearCode(): void {
     storage()?.removeItem(CODE_KEY)
   } catch {
     /* нечего чистить */
+  }
+}
+
+const TABS: Tab[] = ['brief', 'wheel', 'track', 'habits', 'fin', 'lib', 'an', 'arch']
+
+/** Последняя открытая вкладка — чтобы перезагрузка не выбрасывала в брифинг */
+export function readTab(): Tab {
+  try {
+    const raw = storage()?.getItem(TAB_KEY)
+    return TABS.includes(raw as Tab) ? (raw as Tab) : 'brief'
+  } catch {
+    return 'brief'
+  }
+}
+
+export function writeTab(tab: Tab): void {
+  try {
+    storage()?.setItem(TAB_KEY, tab)
+  } catch {
+    /* без хранилища выбор проживёт до перезагрузки */
   }
 }
 
