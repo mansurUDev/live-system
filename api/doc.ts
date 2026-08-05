@@ -46,7 +46,15 @@ let pool: Pool | null = null
 
 function db(): Pool {
   if (!pool) {
-    pool = new Pool({ connectionString: DATABASE_URL, max: 3 })
+    pool = new Pool({
+      connectionString: DATABASE_URL,
+      max: 3,
+      // Supabase (как и большинство управляемых Postgres) ждёт TLS — без этой
+      // опции pg пытается открыть соединение в открытую, и сервер его рвёт.
+      // rejectUnauthorized: false — сертификат пула не всегда есть в доверенных
+      // корнях Node; для managed-БД это стандартный и достаточный компромисс.
+      ssl: { rejectUnauthorized: false },
+    })
     pool.on('error', () => {
       // соединение оборвалось — следующий вызов поднимет пул заново
       pool = null
