@@ -1,16 +1,19 @@
-import { createClient, type RedisClientType } from 'redis'
+import { Pool } from 'pg'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 /**
  * Хранилище документа в облаке.
  *
  * Обычная serverless-функция Vercel — Next.js для этого не нужен, папка `api`
- * работает в любом проекте. Данные лежат в Redis: у нас один JSON на
- * пользователя, и ключ-значение подходит под это лучше базы с таблицами.
+ * работает в любом проекте. Данные лежат в Postgres (Supabase): один JSON на
+ * пользователя, версия для оптимистичной конкурентности и время последнего
+ * изменения — всё в одной строке одной таблицы (см. sql/schema.sql).
  *
- * Подключение идёт по обычному протоколу Redis: именно такую строку выдаёт
- * Vercel при создании базы, а из edge-окружения сокет не открыть — поэтому
- * функция живёт в среде Node и написана в её классической форме.
+ * Сравнение-и-запись — один атомарный SQL-запрос (`INSERT ... ON CONFLICT DO
+ * UPDATE ... WHERE version = $incoming`): если между чтением клиентом своей
+ * версии и этой записью кто-то уже сохранил более новую, WHERE не совпадёт и
+ * обновление не пройдёт — Postgres гарантирует это сам, без ручной блокировки
+ * или скриптов.
  *
  * Доступ — по коду из ACCESS_CODES вида «mansur:1234,friend:5678». Это не
  * защита секретов, а разделение пользователей: без верного кода нельзя
@@ -22,60 +25,34 @@ const env = process.env as Record<string, string | undefined>
 /**
  * Строка подключения.
  *
- * Vercel даёт переменным префикс, который выбирают при подключении базы:
- * REDIS_URL, KV_URL, STORAGE_URL — это одно и то же. Вместо перечисления
- * вариантов ищем первую, похожую на адрес Redis, чтобы выбор в диалоге ничего
- * не ломал.
+ * Supabase и подобные сервисы обычно кладут её в DATABASE_URL, но ищем и
+ * любую другую переменную, похожую на адрес Postgres, — так выбор имени в
+ * диалоге хостинга ничего не ломает.
  */
-function redisUrl(): string {
+function databaseUrl(): string {
+  if (env.DATABASE_URL) return env.DATABASE_URL
   for (const key of Object.keys(env)) {
     const value = env[key]
-    if (value && (value.startsWith('redis://') || value.startsWith('rediss://'))) return value
+    if (value && (value.startsWith('postgres://') || value.startsWith('postgresql://'))) return value
   }
   return ''
 }
 
-const REDIS_URL = redisUrl()
+const DATABASE_URL = databaseUrl()
 
-/**
- * Сравнение-и-запись одним атомарным скриптом.
- *
- * GET, потом отдельный SET — это два похода в Redis с сравнением версий между
- * ними в JS: два одновременных PUT могут оба прочитать одну и ту же
- * «текущую» версию до того, как кто-то из них запишет свою, и оба получат
- * в ответ «ok» — хотя реально сохранится только один. Lua-скрипт выполняется
- * в Redis одним шагом, конкурентный запрос в середину не влезет.
- */
-const CAS_SCRIPT = `
-local raw = redis.call('GET', KEYS[1])
-local stored = 0
-if raw then
-  local ok, parsed = pcall(cjson.decode, raw)
-  if ok and parsed and parsed.version then stored = tonumber(parsed.version) or 0 end
-end
-local incoming = tonumber(ARGV[2]) or 0
-if incoming < stored then
-  return {stored, 0}
-end
-local newVersion = stored + 1
-redis.call('SET', KEYS[1], cjson.encode({doc = cjson.decode(ARGV[1]), version = newVersion}))
-return {newVersion, 1}
-`
-
-// Клиент переиспользуется между вызовами: соединение переживает тёплый старт,
+// Пул переиспользуется между вызовами: соединения переживают тёплый старт,
 // и каждый запрос не платит за рукопожатие заново.
-let clientPromise: Promise<RedisClientType> | null = null
+let pool: Pool | null = null
 
-async function client(): Promise<RedisClientType> {
-  if (!clientPromise) {
-    clientPromise = createClient({ url: REDIS_URL })
-      .on('error', () => {
-        // соединение оборвалось — следующий вызов поднимет новое
-        clientPromise = null
-      })
-      .connect() as Promise<RedisClientType>
+function db(): Pool {
+  if (!pool) {
+    pool = new Pool({ connectionString: DATABASE_URL, max: 3 })
+    pool.on('error', () => {
+      // соединение оборвалось — следующий вызов поднимет пул заново
+      pool = null
+    })
   }
-  return clientPromise
+  return pool
 }
 
 /** Разбирает «имя:код,имя:код» в соответствие код → имя пользователя */
@@ -102,7 +79,7 @@ function userFor(req: VercelRequest): string | null {
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store')
 
-  if (!REDIS_URL) {
+  if (!DATABASE_URL) {
     res.status(503).json({ error: 'Хранилище не подключено' })
     return
   }
@@ -113,22 +90,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return
   }
 
-  const key = `doc:${user}`
-
   try {
-    const redis = await client()
+    const pg = db()
 
     if (req.method === 'GET') {
-      const raw = await redis.get(key)
-      if (typeof raw !== 'string') {
-        res.status(200).json({ doc: null, version: 0 })
-        return
-      }
-      try {
-        res.status(200).json(JSON.parse(raw))
-      } catch {
-        res.status(200).json({ doc: null, version: 0 })
-      }
+      const result = await pg.query<{ doc: unknown; version: number }>(
+        'select doc, version from docs where user_id = $1',
+        [user],
+      )
+      const row = result.rows[0]
+      res.status(200).json(row ? { doc: row.doc, version: row.version } : { doc: null, version: 0 })
       return
     }
 
@@ -147,26 +118,35 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
 
       // Версия защищает от затирания: если на другом устройстве уже сохранили
-      // свежее, клиент сначала должен забрать чужие правки.
+      // свежее, клиент сначала должен забрать чужие правки. WHERE version = $3
+      // совпадёт только если ничего не изменилось между чтением и записью —
+      // при первой вставке (ON CONFLICT ещё не сработал) он не применяется
+      // вовсе, поэтому самый первый документ пользователя всегда принимается.
       const incoming = Number(body.version) || 0
-      const [resultVersion, accepted] = (await redis.eval(CAS_SCRIPT, {
-        keys: [key],
-        arguments: [JSON.stringify(body.doc), String(incoming)],
-      })) as [number, number]
+      const upsert = await pg.query<{ version: number }>(
+        `insert into docs (user_id, doc, version, updated_at)
+         values ($1, $2::jsonb, 1, now())
+         on conflict (user_id) do update
+           set doc = excluded.doc, version = docs.version + 1, updated_at = now()
+           where docs.version = $3
+         returning version`,
+        [user, JSON.stringify(body.doc), incoming],
+      )
 
-      if (!accepted) {
-        res.status(409).json({ error: 'Есть более свежая версия', version: resultVersion })
+      if (upsert.rows.length === 0) {
+        const current = await pg.query<{ version: number }>('select version from docs where user_id = $1', [user])
+        res.status(409).json({ error: 'Есть более свежая версия', version: current.rows[0]?.version ?? 0 })
         return
       }
 
-      res.status(200).json({ ok: true, version: resultVersion })
+      res.status(200).json({ ok: true, version: upsert.rows[0]!.version })
       return
     }
 
     // Смена кода: данные уже скопированы под новый, старую запись убираем,
     // иначе прежний код так и остался бы рабочим ключом к ним.
     if (req.method === 'DELETE') {
-      await redis.del(key)
+      await pg.query('delete from docs where user_id = $1', [user])
       res.status(200).json({ ok: true })
       return
     }
