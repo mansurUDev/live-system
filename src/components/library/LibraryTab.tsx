@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MAX_BOOKS, MAX_COURSES } from '../../constants'
+import { MAX_BOOKS, MAX_COURSES, MAX_VIDEOS } from '../../constants'
 import { fmtD } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
@@ -9,11 +9,15 @@ import { useIsMobile } from '../../hooks/useIsMobile'
 import { btnAccent, C, chipSquare, MONO, pageStyle, plainCard } from '../../theme'
 import { LibraryModal } from '../modals/LibraryModal'
 import { FinishModal } from '../modals/FinishModal'
+import { VideoModal } from '../modals/VideoModal'
 import { BookCard } from './BookCard'
 import { CourseCard } from './CourseCard'
+import { VideoCard } from './VideoCard'
+import type { Video } from '../../types'
 
 type Shelf = 'book' | 'course'
-type Finishing = { kind: Shelf; id: string; title: string } | null
+type Finishing = { kind: Shelf | 'video'; id: string; title: string } | null
+type VideoForm = { video: Video | null } | null
 
 export function LibraryTab() {
   const { state, dispatch } = useData()
@@ -24,9 +28,11 @@ export function LibraryTab() {
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [adding, setAdding] = useState<Shelf | null>(null)
+  const [videoForm, setVideoForm] = useState<VideoForm>(null)
+  const [deleteVideoId, setDeleteVideoId] = useState<string | null>(null)
   const [finishing, setFinishing] = useState<Finishing>(null)
 
-  const usedColors = [...lib.books, ...lib.courses].map((x) => x.color)
+  const usedColors = [...lib.books, ...lib.courses, ...lib.videos].map((x) => x.color)
 
   const toggleOpen = (id: string) => setOpenId((cur) => (cur === id ? null : id))
 
@@ -37,6 +43,14 @@ export function LibraryTab() {
       return
     }
     setAdding(kind)
+  }
+
+  const openAddVideo = () => {
+    if (lib.videos.length >= MAX_VIDEOS) {
+      toast('Очередь видео переполнена — посмотри или убери лишние')
+      return
+    }
+    setVideoForm({ video: null })
   }
 
   return (
@@ -96,6 +110,31 @@ export function LibraryTab() {
         <Empty text="Добавь курс — разделы станут чек-листом" />
       )}
 
+      {/* ── видео ── */}
+      <Shelf title="Видео" subtitle="вставь ссылку — посмотришь, когда будет время" onAdd={openAddVideo} />
+      {lib.videos.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {lib.videos.map((v) => (
+            <VideoCard
+              key={v.id}
+              video={v}
+              confirmingDelete={deleteVideoId === v.id}
+              onFinish={() => setFinishing({ kind: 'video', id: v.id, title: v.title })}
+              onEdit={() => setVideoForm({ video: v })}
+              onAskDelete={() => setDeleteVideoId(v.id)}
+              onCancelDelete={() => setDeleteVideoId(null)}
+              onDelete={() => {
+                dispatch(A.deleteLibItem('video', v.id))
+                setDeleteVideoId(null)
+                toast('Убрано из очереди')
+              }}
+            />
+          ))}
+        </div>
+      ) : (
+        <Empty text="Нашёл видео для саморазвития, но занят — сохрани ссылку сюда" />
+      )}
+
       {/* ── полка завершённого ── */}
       {lib.done.length > 0 && (
         <>
@@ -114,7 +153,7 @@ export function LibraryTab() {
                   <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
                     {d.byline}
                     {d.byline ? ' · ' : ''}
-                    {d.kind === 'book' ? 'книга' : 'курс'}
+                    {d.kind === 'book' ? 'книга' : d.kind === 'course' ? 'курс' : 'видео'}
                   </div>
                   <div style={{ fontFamily: MONO, fontSize: 12.5, color: C.faint, marginTop: 3 }}>
                     {fmtD(d.startedAt, now)} → {fmtD(d.finishedAt, now)}
@@ -151,6 +190,18 @@ export function LibraryTab() {
             if (adding === 'book') dispatch(A.saveBook(item as never))
             else dispatch(A.saveCourse(item as never))
             setAdding(null)
+          }}
+        />
+      )}
+
+      {videoForm && (
+        <VideoModal
+          video={videoForm.video}
+          usedColors={usedColors}
+          onCancel={() => setVideoForm(null)}
+          onCreate={(v) => {
+            dispatch(A.saveVideo(v))
+            setVideoForm(null)
           }}
         />
       )}

@@ -63,6 +63,10 @@ export const MAX_EXPENSE_NAME = 60
 
 export const MAX_BOOKS = 30
 export const MAX_COURSES = 30
+/** очередь на посмотреть, а не активный список — с запасом */
+export const MAX_VIDEOS = 40
+export const MAX_VIDEO_URL = 500
+export const MAX_VIDEO_NOTE = 200
 export const MAX_LIB_DONE = 100
 export const MAX_SECTIONS = 40
 export const MAX_NOTES = 40

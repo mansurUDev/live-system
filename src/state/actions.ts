@@ -15,6 +15,7 @@ import type {
   Reminder,
   Sector,
   TimeEntry,
+  Video,
 } from '../types'
 
 /**
@@ -147,6 +148,7 @@ export const A = {
 
   saveBook: (book: Book): Action => ({ type: 'saveBook', book, now: Date.now() }),
   saveCourse: (course: Course): Action => ({ type: 'saveCourse', course, now: Date.now() }),
+  saveVideo: (video: Video): Action => ({ type: 'saveVideo', video, now: Date.now() }),
   toggleSection: (courseId: string, sectionId: string): Action => ({
     type: 'toggleSection',
     courseId,
@@ -160,7 +162,7 @@ export const A = {
     note: { d: new Date().toISOString(), text },
     now: Date.now(),
   }),
-  finishLibItem: (kind: 'book' | 'course', id: string, quote: string): Action => ({
+  finishLibItem: (kind: 'book' | 'course' | 'video', id: string, quote: string): Action => ({
     type: 'finishLibItem',
     kind,
     id,
@@ -168,7 +170,7 @@ export const A = {
     quote,
     now: Date.now(),
   }),
-  deleteLibItem: (kind: 'book' | 'course', id: string): Action => ({
+  deleteLibItem: (kind: 'book' | 'course' | 'video', id: string): Action => ({
     type: 'deleteLibItem',
     kind,
     id,
@@ -197,5 +199,15 @@ export const A = {
     sections: sections.map((text, i) => ({ id: uid('cs' + i + '-'), text, done: false })),
     notes: [],
     startedAt: new Date().toISOString(),
+  }),
+  newVideo: (url: string, title: string, channel: string, thumbnail: string, color: string, note: string): Video => ({
+    id: uid('v'),
+    url,
+    title,
+    channel,
+    thumbnail,
+    color,
+    note,
+    addedAt: new Date().toISOString(),
   }),
 }

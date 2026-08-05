@@ -10,6 +10,7 @@ import {
   MAX_NOTES,
   MAX_ONETIME,
   MAX_REMINDERS,
+  MAX_VIDEOS,
 } from '../constants'
 import { money } from '../logic/currency'
 import { rollMonth } from '../logic/finance'
@@ -38,6 +39,7 @@ import type {
   Reminder,
   Sector,
   TimeEntry,
+  Video,
 } from '../types'
 
 export interface AppState {
@@ -89,10 +91,18 @@ export type Action =
   // библиотека
   | { type: 'saveBook'; book: Book; now: number }
   | { type: 'saveCourse'; course: Course; now: number }
+  | { type: 'saveVideo'; video: Video; now: number }
   | { type: 'toggleSection'; courseId: string; sectionId: string; now: number }
   | { type: 'addNote'; kind: 'book' | 'course'; id: string; note: LibNote; now: number }
-  | { type: 'finishLibItem'; kind: 'book' | 'course'; id: string; doneId: string; quote: string; now: number }
-  | { type: 'deleteLibItem'; kind: 'book' | 'course'; id: string; now: number }
+  | {
+      type: 'finishLibItem'
+      kind: 'book' | 'course' | 'video'
+      id: string
+      doneId: string
+      quote: string
+      now: number
+    }
+  | { type: 'deleteLibItem'; kind: 'book' | 'course' | 'video'; id: string; now: number }
 
 function isoAtLeast(now: number, notBefore: string): string {
   const start = new Date(notBefore).getTime()
@@ -372,6 +382,19 @@ function coreReducer(doc: Doc, action: Action): Doc {
       }
     }
 
+    case 'saveVideo': {
+      const exists = doc.lib.videos.some((v) => v.id === action.video.id)
+      return {
+        ...doc,
+        lib: {
+          ...doc.lib,
+          videos: exists
+            ? doc.lib.videos.map((v) => (v.id === action.video.id ? action.video : v))
+            : [...doc.lib.videos, action.video].slice(0, MAX_VIDEOS),
+        },
+      }
+    }
+
     case 'toggleSection':
       return {
         ...doc,
@@ -408,25 +431,38 @@ function coreReducer(doc: Doc, action: Action): Doc {
       const item =
         action.kind === 'book'
           ? doc.lib.books.find((b) => b.id === action.id)
-          : doc.lib.courses.find((c) => c.id === action.id)
+          : action.kind === 'course'
+            ? doc.lib.courses.find((c) => c.id === action.id)
+            : doc.lib.videos.find((v) => v.id === action.id)
       if (!item) return doc
+
+      const byline =
+        action.kind === 'book'
+          ? (item as Book).author
+          : action.kind === 'course'
+            ? (item as Course).platform
+            : (item as Video).channel
+      // у видео нет startedAt — очередь на посмотреть начинается с момента добавления
+      const startedAt = action.kind === 'video' ? (item as Video).addedAt : (item as Book | Course).startedAt
 
       const rec: LibDone = {
         id: action.doneId,
         kind: action.kind,
         title: item.title,
-        byline: 'author' in item ? item.author : item.platform,
+        byline,
         color: item.color,
-        startedAt: item.startedAt,
+        startedAt,
         finishedAt: new Date(action.now).toISOString(),
         quote: action.quote,
       }
       return {
         ...doc,
         lib: {
+          ...doc.lib,
           books: action.kind === 'book' ? doc.lib.books.filter((b) => b.id !== action.id) : doc.lib.books,
           courses:
             action.kind === 'course' ? doc.lib.courses.filter((c) => c.id !== action.id) : doc.lib.courses,
+          videos: action.kind === 'video' ? doc.lib.videos.filter((v) => v.id !== action.id) : doc.lib.videos,
           done: [rec, ...doc.lib.done].slice(0, MAX_LIB_DONE),
         },
       }
@@ -440,6 +476,7 @@ function coreReducer(doc: Doc, action: Action): Doc {
           books: action.kind === 'book' ? doc.lib.books.filter((b) => b.id !== action.id) : doc.lib.books,
           courses:
             action.kind === 'course' ? doc.lib.courses.filter((c) => c.id !== action.id) : doc.lib.courses,
+          videos: action.kind === 'video' ? doc.lib.videos.filter((v) => v.id !== action.id) : doc.lib.videos,
         },
       }
 

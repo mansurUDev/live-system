@@ -18,6 +18,7 @@ import { emptyFinance, emptyLibrary, normHabits } from './normalizeModules'
 import { defaultDoc } from './defaults'
 import { daysOverdue, daysSince, isOverdue, markDone } from './reminders'
 import { dayKeyAgo, localDateKey } from './time'
+import { youtubeId, youtubeThumbnail } from './video'
 import {
   CURRENCY_CODES,
   DEFAULT_CURRENCY,
@@ -25,6 +26,7 @@ import {
   DEFAULT_REMINDER_INTERVAL_DAYS,
   MAX_QUICK_AMOUNTS,
   MAX_REMINDER_INTERVAL_DAYS,
+  MAX_VIDEOS,
   DAY_MS,
 } from '../constants'
 import { DOC_VERSION } from '../types'
@@ -569,5 +571,69 @@ describe('напоминания', () => {
     )
     expect(d.reminders[0]!.lastDone).toBeNull()
     expect(d.reminders[1]!.lastDone).toBeNull()
+  })
+})
+
+describe('видео', () => {
+  const REAL_LINK = 'https://youtu.be/W1SfFSxlhI8?si=FEPhgXBudcCTrzM_'
+
+  it('youtubeId разбирает все формы ссылок', () => {
+    expect(youtubeId(REAL_LINK)).toBe('W1SfFSxlhI8')
+    expect(youtubeId('https://www.youtube.com/watch?v=W1SfFSxlhI8&t=42s')).toBe('W1SfFSxlhI8')
+    expect(youtubeId('https://youtube.com/shorts/W1SfFSxlhI8')).toBe('W1SfFSxlhI8')
+    expect(youtubeId('https://m.youtube.com/watch?v=W1SfFSxlhI8')).toBe('W1SfFSxlhI8')
+    expect(youtubeId('https://www.youtube.com/embed/W1SfFSxlhI8')).toBe('W1SfFSxlhI8')
+  })
+
+  it('youtubeId отклоняет не-YouTube и битые ссылки', () => {
+    expect(youtubeId('https://example.com/article')).toBeNull()
+    expect(youtubeId('не ссылка')).toBeNull()
+    expect(youtubeId('https://youtube.com/watch?v=')).toBeNull()
+    expect(youtubeId('https://youtube.com/')).toBeNull()
+  })
+
+  it('youtubeThumbnail собирает адрес картинки по id', () => {
+    expect(youtubeThumbnail('W1SfFSxlhI8')).toBe('https://img.youtube.com/vi/W1SfFSxlhI8/hqdefault.jpg')
+  })
+
+  it('normalize: id-фолбэк, обрезка по MAX_VIDEOS, мусорный kind в done → book', () => {
+    const many = Array.from({ length: MAX_VIDEOS + 5 }, (_, i) => ({
+      id: 'keep' + i,
+      url: 'https://youtu.be/aaaaaaaaaaa',
+      title: 'Видео ' + i,
+    }))
+    const d = normalize({ sectors: [], lib: { videos: many } }, NOW)
+    expect(d.lib.videos).toHaveLength(MAX_VIDEOS)
+    expect(d.lib.videos[0]!.id).toBe('keep0')
+
+    const noId = normalize({ sectors: [], lib: { videos: [{ url: 'https://youtu.be/aaaaaaaaaaa' }] } }, NOW)
+    expect(noId.lib.videos[0]!.id).toBe('v0')
+  })
+
+  it('normalize: javascript: в url/thumbnail отбрасывается, http(s) проходит', () => {
+    const d = normalize(
+      {
+        sectors: [],
+        lib: {
+          videos: [
+            { id: 'x', url: 'javascript:alert(1)', thumbnail: 'javascript:alert(2)', title: 'Плохое' },
+            { id: 'y', url: 'https://youtu.be/aaaaaaaaaaa', thumbnail: 'https://img.youtube.com/vi/a/hqdefault.jpg' },
+          ],
+        },
+      },
+      NOW,
+    )
+    expect(d.lib.videos[0]!.url).toBe('')
+    expect(d.lib.videos[0]!.thumbnail).toBe('')
+    expect(d.lib.videos[1]!.url).toBe('https://youtu.be/aaaaaaaaaaa')
+    expect(d.lib.videos[1]!.thumbnail).toBe('https://img.youtube.com/vi/a/hqdefault.jpg')
+  })
+
+  it('normalize: kind видео в done проходит нормализацию', () => {
+    const d = normalize(
+      { sectors: [], lib: { done: [{ id: 'ld1', kind: 'video', title: 'X', byline: 'Канал' }] } },
+      NOW,
+    )
+    expect(d.lib.done[0]!.kind).toBe('video')
   })
 })

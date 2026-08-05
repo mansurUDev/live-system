@@ -193,9 +193,24 @@ export interface Course {
   startedAt: string
 }
 
+/** Видео на посмотреть позже — без прогресса и позиции, только добавил → посмотрел */
+export interface Video {
+  id: string
+  url: string
+  title: string
+  /** из oEmbed author_name; пусто, если не удалось получить */
+  channel: string
+  /** пусто, если превью не нашлось — не YouTube или сеть недоступна; тогда вместо неё цветной квадрат */
+  thumbnail: string
+  color: string
+  /** личная пометка — зачем сохранил; необязательна */
+  note: string
+  addedAt: string
+}
+
 export interface LibDone {
   id: string
-  kind: 'book' | 'course'
+  kind: 'book' | 'course' | 'video'
   title: string
   byline: string
   color: string
@@ -207,6 +222,7 @@ export interface LibDone {
 export interface Library {
   books: Book[]
   courses: Course[]
+  videos: Video[]
   done: LibDone[]
 }
 
@@ -214,7 +230,7 @@ export interface Library {
 export type CurrencyCode = 'UZS' | 'USD' | 'EUR' | 'RUB'
 
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 3
+export const DOC_VERSION = 4
 
 export interface Doc {
   v: number

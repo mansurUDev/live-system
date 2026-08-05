@@ -19,6 +19,9 @@ import {
   MAX_REMINDERS,
   MAX_SECTIONS,
   MAX_TITLE,
+  MAX_VIDEO_NOTE,
+  MAX_VIDEO_URL,
+  MAX_VIDEOS,
   MIN_REMINDER_INTERVAL_DAYS,
   DEFAULT_REMINDER_INTERVAL_DAYS,
   PAL,
@@ -35,6 +38,7 @@ import type {
   MandatoryExpense,
   OneTimeExpense,
   Reminder,
+  Video,
 } from '../types'
 
 type Unknown = Record<string, unknown>
@@ -75,6 +79,18 @@ function iso(x: unknown, fallback: string): string {
 
 function dayKey(x: unknown): string {
   return typeof x === 'string' && DAY_KEY_RE.test(x) ? x : ''
+}
+
+/** Только http/https — иначе ссылка или превью могли бы принести javascript: из испорченного JSON */
+function safeUrl(x: unknown, max: number): string {
+  if (typeof x !== 'string' || !x) return ''
+  try {
+    const parsed = new URL(x)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return ''
+  } catch {
+    return ''
+  }
+  return x.slice(0, max)
 }
 
 function notes(x: unknown, nowIso: string): LibNote[] {
@@ -193,7 +209,7 @@ export function normFinance(x: unknown, now: number): Finance {
 }
 
 export function emptyLibrary(): Library {
-  return { books: [], courses: [], done: [] }
+  return { books: [], courses: [], videos: [], done: [] }
 }
 
 export function normLibrary(x: unknown, nowIso: string): Library {
@@ -244,12 +260,28 @@ export function normLibrary(x: unknown, nowIso: string): Library {
       })
     : []
 
+  const videos: Video[] = Array.isArray(l.videos)
+    ? l.videos.slice(0, MAX_VIDEOS).map((raw, i) => {
+        const v = obj(raw)
+        return {
+          id: str(v.id, 60, 'v' + i),
+          url: safeUrl(v.url, MAX_VIDEO_URL),
+          title: str(v.title, MAX_TITLE, 'Видео'),
+          channel: str(v.channel, MAX_BYLINE),
+          thumbnail: safeUrl(v.thumbnail, MAX_VIDEO_URL),
+          color: color(v.color, i + 6),
+          note: str(v.note, MAX_VIDEO_NOTE),
+          addedAt: iso(v.addedAt, nowIso),
+        }
+      })
+    : []
+
   const done: LibDone[] = Array.isArray(l.done)
     ? l.done.slice(0, MAX_LIB_DONE).map((raw, i) => {
         const d = obj(raw)
         return {
           id: str(d.id, 60, 'ld' + i),
-          kind: d.kind === 'course' ? 'course' : 'book',
+          kind: d.kind === 'course' ? 'course' : d.kind === 'video' ? 'video' : 'book',
           title: str(d.title, MAX_TITLE, '—'),
           byline: str(d.byline, MAX_BYLINE),
           color: color(d.color, i),
@@ -260,5 +292,5 @@ export function normLibrary(x: unknown, nowIso: string): Library {
       })
     : []
 
-  return { books, courses, done }
+  return { books, courses, videos, done }
 }

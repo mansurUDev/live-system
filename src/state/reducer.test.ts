@@ -4,7 +4,7 @@ import { defaultDoc, makeSector } from '../logic/defaults'
 import { runningEntry } from '../logic/segs'
 import { localDateKey } from '../logic/time'
 import { pct } from '../logic/pct'
-import type { Doc, Sector } from '../types'
+import type { Doc, Sector, Video } from '../types'
 
 const NOW = new Date('2026-03-15T12:00:00').getTime()
 
@@ -21,6 +21,20 @@ function goalAt(current: number, target: number): Sector {
     { id: 'g', name: 'Цель', color: '#fbbf24', kind: 'number', current, target },
     NOW,
   )
+}
+
+function video(patch: Partial<Video> = {}): Video {
+  return {
+    id: 'v1',
+    url: 'https://youtu.be/W1SfFSxlhI8',
+    title: 'Видео',
+    channel: 'Канал',
+    thumbnail: 'https://img.youtube.com/vi/W1SfFSxlhI8/hqdefault.jpg',
+    color: '#22d3ee',
+    note: '',
+    addedAt: new Date(NOW).toISOString(),
+    ...patch,
+  }
 }
 
 describe('трекер', () => {
@@ -267,6 +281,38 @@ describe('напоминания', () => {
     s = run(s, { type: 'markReminderDone', id: reminder.id, now: NOW })
     expect(s.doc.reminders.find((r) => r.id === reminder.id)!.lastDone).toBe(new Date(NOW).toISOString())
     expect(s.doc.reminders.find((r) => r.id === other.id)!.lastDone).toBeNull()
+  })
+})
+
+describe('видео', () => {
+  const lib = (videos: Video[]) => ({ ...defaultDoc(NOW).lib, videos })
+
+  it('saveVideo добавляет новое и обновляет существующее по id', () => {
+    let s = stateWith({ lib: lib([]) })
+    s = run(s, { type: 'saveVideo', video: video(), now: NOW })
+    expect(s.doc.lib.videos).toHaveLength(1)
+
+    s = run(s, { type: 'saveVideo', video: video({ note: 'правка' }), now: NOW })
+    expect(s.doc.lib.videos).toHaveLength(1)
+    expect(s.doc.lib.videos[0]!.note).toBe('правка')
+  })
+
+  it('finishLibItem(video) переезжает в lib.done с byline = channel', () => {
+    let s = stateWith({ lib: lib([video()]) })
+    s = run(s, { type: 'finishLibItem', kind: 'video', id: 'v1', doneId: 'ld1', quote: 'огонь', now: NOW })
+    expect(s.doc.lib.videos).toHaveLength(0)
+    expect(s.doc.lib.done).toHaveLength(1)
+    expect(s.doc.lib.done[0]!.kind).toBe('video')
+    expect(s.doc.lib.done[0]!.byline).toBe('Канал')
+    expect(s.doc.lib.done[0]!.quote).toBe('огонь')
+  })
+
+  it('deleteLibItem(video) убирает из очереди, не трогая книги/курсы', () => {
+    const before = stateWith({ lib: lib([video(), video({ id: 'v2' })]) })
+    const s = run(before, { type: 'deleteLibItem', kind: 'video', id: 'v1', now: NOW })
+    expect(s.doc.lib.videos.map((v) => v.id)).toEqual(['v2'])
+    expect(s.doc.lib.books).toBe(before.doc.lib.books)
+    expect(s.doc.lib.courses).toBe(before.doc.lib.courses)
   })
 })
 
