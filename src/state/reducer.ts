@@ -104,6 +104,21 @@ export type Action =
     }
   | { type: 'deleteLibItem'; kind: 'book' | 'course' | 'video'; id: string; now: number }
 
+/**
+ * Действия, которые диспатчатся сами — при загрузке страницы или из ответа
+ * облака, без прямого участия пользователя. Используется синхронизацией,
+ * чтобы отличить «человек что-то поправил, пока шёл первый pull» от
+ * «страница просто открылась» — иначе от pull, пришедшего чуть позже
+ * действия человека, эта правка была бы затёрта. Новое авто-действие обязано
+ * попасть сюда, иначе гонка при загрузке вернётся.
+ */
+export const AUTO_ACTIONS: ReadonlySet<Action['type']> = new Set([
+  'replaceDoc',
+  'ensureSnapshot',
+  'rollFinanceMonth',
+  'dismissCelebration',
+])
+
 function isoAtLeast(now: number, notBefore: string): string {
   const start = new Date(notBefore).getTime()
   const t = Number.isFinite(start) ? Math.max(now, start) : now

@@ -7,13 +7,28 @@ const NOW = new Date('2026-03-15T14:00:00').getTime()
 describe('reconcile', () => {
   it('облако пусто — просим залить локальные данные', () => {
     const local = defaultDoc(NOW)
-    expect(reconcile({ doc: null, version: 0 }, 0, local)).toEqual({ kind: 'push-initial' })
+    expect(reconcile({ doc: null, version: 0 }, 0, local, false)).toEqual({ kind: 'push-initial' })
   })
 
-  it('версия в облаке новее известной — берём облако', () => {
+  it('версия в облаке новее известной, локально ничего не менялось — берём облако', () => {
     const local = defaultDoc(NOW)
     const cloud = { ...defaultDoc(NOW), habits: [] }
-    expect(reconcile({ doc: cloud, version: 6 }, 5, local)).toEqual({ kind: 'apply-cloud', version: 6 })
+    expect(reconcile({ doc: cloud, version: 6 }, 5, local, false)).toEqual({ kind: 'apply-cloud', version: 6 })
+  })
+
+  it('gonka: правка случилась, пока летел pull, облако новее — побеждает активное устройство', () => {
+    const local = defaultDoc(NOW)
+    const cloud = { ...defaultDoc(NOW), habits: [] }
+    const decision = reconcile({ doc: cloud, version: 6 }, 5, local, true)
+    expect(decision).toEqual({ kind: 'keep-local', version: 6, push: true })
+  })
+
+  it('гейт known=0: свежее устройство с одной случайной правкой не перевешивает реальный аккаунт', () => {
+    const local = defaultDoc(NOW)
+    const cloud = { ...defaultDoc(NOW), habits: [] }
+    // known=0 — устройство ни разу не сверялось с облаком (первый вход)
+    const decision = reconcile({ doc: cloud, version: 3 }, 0, local, true)
+    expect(decision).toEqual({ kind: 'apply-cloud', version: 3 })
   })
 
   it('баг из отчёта: правка не успела уйти в облако до перезагрузки — локальные данные не стираются', () => {
@@ -38,7 +53,7 @@ describe('reconcile', () => {
     const staleCloud: ReturnType<typeof defaultDoc> = { ...local, habits: [] }
     const known = 5
 
-    const decision = reconcile({ doc: staleCloud, version: known }, known, local)
+    const decision = reconcile({ doc: staleCloud, version: known }, known, local, false)
 
     // ключевая проверка: локальные данные НЕ заменяются устаревшими из облака
     expect(decision.kind).toBe('keep-local')
@@ -51,7 +66,7 @@ describe('reconcile', () => {
     const local = defaultDoc(NOW)
     // тот же документ, а не новый defaultDoc() — иначе разойдутся случайные id истории
     const cloud = JSON.parse(JSON.stringify(local))
-    const decision = reconcile({ doc: cloud, version: 5 }, 5, local)
+    const decision = reconcile({ doc: cloud, version: 5 }, 5, local, false)
     expect(decision).toEqual({ kind: 'keep-local', version: 5, push: false })
   })
 })

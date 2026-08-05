@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { initialState, reducer, type Action, type AppState } from './reducer'
+import { AUTO_ACTIONS, initialState, reducer, type Action, type AppState } from './reducer'
 import { defaultDoc, makeSector } from '../logic/defaults'
 import { runningEntry } from '../logic/segs'
 import { localDateKey } from '../logic/time'
@@ -327,5 +327,16 @@ describe('снимок дня', () => {
     const snap = s.doc.snapshots[localDateKey(NOW)]!
     expect(snap.sectors[0]!.p).toBe(40)
     expect(Object.keys(s.doc.snapshots)).toHaveLength(1)
+  })
+})
+
+describe('AUTO_ACTIONS', () => {
+  it('содержит ровно действия, диспатчащиеся без участия пользователя', () => {
+    // Список закрыт намеренно: новое авто-действие обязано попасть сюда явно,
+    // иначе синхронизация посчитает его правкой пользователя (DataProvider.tsx)
+    // и наоборот — гонка при загрузке (см. syncReconcile.test.ts) вернётся.
+    expect(new Set(AUTO_ACTIONS)).toEqual(
+      new Set(['replaceDoc', 'ensureSnapshot', 'rollFinanceMonth', 'dismissCelebration']),
+    )
   })
 })
