@@ -95,6 +95,23 @@ describe('overlaps / resolveEnd / findConflict', () => {
     expect(overlaps(0, 10, 0, 10)).toBe(true)
   })
 
+  it('запись нулевой длины никому не мешает', () => {
+    // трекер заводит такие сам: две кнопки в пределах одной минуты — и
+    // предыдущая запись закрывается тем же временем, с которого началась
+    expect(overlaps(0, 10, 5, 5)).toBe(false)
+    expect(overlaps(5, 5, 0, 10)).toBe(false)
+    expect(overlaps(5, 5, 5, 5)).toBe(false)
+  })
+
+  it('нулевая запись не блокирует ручную запись поверх неё', () => {
+    const list = [entry('zero', 'a1', '2026-03-15T08:04:00.000Z', '2026-03-15T08:04:00.000Z')]
+    const cand = {
+      start: new Date('2026-03-15T07:10:00.000Z').getTime(),
+      end: new Date('2026-03-15T17:22:00.000Z').getTime(),
+    }
+    expect(findConflict(list, cand)).toBeNull()
+  })
+
   it('конец раньше начала уводит запись за полночь', () => {
     const start = new Date('2026-03-15T23:00:00').getTime()
     const end = new Date('2026-03-15T01:00:00').getTime()
