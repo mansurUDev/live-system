@@ -136,15 +136,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     try {
       let upstream = await upload()
-      if (upstream.status === 404) {
-        // бакета ещё нет — заводим и пробуем один раз ещё
-        await ensureBucket()
-        upstream = await upload()
-      }
       if (!upstream.ok) {
-        console.error('Загрузка фото не удалась:', upstream.status, await upstream.text())
-        res.status(502).json({ error: 'Не удалось сохранить фото' })
-        return
+        const firstError = await upstream.text()
+        // «Бакета нет» Storage отдаёт как HTTP 400 со statusCode «404» лишь в
+        // теле ответа — по коду его не поймать, только по тексту.
+        if (/bucket not found|nosuchbucket/i.test(firstError)) {
+          await ensureBucket()
+          upstream = await upload()
+        }
+        if (!upstream.ok) {
+          console.error('Загрузка фото не удалась:', upstream.status, upstream.bodyUsed ? firstError : await upstream.text())
+          res.status(502).json({ error: 'Не удалось сохранить фото' })
+          return
+        }
       }
       res.status(200).json({ ok: true, url: `${SUPABASE_URL}/storage/v1/object/public/${BUCKET}/${path}` })
     } catch (e) {
