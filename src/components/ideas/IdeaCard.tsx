@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { btnCancelSm, btnDeleteConfirm, btnDeleteLink, C, chipDot, plainCard } from '../../theme'
+import { Lightbox } from './Lightbox'
 import type { Idea } from '../../types'
 
 interface Props {
@@ -25,6 +26,7 @@ function hostname(url: string): string {
 
 export function IdeaCard({ idea, confirmingDelete, onToggleDone, onEdit, onAskDelete, onCancelDelete, onDelete }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const long = idea.text.length > COLLAPSE_AT
 
   return (
@@ -113,14 +115,28 @@ export function IdeaCard({ idea, confirmingDelete, onToggleDone, onEdit, onAskDe
 
           {idea.images.length > 0 && (
             <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 10 }}>
-              {idea.images.map((url) => (
-                <a key={url} href={url} target="_blank" rel="noopener noreferrer">
+              {idea.images.map((url, i) => (
+                <button
+                  key={url}
+                  onClick={() => setLightboxIndex(i)}
+                  aria-label="Открыть фото"
+                  style={{
+                    padding: 0,
+                    border: 'none',
+                    background: 'none',
+                    cursor: 'zoom-in',
+                    borderRadius: 8,
+                    overflow: 'hidden',
+                    flex: 'none',
+                    lineHeight: 0,
+                  }}
+                >
                   <img
                     src={url}
                     alt=""
-                    style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 8, display: 'block' }}
+                    style={{ width: 60, height: 60, objectFit: 'cover', display: 'block' }}
                   />
-                </a>
+                </button>
               ))}
             </div>
           )}
@@ -177,6 +193,10 @@ export function IdeaCard({ idea, confirmingDelete, onToggleDone, onEdit, onAskDe
           </button>
         )}
       </div>
+
+      {lightboxIndex !== null && (
+        <Lightbox images={idea.images} startIndex={lightboxIndex} onClose={() => setLightboxIndex(null)} />
+      )}
     </div>
   )
 }
