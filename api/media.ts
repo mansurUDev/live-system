@@ -15,7 +15,24 @@ import type { VercelRequest, VercelResponse } from '@vercel/node'
 
 const env = process.env as Record<string, string | undefined>
 
-const SUPABASE_URL = (env.SUPABASE_URL ?? '').replace(/\/+$/, '')
+/**
+ * Адрес проекта Supabase.
+ *
+ * Каноничное имя — SUPABASE_URL, но диалоги хостингов и привычки из других
+ * фреймворков подсовывают свои (NEXT_PUBLIC_SUPABASE_URL и т.п.) — поэтому,
+ * как и с DATABASE_URL в api/doc.ts, подойдёт любая переменная, значение
+ * которой выглядит как адрес проекта Supabase.
+ */
+function supabaseUrl(): string {
+  if (env.SUPABASE_URL) return env.SUPABASE_URL.replace(/\/+$/, '')
+  for (const key of Object.keys(env)) {
+    const value = (env[key] ?? '').trim().replace(/\/+$/, '')
+    if (/^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(value)) return value
+  }
+  return ''
+}
+
+const SUPABASE_URL = supabaseUrl()
 const SERVICE_KEY = env.SUPABASE_SERVICE_ROLE_KEY ?? ''
 const BUCKET = env.MEDIA_BUCKET || 'media'
 
