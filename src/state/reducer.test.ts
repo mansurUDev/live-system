@@ -148,6 +148,68 @@ describe('трекер', () => {
   })
 })
 
+describe('горячий ряд', () => {
+  function eightPinned(): Doc['acts'] {
+    return Array.from({ length: 8 }, (_, i) => ({
+      id: 'p' + i,
+      name: 'P' + i,
+      color: '#fff',
+      cat: 'byt' as const,
+      pinned: true,
+    }))
+  }
+
+  it('toggleActPin закрепляет незакреплённую', () => {
+    const s = run(stateWith({ acts: [{ id: 'a1', name: 'A1', color: '#fff', cat: 'byt' }] }), {
+      type: 'toggleActPin',
+      id: 'a1',
+      now: NOW,
+    })
+    expect(s.doc.acts.find((a) => a.id === 'a1')!.pinned).toBe(true)
+  })
+
+  it('повторный toggle удаляет ключ pinned совсем, а не ставит false', () => {
+    let s = stateWith({ acts: [{ id: 'a1', name: 'A1', color: '#fff', cat: 'byt' }] })
+    s = run(s, { type: 'toggleActPin', id: 'a1', now: NOW })
+    s = run(s, { type: 'toggleActPin', id: 'a1', now: NOW })
+    const act = s.doc.acts.find((a) => a.id === 'a1')!
+    expect('pinned' in act).toBe(false)
+  })
+
+  it('девятую не берёт — редьюсер не меняет doc, закреплённых всё ещё 8', () => {
+    const before = stateWith({ acts: [...eightPinned(), { id: 'x', name: 'X', color: '#fff', cat: 'byt' }] })
+    const s = run(before, { type: 'toggleActPin', id: 'x', now: NOW })
+    expect(s.doc.acts).toBe(before.doc.acts)
+    expect(s.doc.acts.filter((a) => a.pinned)).toHaveLength(8)
+  })
+
+  it('открепление освобождает место для другой кнопки', () => {
+    let s = stateWith({ acts: [...eightPinned(), { id: 'x', name: 'X', color: '#fff', cat: 'byt' }] })
+    s = run(s, { type: 'toggleActPin', id: 'p0', now: NOW }) // открепить
+    s = run(s, { type: 'toggleActPin', id: 'x', now: NOW }) // закрепить взамен
+    expect(s.doc.acts.filter((a) => a.pinned)).toHaveLength(8)
+    expect(s.doc.acts.find((a) => a.id === 'p0')!.pinned).toBeUndefined()
+    expect(s.doc.acts.find((a) => a.id === 'x')!.pinned).toBe(true)
+  })
+
+  it('неизвестный id ничего не ломает', () => {
+    const before = stateWith({ acts: [{ id: 'a1', name: 'A1', color: '#fff', cat: 'byt' }] })
+    const s = run(before, { type: 'toggleActPin', id: 'ghost', now: NOW })
+    expect(s.doc.acts).toBe(before.doc.acts)
+  })
+
+  it('deleteAct закреплённой освобождает слот в горячем ряду', () => {
+    let s = stateWith({ acts: eightPinned() })
+    s = run(s, { type: 'deleteAct', id: 'p0', now: NOW })
+    expect(s.doc.acts.filter((a) => a.pinned)).toHaveLength(7)
+
+    s = run(s, { type: 'saveAct', act: { id: 'new', name: 'Новая', color: '#fff', cat: 'byt' }, now: NOW })
+    s = run(s, { type: 'toggleActPin', id: 'new', now: NOW })
+    expect(s.doc.acts.filter((a) => a.pinned)).toHaveLength(8)
+    expect(s.doc.acts.find((a) => a.id === 'new')!.pinned).toBe(true)
+  })
+})
+
 describe('поздравление', () => {
   it('срабатывает на переходе цели через 100% и только один раз', () => {
     let s = stateWith({ sectors: [goalAt(90, 100)] })

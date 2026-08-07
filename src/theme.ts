@@ -305,3 +305,18 @@ export const btnCancelSm: CSSProperties = {
   padding: '5px 12px',
   cursor: 'pointer',
 }
+
+/** Высота нижней навигации (без safe-area) — точка отсчёта для дока трекера */
+export const NAV_H = 52
+
+/** Фон/рамка/свечение плитки активности — общие для всех размеров трекера */
+export function actTileShell(color: string, running: boolean): CSSProperties {
+  return {
+    background: 'linear-gradient(165deg, rgba(22,32,58,.7), rgba(10,16,32,.85))',
+    border: `1px solid ${color}${running ? 'cc' : '44'}`,
+    boxShadow: running ? `0 0 18px ${color}55, inset 0 0 24px ${color}18` : `inset 0 0 16px ${color}0e`,
+    transition: 'border-color .2s, box-shadow .2s, transform .15s',
+    '--tile-hov-border': `${color}cc`,
+    '--tile-hov-shadow': `0 0 16px ${color}44, inset 0 0 20px ${color}16`,
+  } as CSSProperties
+}

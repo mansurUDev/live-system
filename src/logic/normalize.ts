@@ -3,6 +3,7 @@ import {
   DEFAULT_CURRENCY,
   DEFAULT_QUICK_AMOUNTS,
   HEX_RE,
+  HOT_MAX,
   MAX_ACT_NAME,
   MAX_ACTS,
   MAX_ARCHIVE,
@@ -150,14 +151,22 @@ function normSectors(x: unknown, nowIso: string): Sector[] {
 
 function normActs(x: unknown, fallback: Activity[]): Activity[] {
   if (!Array.isArray(x)) return fallback
+  // бюджет закреплённых тратится по порядку массива: лишние сверх HOT_MAX просто
+  // не получают поля. Обрезка до MAX_ACTS идёт раньше — выпавшие кнопки бюджет не тратят.
+  let pinsLeft = HOT_MAX
   return x.slice(0, MAX_ACTS).map((raw, i) => {
     const a = obj(raw)
-    return {
+    const act: Activity = {
       id: str(a.id, 60, 'act' + i),
       name: str(a.name, MAX_ACT_NAME, 'Кнопка ' + (i + 1)),
       color: color(a.color, i),
       cat: cat(a.cat) ?? 'byt',
     }
+    if (a.pinned === true && pinsLeft > 0) {
+      act.pinned = true
+      pinsLeft--
+    }
+    return act
   })
 }
 

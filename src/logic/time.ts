@@ -81,6 +81,17 @@ export function fmtDur(ms: number): string {
   return h + ' ч ' + mm + ' м'
 }
 
+/**
+ * Минуты на плитке активности: «0:45», «7:40»; при нуле — пусто.
+ * Округление вниз: границы записей уже приплюснуты к минуте в normalize,
+ * округлять вверх значило бы показывать минуту, которая ещё не прожита.
+ */
+export function fmtHm(ms: number): string {
+  const m = Math.floor(Math.max(0, ms) / 60000)
+  if (!m) return ''
+  return Math.floor(m / 60) + ':' + p2(m % 60)
+}
+
 /** Живой таймер: «0:07:32» */
 export function fmtClock(ms: number): string {
   const t = Math.max(0, Math.floor(ms / 1000))

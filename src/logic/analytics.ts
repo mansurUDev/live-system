@@ -70,11 +70,16 @@ export interface TopAct {
   ms: number
 }
 
-/** Топ активностей по суммарному времени */
-export function topActs(list: Seg[], limit = 5): TopAct[] {
+/** Сумма времени по каждой активности */
+export function actTotals(list: Seg[]): Map<string, number> {
   const byAct = new Map<string, number>()
   for (const g of list) byAct.set(g.actId, (byAct.get(g.actId) ?? 0) + (g.e - g.s))
-  return [...byAct.entries()]
+  return byAct
+}
+
+/** Топ активностей по суммарному времени */
+export function topActs(list: Seg[], limit = 5): TopAct[] {
+  return [...actTotals(list).entries()]
     .map(([actId, ms]) => ({ actId, ms }))
     .sort((a, b) => b.ms - a.ms)
     .slice(0, limit)

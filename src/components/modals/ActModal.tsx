@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal } from './Modal'
 import { CAT_KEYS, CATS, MAX_ACT_NAME, PAL } from '../../constants'
+import { mergeAct } from '../../logic/actLayout'
 import { uid } from '../../logic/uid'
 import { plural } from '../../logic/time'
 import {
@@ -39,12 +40,14 @@ export function ActModal({ act, entries, onCancel, onSave, onDelete }: Props) {
   const submit = () => {
     const trimmed = name.trim()
     if (!trimmed) return setError('Напиши название')
-    onSave({
-      id: act?.id ?? uid('act'),
-      name: trimmed.slice(0, MAX_ACT_NAME),
-      color,
-      cat,
-    })
+    onSave(
+      mergeAct(act, {
+        id: act?.id ?? uid('act'),
+        name: trimmed.slice(0, MAX_ACT_NAME),
+        color,
+        cat,
+      }),
+    )
   }
 
   return (

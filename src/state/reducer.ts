@@ -1,4 +1,5 @@
 import {
+  HOT_MAX,
   MAX_ARCHIVE,
   MAX_BOOKS,
   MAX_COURSES,
@@ -75,6 +76,7 @@ export type Action =
   | { type: 'stopTrack'; now: number }
   | { type: 'saveAct'; act: Activity; now: number }
   | { type: 'deleteAct'; id: string; now: number }
+  | { type: 'toggleActPin'; id: string; now: number }
   | { type: 'saveEntry'; entry: TimeEntry; now: number }
   | { type: 'deleteEntry'; id: string; now: number }
   // привычки
@@ -276,6 +278,26 @@ function coreReducer(doc: Doc, action: Action): Doc {
         e.actId === action.id && !e.end ? { ...e, end: isoAtLeast(action.now, e.start) } : e,
       )
       return { ...doc, acts: doc.acts.filter((a) => a.id !== action.id), entries }
+    }
+
+    case 'toggleActPin': {
+      const act = doc.acts.find((a) => a.id === action.id)
+      if (!act) return doc
+      if (act.pinned) {
+        // поле уходит совсем: normalize всё равно срезал бы pinned:false
+        return {
+          ...doc,
+          acts: doc.acts.map((a) => {
+            if (a.id !== action.id) return a
+            const copy = { ...a }
+            delete copy.pinned
+            return copy
+          }),
+        }
+      }
+      // девятую не берём: тост показывает контейнер, редьюсер просто не меняет doc
+      if (doc.acts.filter((a) => a.pinned).length >= HOT_MAX) return doc
+      return { ...doc, acts: doc.acts.map((a) => (a.id === action.id ? { ...a, pinned: true } : a)) }
     }
 
     case 'saveEntry': {

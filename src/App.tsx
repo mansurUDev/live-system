@@ -63,7 +63,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   }
 
   return (
-    <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'hidden' }}>
+    <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'clip' }}>
       <div style={gridLayer} />
       <div style={glowLayer} />
 

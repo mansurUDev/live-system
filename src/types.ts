@@ -53,6 +53,8 @@ export interface Activity {
   name: string
   color: string
   cat: Category
+  /** в горячем ряду — хранится только как true, открепление удаляет поле совсем */
+  pinned?: boolean
 }
 
 export interface TimeEntry {
@@ -270,7 +272,7 @@ export interface Idea {
 }
 
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 5
+export const DOC_VERSION = 6
 
 export interface Doc {
   v: number

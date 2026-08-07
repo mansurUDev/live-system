@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { avgPct, pct } from './pct'
 import { findConflict, overlaps, resolveEnd } from './overlap'
 import { runningEntry, segs, splitByDay, totalMs } from './segs'
-import { catTotals, topActs, untrackedMs, weekdayTotals } from './analytics'
+import { actTotals, catTotals, topActs, untrackedMs, weekdayTotals } from './analytics'
+import { canPin, DOCK, hotDockHeight, mergeAct, splitActs } from './actLayout'
 import { numberForecast, stepsForecast } from './forecast'
 import { buildHints } from './hints'
 import { normalize } from './normalize'
@@ -10,8 +11,8 @@ import { detectIos, detectSafari, installHint, type InstallEnv } from './install
 import { defaultDoc, makeSector } from './defaults'
 import { withTodaySnapshot } from './snapshot'
 import { donutSlice, fillRadius, labelPosition, sectorAngles, wedgePath, WHEEL } from './wheel'
-import { addDays, localDateKey, periodRange, startOfDay, weekdayIndex } from './time'
-import { DAY_MS } from '../constants'
+import { addDays, fmtHm, localDateKey, periodRange, startOfDay, weekdayIndex } from './time'
+import { DAY_MS, HOT_MAX, MAX_ACTS } from '../constants'
 import type { Activity, Sector, TimeEntry } from '../types'
 
 const NOW = new Date('2026-03-15T12:00:00').getTime()
@@ -252,6 +253,22 @@ describe('analytics', () => {
     expect(top[0]!.actId).toBe('a7')
     expect(top[0]!.ms).toBeGreaterThan(top[4]!.ms)
   })
+
+  it('actTotals суммирует по активности, а topActs сохраняет тот же порядок', () => {
+    const list = [
+      { actId: 'a1', s: 0, e: 1000 },
+      { actId: 'a1', s: 1000, e: 2500 },
+      { actId: 'a2', s: 0, e: 500 },
+    ]
+    const totals = actTotals(list)
+    expect(totals.get('a1')).toBe(2500)
+    expect(totals.get('a2')).toBe(500)
+    expect(actTotals([]).size).toBe(0)
+
+    const top = topActs(list)
+    expect(top[0]!.actId).toBe('a1')
+    expect(top[0]!.ms).toBe(2500)
+  })
 })
 
 describe('forecast', () => {
@@ -409,6 +426,126 @@ describe('normalize', () => {
     expect(twice).toEqual(once)
     expect(normalize(JSON.parse(JSON.stringify(once)), NOW)).toEqual(once)
   })
+
+  it('идемпотентна и на документе с закреплёнными кнопками — pinned:false не пишется', () => {
+    const doc = normalize(
+      { sectors: [], acts: Array.from({ length: 10 }, (_, i) => ({ id: 'a' + i, name: 'A' + i, pinned: true })) },
+      NOW,
+    )
+    expect(doc.acts.filter((a) => a.pinned).length).toBe(HOT_MAX)
+    const twice = normalize(doc, NOW)
+    expect(twice).toEqual(doc)
+  })
+
+  it('pinned: мусор приводится к отсутствию поля, true выживает', () => {
+    const doc = normalize(
+      {
+        sectors: [],
+        acts: [
+          { id: 'a1', name: 'A1', pinned: 'да' },
+          { id: 'a2', name: 'A2', pinned: 1 },
+          { id: 'a3', name: 'A3', pinned: null },
+          { id: 'a4', name: 'A4', pinned: false },
+          { id: 'a5', name: 'A5', pinned: {} },
+          { id: 'a6', name: 'A6', pinned: true },
+        ],
+      },
+      NOW,
+    )
+    for (const a of doc.acts.slice(0, 5)) expect(a.pinned).toBeUndefined()
+    expect(doc.acts[5]!.pinned).toBe(true)
+  })
+
+  it('закреплённых больше HOT_MAX — бюджет расходуется по порядку массива', () => {
+    const acts = Array.from({ length: 12 }, (_, i) => ({ id: 'a' + i, name: 'A' + i, pinned: true }))
+    const doc = normalize({ sectors: [], acts }, NOW)
+    const pinnedIds = doc.acts.filter((a) => a.pinned).map((a) => a.id)
+    expect(pinnedIds).toEqual(['a0', 'a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7'])
+    expect(doc.acts.find((a) => a.id === 'a8')!.pinned).toBeUndefined()
+  })
+
+  it('выпавшие за MAX_ACTS кнопки не тратят бюджет закреплений выживших', () => {
+    const acts = Array.from({ length: 45 }, (_, i) => ({
+      id: 'a' + i,
+      name: 'A' + i,
+      pinned: i >= 35 && i < 44,
+    }))
+    const doc = normalize({ sectors: [], acts }, NOW)
+    expect(doc.acts).toHaveLength(MAX_ACTS)
+    expect(doc.acts.filter((a) => a.pinned)).toHaveLength(5)
+  })
+})
+
+describe('раскладка трекера', () => {
+  const acts: Activity[] = [
+    { id: 'a1', name: 'Работа', color: '#22d3ee', cat: 'work', pinned: true },
+    { id: 'a2', name: 'Встречи', color: '#f472b6', cat: 'work' },
+    { id: 'a3', name: 'Бег', color: '#34d399', cat: 'health' },
+    { id: 'a4', name: 'Сон', color: '#818cf8', cat: 'sleep', pinned: true },
+  ]
+
+  it('splitActs: закреплённые уходят в горячий ряд и не дублируются в полосе', () => {
+    const { hot, bands } = splitActs(acts)
+    expect(hot.map((a) => a.id)).toEqual(['a1', 'a4'])
+    const workBand = bands.find((b) => b.cat === 'work')!
+    expect(workBand.acts.map((a) => a.id)).toEqual(['a2'])
+    expect(bands.find((b) => b.cat === 'sleep')).toBeUndefined()
+  })
+
+  it('splitActs: порядок полос — порядок CAT_KEYS, пустая полоса не выдаётся', () => {
+    const { bands } = splitActs(acts)
+    expect(bands.map((b) => b.cat)).toEqual(['work', 'health'])
+  })
+
+  it('splitActs: девятая закреплённая (документ мимо normalize) падает в свою полосу', () => {
+    const nine = Array.from({ length: 9 }, (_, i) => ({
+      id: 'p' + i,
+      name: 'P' + i,
+      color: '#fff',
+      cat: 'byt' as const,
+      pinned: true,
+    }))
+    const { hot, bands } = splitActs(nine)
+    expect(hot).toHaveLength(HOT_MAX)
+    const bytBand = bands.find((b) => b.cat === 'byt')!
+    expect(bytBand.acts.map((a) => a.id)).toEqual(['p8'])
+  })
+
+  it('canPin: уважает лимит, закреплённую всегда можно тронуть, неизвестный id — нет', () => {
+    const eight = Array.from({ length: 8 }, (_, i) => ({
+      id: 'p' + i,
+      name: 'P' + i,
+      color: '#fff',
+      cat: 'byt' as const,
+      pinned: true,
+    }))
+    const withOne = [...eight, { id: 'x', name: 'X', color: '#fff', cat: 'byt' as const }]
+    expect(canPin(withOne, 'x')).toBe(false)
+    expect(canPin(withOne, 'p0')).toBe(true)
+    expect(canPin(withOne, 'ghost')).toBe(false)
+  })
+
+  it('mergeAct: сохраняет pinned у закреплённой при правке остальных полей — регрессия на ActModal', () => {
+    const prev: Activity = { id: 'a1', name: 'Старое', color: '#000', cat: 'work', pinned: true }
+    const next = mergeAct(prev, { id: 'a1', name: 'Новое', color: '#fff', cat: 'byt' })
+    expect(next).toEqual({ id: 'a1', name: 'Новое', color: '#fff', cat: 'byt', pinned: true })
+  })
+
+  it('mergeAct: у незакреплённой поле pinned не появляется', () => {
+    const next = mergeAct(null, { id: 'a1', name: 'Новое', color: '#fff', cat: 'byt' })
+    expect(next.pinned).toBeUndefined()
+  })
+
+  it('hotDockHeight: 0 закреплённых — 0, 1–4 — одна строка, 5 и 8 — две, 9 — как 8', () => {
+    expect(hotDockHeight(0)).toBe(0)
+    const oneRow = DOCK.padTop + DOCK.caption + DOCK.captionGap + DOCK.chip + DOCK.padBottom
+    expect(hotDockHeight(1)).toBe(oneRow)
+    expect(hotDockHeight(4)).toBe(oneRow)
+    const twoRows = DOCK.padTop + DOCK.caption + DOCK.captionGap + 2 * DOCK.chip + DOCK.gap + DOCK.padBottom
+    expect(hotDockHeight(5)).toBe(twoRows)
+    expect(hotDockHeight(8)).toBe(twoRows)
+    expect(hotDockHeight(9)).toBe(twoRows)
+  })
 })
 
 describe('snapshot', () => {
@@ -444,6 +581,16 @@ describe('time', () => {
 
   it('сдвигает дни через календарь, а не прибавлением суток', () => {
     expect(localDateKey(addDays(new Date('2026-03-02T12:00:00'), -6))).toBe('2026-02-24')
+  })
+
+  it('fmtHm: минуты на плитке в формате ч:мм, при нуле — пусто', () => {
+    expect(fmtHm(0)).toBe('')
+    expect(fmtHm(59_999)).toBe('')
+    expect(fmtHm(60_000)).toBe('0:01')
+    expect(fmtHm(45 * 60_000)).toBe('0:45')
+    expect(fmtHm(70 * 60_000)).toBe('1:10')
+    expect(fmtHm(7 * 3600_000 + 40 * 60_000)).toBe('7:40')
+    expect(fmtHm(-5000)).toBe('')
   })
 })
 

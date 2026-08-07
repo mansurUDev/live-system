@@ -34,6 +34,8 @@ export const DELETED_ACT = { name: '(удалённая)', color: '#64748b' }
 
 export const MAX_SECTORS = 16
 export const MAX_ACTS = 40
+/** Лимит кнопок в горячем ряду трекера */
+export const HOT_MAX = 8
 export const MAX_STEPS = 40
 export const MAX_ENTRIES = 4000
 export const MAX_ARCHIVE = 300

@@ -112,6 +112,7 @@ export const A = {
   stopTrack: (): Action => ({ type: 'stopTrack', now: minuteStart() }),
   saveAct: (act: Activity): Action => ({ type: 'saveAct', act, now: Date.now() }),
   deleteAct: (id: string): Action => ({ type: 'deleteAct', id, now: minuteStart() }),
+  toggleActPin: (id: string): Action => ({ type: 'toggleActPin', id, now: Date.now() }),
   saveEntry: (entry: TimeEntry): Action => ({ type: 'saveEntry', entry, now: Date.now() }),
   deleteEntry: (id: string): Action => ({ type: 'deleteEntry', id, now: Date.now() }),
 
