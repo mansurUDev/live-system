@@ -6,6 +6,7 @@ import { catTotals, topActs, untrackedMs, weekdayTotals } from './analytics'
 import { numberForecast, stepsForecast } from './forecast'
 import { buildHints } from './hints'
 import { normalize } from './normalize'
+import { detectIos, detectSafari, installHint, type InstallEnv } from './install'
 import { defaultDoc, makeSector } from './defaults'
 import { withTodaySnapshot } from './snapshot'
 import { donutSlice, fillRadius, labelPosition, sectorAngles, wedgePath, WHEEL } from './wheel'
@@ -480,5 +481,52 @@ describe('wheel', () => {
     const full = donutSlice(0, Math.PI * 2, 58)
     expect(full).not.toContain('NaN')
     expect(full.match(/A/g)).toHaveLength(2)
+  })
+})
+
+describe('предложение установить приложение', () => {
+  const env = (patch: Partial<InstallEnv> = {}): InstallEnv => ({
+    standalone: false,
+    nativePromptReady: false,
+    isIos: false,
+    isSafari: false,
+    dismissed: false,
+    ...patch,
+  })
+
+  it('уже установленному приложению ничего не предлагаем', () => {
+    expect(installHint(env({ standalone: true, nativePromptReady: true })).kind).toBe('none')
+    expect(installHint(env({ standalone: true, isIos: true, isSafari: true })).kind).toBe('none')
+  })
+
+  it('отказ запоминается — второй раз не пристаём', () => {
+    expect(installHint(env({ dismissed: true, nativePromptReady: true })).kind).toBe('none')
+    expect(installHint(env({ dismissed: true, isIos: true, isSafari: true })).kind).toBe('none')
+  })
+
+  it('есть родное окно — показываем кнопку', () => {
+    expect(installHint(env({ nativePromptReady: true })).kind).toBe('native')
+  })
+
+  it('Safari на iPhone — инструкция, в Chrome на iOS молчим', () => {
+    expect(installHint(env({ isIos: true, isSafari: true })).kind).toBe('ios')
+    expect(installHint(env({ isIos: true, isSafari: false })).kind).toBe('none')
+  })
+
+  it('обычный десктоп без beforeinstallprompt — молчим', () => {
+    expect(installHint(env()).kind).toBe('none')
+  })
+
+  it('iPad на iPadOS опознаётся, несмотря на «маковский» user-agent', () => {
+    const ipad = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 Safari/604.1'
+    expect(detectIos(ipad, 5)).toBe(true)
+    expect(detectIos(ipad, 0)).toBe(false)
+    expect(detectIos('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)', 5)).toBe(true)
+  })
+
+  it('Safari отличается от притворяющихся им браузеров', () => {
+    expect(detectSafari('Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Version/17.0 Safari/604.1')).toBe(true)
+    expect(detectSafari('Mozilla/5.0 (iPhone) CriOS/120.0 Mobile/15E148 Safari/604.1')).toBe(false)
+    expect(detectSafari('Mozilla/5.0 (Linux; Android 14) Chrome/120.0 Safari/537.36')).toBe(false)
   })
 })

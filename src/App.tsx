@@ -13,6 +13,7 @@ import { LandingScreen } from './components/LandingScreen'
 import { LoginScreen } from './components/LoginScreen'
 import { MoreMenu } from './components/MoreMenu'
 import { PullToRefresh } from './components/PullToRefresh'
+import { InstallPrompt } from './components/InstallPrompt'
 import { Tabs } from './components/Tabs'
 import { Toasts } from './components/Toasts'
 import { ChangeCodeModal } from './components/modals/ChangeCodeModal'
@@ -162,6 +163,7 @@ export default function App() {
       <AuthProvider>
         <Authed />
         <PullToRefresh />
+        <InstallPrompt />
       </AuthProvider>
     </ToastProvider>
   )
