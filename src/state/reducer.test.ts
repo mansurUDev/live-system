@@ -146,6 +146,33 @@ describe('трекер', () => {
     )
     expect(s.doc.entries.map((e) => e.id)).toEqual(['early', 'late'])
   })
+
+  it('цепочка: переход pressAct кладёт записи встык, без дыр и пересечений', () => {
+    let s = stateWith({ entries: [] })
+    s = run(s, { type: 'pressAct', actId: 'a1', entryId: 'e1', now: NOW })
+    s = run(s, { type: 'pressAct', actId: 'a4', entryId: 'e2', now: NOW + 2700_000 }) // «дальше →» — тап по чипу
+
+    expect(s.doc.entries).toHaveLength(2)
+    expect(s.doc.entries[0]!.end).toBe(s.doc.entries[1]!.start) // граница общая — ни дыры, ни пересечения
+    expect(runningEntry(s.doc.entries)?.id).toBe('e2')
+  })
+
+  it('deleteAct вычищает nextId у ссылавшихся кнопок, нетронутые не меняются', () => {
+    const acts = [
+      { id: 'a1', name: 'A1', color: '#111', cat: 'byt' as const, nextId: 'a2' },
+      { id: 'a2', name: 'A2', color: '#222', cat: 'byt' as const },
+      { id: 'a3', name: 'A3', color: '#333', cat: 'byt' as const, nextId: 'a2' },
+      { id: 'a4', name: 'A4', color: '#444', cat: 'byt' as const, nextId: 'a3' },
+    ]
+    const before = stateWith({ acts })
+    const s = run(before, { type: 'deleteAct', id: 'a2', now: NOW })
+
+    expect('nextId' in s.doc.acts.find((a) => a.id === 'a1')!).toBe(false)
+    expect('nextId' in s.doc.acts.find((a) => a.id === 'a3')!).toBe(false)
+    const a4 = s.doc.acts.find((a) => a.id === 'a4')!
+    expect(a4.nextId).toBe('a3')
+    expect(a4).toBe(before.doc.acts.find((a) => a.id === 'a4')) // не ссылалась на удалённую — та же ссылка
+  })
 })
 
 describe('горячий ряд', () => {

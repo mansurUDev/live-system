@@ -60,6 +60,15 @@ export function TrackerTab() {
   const { acts, entries } = state.doc
   const running = runningEntry(entries)
   const runningId = running?.actId ?? null
+  const runningAct = running ? actBy(acts, running.actId) : null
+  const nextAct = runningAct?.nextId ? actBy(acts, runningAct.nextId) : null
+
+  // press() молчит при успехе и его guard «уже идёт» тут не нужен: само-ссылка
+  // запрещена normalize и модалкой, nextAct.id всегда отличается от running.actId
+  const chain = (next: Activity) => {
+    dispatch(A.pressAct(next.id))
+    toast(`«${next.name}» — идёт с ${hhmm(Date.now())}`)
+  }
 
   // минуты за сегодня на плитках — та же логика окна, что в DayView, но
   // мемоизация по минуте, а не по секундному тику useNow()
@@ -130,13 +139,23 @@ export function TrackerTab() {
         acts={acts}
         now={now}
         compact={zone === 'phone'}
+        nextAct={nextAct}
         onStop={() => {
           dispatch(A.stopTrack())
           toast('Отсчёт остановлен')
         }}
+        onChain={chain}
+        onChainLongPress={(next, x, y) => setBackdate({ id: next.id, name: next.name, color: next.color, x, y })}
       />
 
-      {zone === 'phone' && <ChainSlot variant="row" />}
+      {zone === 'phone' && nextAct && (
+        <ChainSlot
+          variant="row"
+          nextAct={nextAct}
+          onChain={chain}
+          onLongPress={(next, x, y) => setBackdate({ id: next.id, name: next.name, color: next.color, x, y })}
+        />
+      )}
 
       <ActBoard
         acts={previewActs}
@@ -216,6 +235,7 @@ export function TrackerTab() {
       {actForm && (
         <ActModal
           act={actForm.act}
+          acts={acts}
           entries={entries}
           onCancel={() => setActForm(null)}
           onSave={(act) => {

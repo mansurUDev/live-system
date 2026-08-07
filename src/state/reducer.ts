@@ -279,7 +279,16 @@ function coreReducer(doc: Doc, action: Action): Doc {
       const entries = doc.entries.map((e) =>
         e.actId === action.id && !e.end ? { ...e, end: isoAtLeast(action.now, e.start) } : e,
       )
-      return { ...doc, acts: doc.acts.filter((a) => a.id !== action.id), entries }
+      // ссылки «дальше → удалённая» уходят совсем — ключ удаляется, как pinned при откреплении
+      const acts = doc.acts
+        .filter((a) => a.id !== action.id)
+        .map((a) => {
+          if (a.nextId !== action.id) return a
+          const copy = { ...a }
+          delete copy.nextId
+          return copy
+        })
+      return { ...doc, acts, entries }
     }
 
     case 'toggleActPin': {

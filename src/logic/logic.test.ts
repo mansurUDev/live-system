@@ -474,6 +474,67 @@ describe('normalize', () => {
     expect(doc.acts).toHaveLength(MAX_ACTS)
     expect(doc.acts.filter((a) => a.pinned)).toHaveLength(5)
   })
+
+  it('nextId: мусорные типы приводятся к отсутствию поля, валидная ссылка выживает', () => {
+    const doc = normalize(
+      {
+        sectors: [],
+        acts: [
+          { id: 'a1', name: 'A1', nextId: 42 },
+          { id: 'a2', name: 'A2', nextId: {} },
+          { id: 'a3', name: 'A3', nextId: null },
+          { id: 'a4', name: 'A4', nextId: true },
+          { id: 'a5', name: 'A5', nextId: 'a1' },
+        ],
+      },
+      NOW,
+    )
+    for (const a of doc.acts.slice(0, 4)) expect('nextId' in a).toBe(false)
+    expect(doc.acts[4]!.nextId).toBe('a1')
+  })
+
+  it('nextId: ссылка на несуществующую кнопку удаляется', () => {
+    const doc = normalize({ sectors: [], acts: [{ id: 'a1', name: 'A1', nextId: 'ghost' }] }, NOW)
+    expect('nextId' in doc.acts[0]!).toBe(false)
+  })
+
+  it('nextId: ссылка на саму себя удаляется', () => {
+    const doc = normalize({ sectors: [], acts: [{ id: 'a1', name: 'A1', nextId: 'a1' }] }, NOW)
+    expect('nextId' in doc.acts[0]!).toBe(false)
+  })
+
+  it('nextId: ссылка на кнопку за обрезкой MAX_ACTS удаляется', () => {
+    const acts = Array.from({ length: 45 }, (_, i) => ({ id: 'a' + i, name: 'A' + i }))
+    acts[0] = { ...acts[0]!, nextId: 'a44' } as (typeof acts)[number] & { nextId: string } // за срезом
+    acts[1] = { ...acts[1]!, nextId: 'a39' } as (typeof acts)[number] & { nextId: string } // внутри среза
+    const doc = normalize({ sectors: [], acts }, NOW)
+    expect('nextId' in doc.acts[0]!).toBe(false)
+    expect(doc.acts[1]!.nextId).toBe('a39')
+  })
+
+  it('идемпотентна с цепочками — переживает цикл экспорт → импорт', () => {
+    const once = normalize(
+      { sectors: [], acts: [{ id: 'a1', name: 'A1', nextId: 'a2' }, { id: 'a2', name: 'A2' }] },
+      NOW,
+    )
+    expect(once.acts[0]!.nextId).toBe('a2')
+    const twice = normalize(once, NOW)
+    expect(twice).toEqual(once)
+    expect(normalize(JSON.parse(JSON.stringify(once)), NOW)).toEqual(once)
+  })
+
+  it('цепочки и бюджет закреплений не мешают друг другу', () => {
+    const acts = Array.from({ length: 10 }, (_, i) => ({
+      id: 'a' + i,
+      name: 'A' + i,
+      pinned: true,
+      nextId: 'a' + ((i + 1) % 10),
+    }))
+    const doc = normalize({ sectors: [], acts }, NOW)
+    expect(doc.acts.filter((a) => a.pinned)).toHaveLength(HOT_MAX)
+    expect(doc.acts.every((a) => a.nextId)).toBe(true)
+    expect(doc.acts[9]!.nextId).toBe('a0') // цикл разрешён — переход всегда явный тап
+  })
 })
 
 describe('раскладка трекера', () => {
@@ -534,6 +595,18 @@ describe('раскладка трекера', () => {
   it('mergeAct: у незакреплённой поле pinned не появляется', () => {
     const next = mergeAct(null, { id: 'a1', name: 'Новое', color: '#fff', cat: 'byt' })
     expect(next.pinned).toBeUndefined()
+  })
+
+  it('mergeAct: nextId из формы проходит, pinned сохраняется', () => {
+    const prev: Activity = { id: 'a1', name: 'Старое', color: '#000', cat: 'work', pinned: true, nextId: 'a2' }
+    const next = mergeAct(prev, { id: 'a1', name: 'Новое', color: '#fff', cat: 'byt', nextId: 'a3' })
+    expect(next).toEqual({ id: 'a1', name: 'Новое', color: '#fff', cat: 'byt', pinned: true, nextId: 'a3' })
+  })
+
+  it('mergeAct: форма без nextId стирает ссылку — это и есть путь «нет» в модалке', () => {
+    const prev: Activity = { id: 'a1', name: 'Старое', color: '#000', cat: 'work', nextId: 'a2' }
+    const next = mergeAct(prev, { id: 'a1', name: 'Новое', color: '#fff', cat: 'byt' })
+    expect('nextId' in next).toBe(false)
   })
 
   it('hotDockHeight: 0 закреплённых — 0, 1–4 — одна строка, 5 и 8 — две, 9 — как 8', () => {

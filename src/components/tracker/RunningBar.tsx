@@ -1,7 +1,8 @@
 import { CATS, OTHER } from '../../constants'
+import { useLongPress } from '../../hooks/useLongPress'
 import { fmtClock, hhmm } from '../../logic/time'
 import { actBy } from '../../logic/analytics'
-import { C, card, MONO } from '../../theme'
+import { C, card, chipDot, MONO } from '../../theme'
 import type { Activity, TimeEntry } from '../../types'
 
 interface Props {
@@ -10,10 +11,14 @@ interface Props {
   now: number
   /** телефон: сжатая раскладка, слот цепочки уезжает отдельной строкой (ChainSlot снаружи) */
   compact: boolean
+  /** цель цепочки идущей активности; null — nextId нет или кнопка-цель удалена */
+  nextAct: Activity | null
   onStop: () => void
+  onChain: (next: Activity) => void
+  onChainLongPress: (next: Activity, x: number, y: number) => void
 }
 
-export function RunningBar({ running, acts, now, compact, onStop }: Props) {
+export function RunningBar({ running, acts, now, compact, nextAct, onStop, onChain, onChainLongPress }: Props) {
   const act = running ? actBy(acts, running.actId) : null
   const color = act?.color ?? '#334155'
   const started = running ? new Date(running.start).getTime() : 0
@@ -133,54 +138,100 @@ export function RunningBar({ running, acts, now, compact, onStop }: Props) {
         {compact ? '■' : '■ Стоп'}
       </button>
 
-      {!compact && <ChainSlot />}
+      {!compact && nextAct && <ChainSlot nextAct={nextAct} onChain={onChain} onLongPress={onChainLongPress} />}
     </div>
   )
 }
 
+interface ChainSlotProps {
+  variant?: 'inline' | 'row'
+  nextAct: Activity
+  onChain: (next: Activity) => void
+  onLongPress: (next: Activity, x: number, y: number) => void
+}
+
 /**
- * Заглушка слота цепочек «дальше обычно → …» — источник данных и заполнение
- * появятся отдельным этапом; здесь только зарезервированное место в UI.
+ * Чип «дальше → …» — один тап закрывает текущую запись и стартует следующую
+ * встык (см. TrackerTab.chain — это dispatch(A.pressAct(next.id))). Долгое
+ * нажатие 430мс — тот же BackdateMenu, что и на плитках: «перешёл раньше».
  */
-export function ChainSlot({ variant = 'inline' }: { variant?: 'inline' | 'row' }) {
+export function ChainSlot({ variant = 'inline', nextAct, onChain, onLongPress }: ChainSlotProps) {
+  const lp = useLongPress((x, y) => onLongPress(nextAct, x, y))
+  const color = nextAct.color
+
+  const click = () => {
+    if (lp.swallowClick()) return
+    onChain(nextAct)
+  }
+
   if (variant === 'row') {
     return (
-      <div
+      <button
+        className="h-bright"
+        onClick={click}
+        {...lp.handlers}
         style={{
+          fontFamily: 'inherit',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
           gap: 10,
-          border: '1px dashed rgba(148,163,184,.32)',
+          width: '100%',
+          border: `1px solid ${color}45`,
+          background: `${color}0e`,
           borderRadius: 12,
           padding: '10px 14px',
-          fontSize: 13,
+          fontSize: 13.5,
+          color: C.textSoft,
+          cursor: 'pointer',
           boxSizing: 'border-box',
         }}
       >
-        <span style={{ color: C.dim }}>дальше → …</span>
-        <span style={{ fontSize: 10, letterSpacing: '1.5px', color: C.faint, textTransform: 'uppercase' }}>
-          Цепочка · скоро
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <span style={chipDot(color)} />
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            дальше → {nextAct.name}
+          </span>
         </span>
-      </div>
+        <span
+          style={{
+            fontSize: 10,
+            letterSpacing: '1.5px',
+            color: C.dim,
+            textTransform: 'uppercase',
+            flex: 'none',
+          }}
+        >
+          в один тап
+        </span>
+      </button>
     )
   }
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-      <span style={{ fontSize: 10, letterSpacing: '1.5px', color: C.faint, textTransform: 'uppercase' }}>
-        Цепочка · скоро
+    <button
+      className="h-bright"
+      onClick={click}
+      {...lp.handlers}
+      style={{
+        fontFamily: 'inherit',
+        fontSize: 12.5,
+        color: C.textSoft,
+        border: `1px solid ${color}55`,
+        background: `${color}12`,
+        borderRadius: 999,
+        padding: '6px 13px',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        gap: 7,
+        maxWidth: 260,
+      }}
+    >
+      <span style={chipDot(color)} />
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        дальше → {nextAct.name}
       </span>
-      <span
-        style={{
-          fontSize: 12.5,
-          color: C.dim,
-          border: '1px dashed rgba(148,163,184,.35)',
-          borderRadius: 999,
-          padding: '5px 12px',
-        }}
-      >
-        дальше → …
-      </span>
-    </div>
+    </button>
   )
 }

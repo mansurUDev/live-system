@@ -154,7 +154,8 @@ function normActs(x: unknown, fallback: Activity[]): Activity[] {
   // бюджет закреплённых тратится по порядку массива: лишние сверх HOT_MAX просто
   // не получают поля. Обрезка до MAX_ACTS идёт раньше — выпавшие кнопки бюджет не тратят.
   let pinsLeft = HOT_MAX
-  return x.slice(0, MAX_ACTS).map((raw, i) => {
+  const wantNext: (string | null)[] = []
+  const acts = x.slice(0, MAX_ACTS).map((raw, i) => {
     const a = obj(raw)
     const act: Activity = {
       id: str(a.id, 60, 'act' + i),
@@ -166,8 +167,19 @@ function normActs(x: unknown, fallback: Activity[]): Activity[] {
       act.pinned = true
       pinsLeft--
     }
+    wantNext.push(typeof a.nextId === 'string' ? a.nextId : null)
     return act
   })
+
+  // Второй проход: nextId сверяется с ИТОГОВЫМ набором id — после обрезки MAX_ACTS
+  // и подстановки дефолтных id. Ссылка на себя, на выпавшую или несуществующую
+  // кнопку не хранится: поле только когда осмысленно, как pinned.
+  const ids = new Set(acts.map((a) => a.id))
+  acts.forEach((act, i) => {
+    const next = wantNext[i]
+    if (next && next !== act.id && ids.has(next)) act.nextId = next
+  })
+  return acts
 }
 
 /**

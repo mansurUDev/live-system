@@ -22,20 +22,26 @@ import type { Activity, Category, TimeEntry } from '../../types'
 interface Props {
   /** null — создаём новую кнопку */
   act: Activity | null
+  acts: Activity[]
   entries: TimeEntry[]
   onCancel: () => void
   onSave: (act: Activity) => void
   onDelete: (id: string) => void
 }
 
-export function ActModal({ act, entries, onCancel, onSave, onDelete }: Props) {
+export function ActModal({ act, acts, entries, onCancel, onSave, onDelete }: Props) {
   const [name, setName] = useState(act?.name ?? '')
   const [cat, setCat] = useState<Category>(act?.cat ?? 'byt')
   const [color, setColor] = useState(act?.color ?? PAL[Math.floor(Math.random() * 8)]!)
+  // защита от битой ссылки — например, кнопку-цель удалили в другой вкладке
+  const [nextId, setNextId] = useState<string | null>(() =>
+    act?.nextId && acts.some((a) => a.id === act.nextId) ? act.nextId : null,
+  )
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const usageCount = act ? entries.filter((e) => e.actId === act.id).length : 0
+  const chainTargets = acts.filter((a) => a.id !== act?.id)
 
   const submit = () => {
     const trimmed = name.trim()
@@ -46,6 +52,7 @@ export function ActModal({ act, entries, onCancel, onSave, onDelete }: Props) {
         name: trimmed.slice(0, MAX_ACT_NAME),
         color,
         cat,
+        ...(nextId ? { nextId } : null),
       }),
     )
   }
@@ -116,6 +123,22 @@ export function ActModal({ act, entries, onCancel, onSave, onDelete }: Props) {
           ))}
         </div>
       </div>
+
+      {chainTargets.length > 0 && (
+        <div style={{ marginTop: 13 }}>
+          <div style={fieldLabel}>Обычно после неё идёт…</div>
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 6 }}>
+            <button style={chipBtn(nextId === null, '#94a3b8')} onClick={() => setNextId(null)}>
+              нет
+            </button>
+            {chainTargets.map((a) => (
+              <button key={a.id} style={chipBtn(nextId === a.id, a.color)} onClick={() => setNextId(a.id)}>
+                {a.name}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {confirmDelete && usageCount > 0 && (
         <div style={{ marginTop: 12, fontSize: 13, color: C.muted, lineHeight: 1.5 }}>

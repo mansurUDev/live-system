@@ -55,6 +55,9 @@ export interface Activity {
   cat: Category
   /** в горячем ряду — хранится только как true, открепление удаляет поле совсем */
   pinned?: boolean
+  /** id кнопки, которая обычно идёт следом («дальше → …» в RunningBar);
+   *  хранится только когда ссылка валидна — на себя и в никуда не бывает */
+  nextId?: string
 }
 
 export interface TimeEntry {
@@ -272,7 +275,7 @@ export interface Idea {
 }
 
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 6
+export const DOC_VERSION = 7
 
 export interface Doc {
   v: number
