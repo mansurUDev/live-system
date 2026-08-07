@@ -11,8 +11,8 @@ export type InstallHint =
   | { kind: 'none' }
   /** есть родное окно установки — достаточно одной кнопки */
   | { kind: 'native' }
-  /** Safari на iPhone/iPad: своего окна нет, нужна инструкция «Поделиться» */
-  | { kind: 'ios' }
+  /** iPhone/iPad: своего окна установки нет, нужна инструкция «Поделиться» */
+  | { kind: 'ios'; inSafari: boolean }
 
 export interface InstallEnv {
   /** приложение уже запущено с домашнего экрана */
@@ -25,18 +25,34 @@ export interface InstallEnv {
   isSafari: boolean
   /** пользователь уже закрывал предложение */
   dismissed: boolean
+  /** пользователь сам попросил инструкцию — тогда отказ и прочее не важны */
+  forced?: boolean
 }
 
 /**
- * Предложение показывается один раз и только по делу: установленному
- * приложению оно бессмысленно, отказ запоминается, а инструкция для iPhone
- * имеет смысл только в Safari — в Chrome на iOS такого пункта меню нет.
+ * Что показать.
+ *
+ * Само по себе предложение всплывает один раз и только по делу: установленному
+ * приложению оно бессмысленно, отказ запоминается. Но если человек попросил
+ * инструкцию сам (`forced`), она показывается всегда — иначе закрытую однажды
+ * панель было бы не вернуть.
+ *
+ * На iOS инструкция даётся в любом браузере, а не только в Safari: Chrome и
+ * Edge на iPhone тоже умеют «На экран „Домой“», а встроенные браузеры мессенджеров
+ * не умеют — но там выручает пункт «Открыть в Safari», о котором и сообщает
+ * `inSafari: false`. Молчать в этих случаях хуже всего: человек остаётся без
+ * единой подсказки.
  */
 export function installHint(env: InstallEnv): InstallHint {
-  if (env.standalone || env.dismissed) return { kind: 'none' }
+  if (env.standalone) return { kind: 'none' }
   if (env.nativePromptReady) return { kind: 'native' }
-  if (env.isIos && env.isSafari) return { kind: 'ios' }
-  return { kind: 'none' }
+  if (env.isIos) {
+    if (env.dismissed && !env.forced) return { kind: 'none' }
+    return { kind: 'ios', inSafari: env.isSafari }
+  }
+  // не iOS и родного окна нет: браузер либо не умеет ставить приложения, либо
+  // уже установил. Показываем инструкцию только по прямой просьбе.
+  return env.forced ? { kind: 'ios', inSafari: env.isSafari } : { kind: 'none' }
 }
 
 /**

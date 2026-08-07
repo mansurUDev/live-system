@@ -7,6 +7,18 @@ import { btnAccent, btnGhostSm, C } from '../theme'
 const DISMISS_KEY = 'sistema-zhizni-install-dismissed'
 
 /**
+ * Событие, которым любая кнопка «Установить приложение» открывает инструкцию.
+ * Через событие, а не через пропсы: кнопка нужна и на экране входа, и в меню
+ * вошедшего пользователя — это разные ветки дерева, тащить состояние через обе
+ * было бы дороже, чем одно имя события.
+ */
+export const INSTALL_HELP_EVENT = 'sz:install-help'
+
+export function askInstallHelp(): void {
+  window.dispatchEvent(new Event(INSTALL_HELP_EVENT))
+}
+
+/**
  * Событие Chrome, которым браузер сообщает, что готов показать своё окно
  * установки. В типах TypeScript его нет — описываем сами.
  */
@@ -42,6 +54,7 @@ export function InstallPrompt() {
   const [deferred, setDeferred] = useState<InstallPromptEvent | null>(null)
   const [dismissed, setDismissed] = useState(readDismissed)
   const [installed, setInstalled] = useState(isStandalone)
+  const [forced, setForced] = useState(false)
 
   useEffect(() => {
     const onBeforeInstall = (e: Event) => {
@@ -52,12 +65,16 @@ export function InstallPrompt() {
     const onInstalled = () => {
       setInstalled(true)
       setDeferred(null)
+      setForced(false)
     }
+    const onAsk = () => setForced(true)
     window.addEventListener('beforeinstallprompt', onBeforeInstall)
     window.addEventListener('appinstalled', onInstalled)
+    window.addEventListener(INSTALL_HELP_EVENT, onAsk)
     return () => {
       window.removeEventListener('beforeinstallprompt', onBeforeInstall)
       window.removeEventListener('appinstalled', onInstalled)
+      window.removeEventListener(INSTALL_HELP_EVENT, onAsk)
     }
   }, [])
 
@@ -68,6 +85,7 @@ export function InstallPrompt() {
     isIos: detectIos(ua, typeof navigator === 'undefined' ? 0 : navigator.maxTouchPoints),
     isSafari: detectSafari(ua),
     dismissed,
+    forced,
   })
 
   if (hint.kind === 'none') return null
@@ -79,6 +97,7 @@ export function InstallPrompt() {
       /* без хранилища предложение просто вернётся в следующий раз */
     }
     setDismissed(true)
+    setForced(false)
   }
 
   const install = async () => {
@@ -112,16 +131,26 @@ export function InstallPrompt() {
         </div>
 
         {hint.kind === 'ios' && (
-          <ol style={steps}>
-            <li>
-              Нажми <b style={{ color: C.textBright }}>Поделиться</b> внизу Safari
-              <span style={{ color: C.cyanBright }}> ⬆︎</span>
-            </li>
-            <li>
-              Выбери <b style={{ color: C.textBright }}>«На экран „Домой“»</b>
-            </li>
-            <li>Подтверди — иконка появится рядом с остальными</li>
-          </ol>
+          <>
+            <ol style={steps}>
+              <li>
+                Нажми <b style={{ color: C.textBright }}>Поделиться</b>
+                <span style={{ color: C.cyanBright }}> ⬆︎</span> — внизу экрана или в меню браузера
+              </li>
+              <li>
+                Пролистай список и выбери{' '}
+                <b style={{ color: C.textBright }}>«На экран „Домой“»</b>
+              </li>
+              <li>Нажми «Добавить» — иконка встанет рядом с остальными</li>
+            </ol>
+            {!hint.inSafari && (
+              <div style={note}>
+                Не нашёл такого пункта? Значит сайт открыт во встроенном браузере (например, из
+                мессенджера). Выбери в том же меню <b style={{ color: C.textBright }}>«Открыть в Safari»</b> и
+                повтори.
+              </div>
+            )}
+          </>
         )}
 
         <div style={{ display: 'flex', gap: 9, justifyContent: 'flex-end', marginTop: 13 }}>
@@ -186,6 +215,17 @@ const closeBtn: React.CSSProperties = {
   cursor: 'pointer',
   padding: 4,
   flex: 'none',
+}
+
+const note: React.CSSProperties = {
+  marginTop: 9,
+  padding: '8px 10px',
+  borderRadius: 9,
+  background: 'rgba(148,163,184,.07)',
+  border: '1px solid rgba(148,163,184,.18)',
+  fontSize: 12.5,
+  color: C.muted,
+  lineHeight: 1.5,
 }
 
 const steps: React.CSSProperties = {

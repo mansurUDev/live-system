@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { makeSector } from '../logic/defaults'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { btnAccent, C, MONO } from '../theme'
+import { askInstallHelp } from './InstallPrompt'
 import { WheelSvg } from './wheel/WheelSvg'
 
 const MODULES: { name: string; color: string; text: string }[] = [
@@ -109,6 +110,25 @@ export function LandingScreen({ onEnter }: { onEnter: () => void }) {
             onClick={onEnter}
           >
             Войти
+          </button>
+
+          {/* Установка приложения: панель всплывает и сама, но её могли закрыть
+              или браузер мог не подать сигнала — здесь она доступна всегда */}
+          <button
+            onClick={askInstallHelp}
+            style={{
+              marginTop: 12,
+              background: 'none',
+              border: 'none',
+              padding: 6,
+              cursor: 'pointer',
+              fontFamily: 'inherit',
+              fontSize: 13.5,
+              color: C.cyanBright,
+              textDecoration: 'underline dotted',
+            }}
+          >
+            Установить на телефон
           </button>
         </div>
 

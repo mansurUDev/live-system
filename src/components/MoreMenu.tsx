@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { C } from '../theme'
+import { askInstallHelp } from './InstallPrompt'
 import type { Tab } from '../types'
 
 interface Props {
@@ -56,6 +57,15 @@ export function MoreMenu({
         </button>
         <button onClick={onSettings} style={dimRowStyle}>
           Настройки
+        </button>
+        <button
+          onClick={() => {
+            onClose()
+            askInstallHelp()
+          }}
+          style={dimRowStyle}
+        >
+          Установить приложение
         </button>
         <button onClick={onLogout} style={{ ...dimRowStyle, color: C.danger }}>
           Выйти

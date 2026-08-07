@@ -2,6 +2,7 @@ import type { CSSProperties } from 'react'
 import { C } from '../theme'
 import { useIsMobile } from '../hooks/useIsMobile'
 import { SyncBadge } from './SyncBadge'
+import { askInstallHelp } from './InstallPrompt'
 import type { SyncState } from '../state/useCloudSync'
 
 // На телефоне шапка ужимается: заголовок мельче и плотнее, подзаголовок уходит,
@@ -100,6 +101,9 @@ export function Header({ sync, onExport, onImport, onChangeCode, onSettings, onL
           </button>
           <button className="h-ghost" style={{ ...ioBtn, color: C.muted }} onClick={onSettings}>
             Настройки
+          </button>
+          <button className="h-ghost" style={{ ...ioBtn, color: C.muted }} onClick={askInstallHelp}>
+            Установить приложение
           </button>
           <button className="h-ghost" style={{ ...ioBtn, color: C.muted }} onClick={onLogout}>
             Выйти

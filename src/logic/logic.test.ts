@@ -494,27 +494,37 @@ describe('предложение установить приложение', () 
     ...patch,
   })
 
-  it('уже установленному приложению ничего не предлагаем', () => {
+  it('уже установленному приложению ничего не предлагаем — даже по прямой просьбе', () => {
     expect(installHint(env({ standalone: true, nativePromptReady: true })).kind).toBe('none')
-    expect(installHint(env({ standalone: true, isIos: true, isSafari: true })).kind).toBe('none')
+    expect(installHint(env({ standalone: true, isIos: true, forced: true })).kind).toBe('none')
   })
 
-  it('отказ запоминается — второй раз не пристаём', () => {
-    expect(installHint(env({ dismissed: true, nativePromptReady: true })).kind).toBe('none')
+  it('само предложение всплывает один раз, отказ помнится', () => {
     expect(installHint(env({ dismissed: true, isIos: true, isSafari: true })).kind).toBe('none')
+  })
+
+  it('но по прямой просьбе инструкция возвращается даже после отказа', () => {
+    expect(installHint(env({ dismissed: true, isIos: true, isSafari: true, forced: true })).kind).toBe('ios')
   })
 
   it('есть родное окно — показываем кнопку', () => {
     expect(installHint(env({ nativePromptReady: true })).kind).toBe('native')
   })
 
-  it('Safari на iPhone — инструкция, в Chrome на iOS молчим', () => {
-    expect(installHint(env({ isIos: true, isSafari: true })).kind).toBe('ios')
-    expect(installHint(env({ isIos: true, isSafari: false })).kind).toBe('none')
+  it('на iOS инструкция даётся в любом браузере, а не только в Safari', () => {
+    const safari = installHint(env({ isIos: true, isSafari: true }))
+    expect(safari.kind).toBe('ios')
+    if (safari.kind === 'ios') expect(safari.inSafari).toBe(true)
+
+    // Chrome на iPhone или встроенный браузер мессенджера: подсказка нужна тем более
+    const other = installHint(env({ isIos: true, isSafari: false }))
+    expect(other.kind).toBe('ios')
+    if (other.kind === 'ios') expect(other.inSafari).toBe(false)
   })
 
-  it('обычный десктоп без beforeinstallprompt — молчим', () => {
+  it('обычный десктоп сам не пристаёт, но по просьбе объясняет', () => {
     expect(installHint(env()).kind).toBe('none')
+    expect(installHint(env({ forced: true })).kind).toBe('ios')
   })
 
   it('iPad на iPadOS опознаётся, несмотря на «маковский» user-agent', () => {
