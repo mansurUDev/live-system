@@ -1,14 +1,15 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { HOT_MAX, MAX_ACTS } from '../../constants'
+import { CATS, HOT_MAX, MAX_ACTS } from '../../constants'
 import { actBy, actTotals } from '../../logic/analytics'
-import { canPin, hotDockHeight, splitActs } from '../../logic/actLayout'
+import { canPin, hotDockHeight, moveActTo, splitActs, type MoveTarget } from '../../logic/actLayout'
 import { segs, runningEntry } from '../../logic/segs'
-import { addDays, hhmm, minuteOf, startOfDay } from '../../logic/time'
+import { addDays, fmtHm, hhmm, minuteOf, startOfDay } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
+import { useActDrag } from '../../hooks/useActDrag'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { useTrackerZone, type Zone } from '../../hooks/useTrackerZone'
 import { pageStyle } from '../../theme'
@@ -17,12 +18,20 @@ import { EntryModal } from '../modals/EntryModal'
 import { ActBoard } from './ActBoard'
 import { BackdateMenu, type BackdateTarget } from './BackdateMenu'
 import { DayView } from './DayView'
+import { DragGhost } from './DragGhost'
 import { HotDock } from './HotDock'
 import { RunningBar, ChainSlot } from './RunningBar'
+import type { TileVariant } from './ActTile'
 import type { Activity, TimeEntry } from '../../types'
 
 type ActForm = { act: Activity | null } | null
 type EntryForm = { entry: TimeEntry | null } | null
+
+/** Размер призрака перетаскивания — по исходной зоне кнопки и текущему брейкпоинту */
+function ghostVariant(act: Activity, zone: Zone): TileVariant {
+  if (act.pinned) return zone === 'phone' ? 'dock' : zone === 'wide' ? 'hotWide' : 'hot'
+  return zone === 'phone' ? 'chipPhone' : 'chip'
+}
 
 /**
  * Горячий ряд (8 колонок) и полосы (до 5 колонок) требуют куда больше места,
@@ -61,7 +70,27 @@ export function TrackerTab() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entries, minute])
 
-  const hot = useMemo(() => splitActs(acts).hot, [acts])
+  const mainRef = useRef<HTMLElement>(null)
+  const ghostRef = useRef<HTMLDivElement>(null)
+
+  const onDrop = (id: string, target: MoveTarget, index: number) => {
+    const res = moveActTo(acts, id, target, index)
+    if (!res.ok) {
+      if (res.reason === 'hotFull') toast(`В горячем ряду максимум ${HOT_MAX} — открепи что-нибудь`)
+      return
+    }
+    if (res.acts === acts) return // чистый no-op — ни диспатча, ни тоста
+    dispatch(A.moveAct(id, target, index))
+    const act = actBy(acts, id)!
+    if (res.catChanged) toast(`«${act.name}» теперь в «${CATS[res.catChanged].label}»`)
+    else if (res.pin === 'pinned') toast(`«${act.name}» — в горячем ряду`)
+    else if (res.pin === 'unpinned') toast(`«${act.name}» вернулась в полосу`)
+  }
+
+  const { drag, previewActs } = useActDrag({ acts, editing, scopeRef: mainRef, ghostRef, onDrop })
+
+  const hot = useMemo(() => splitActs(previewActs).hot, [previewActs])
+  const draggedAct = drag ? actBy(acts, drag.id) : null
 
   const press = (id: string) => {
     if (running?.actId === id) {
@@ -91,7 +120,11 @@ export function TrackerTab() {
   }
 
   return (
-    <main style={{ ...boardPageStyle(zone, isMobile), display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16 }}>
+    <main
+      ref={mainRef}
+      data-board
+      style={{ ...boardPageStyle(zone, isMobile), display: 'flex', flexDirection: 'column', gap: isMobile ? 12 : 16 }}
+    >
       <RunningBar
         running={running}
         acts={acts}
@@ -106,11 +139,13 @@ export function TrackerTab() {
       {zone === 'phone' && <ChainSlot variant="row" />}
 
       <ActBoard
-        acts={acts}
+        acts={previewActs}
         runningId={runningId}
         zone={zone}
         todayMs={todayMs}
         editing={editing}
+        dragId={drag?.id ?? null}
+        hotRejected={!!drag?.rejected}
         onPress={press}
         onEdit={(act) => setActForm({ act })}
         onToggleEditing={() => setEditing((v) => !v)}
@@ -125,10 +160,23 @@ export function TrackerTab() {
           runningId={runningId}
           todayMs={todayMs}
           editing={editing}
+          dragId={drag?.id ?? null}
+          hotRejected={!!drag?.rejected}
           onPress={press}
           onEdit={(act) => setActForm({ act })}
           onLongPress={(act, x, y) => setBackdate({ id: act.id, name: act.name, color: act.color, x, y })}
           onTogglePin={togglePin}
+        />
+      )}
+
+      {drag && draggedAct && (
+        <DragGhost
+          act={draggedAct}
+          variant={ghostVariant(draggedAct, zone)}
+          running={draggedAct.id === runningId}
+          ms={fmtHm(todayMs.get(draggedAct.id) ?? 0)}
+          grabRect={drag.grabRect}
+          ghostRef={ghostRef}
         />
       )}
 
@@ -161,7 +209,9 @@ export function TrackerTab() {
         }}
       />
 
-      {zone === 'phone' && hot.length > 0 && <div aria-hidden style={{ height: hotDockHeight(hot.length) }} />}
+      {zone === 'phone' && (editing || hot.length > 0) && (
+        <div aria-hidden style={{ height: hotDockHeight(editing ? Math.max(1, hot.length) : hot.length) }} />
+      )}
 
       {actForm && (
         <ActModal

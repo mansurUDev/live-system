@@ -210,6 +210,52 @@ describe('горячий ряд', () => {
   })
 })
 
+describe('moveAct', () => {
+  const acts: Doc['acts'] = [
+    { id: 'w1', name: 'W1', color: '#111', cat: 'work' },
+    { id: 'w2', name: 'W2', color: '#222', cat: 'work' },
+    { id: 'h1', name: 'H1', color: '#444', cat: 'health' },
+  ]
+
+  it('применяет результат moveActTo — перенос из полосы в горячий ряд', () => {
+    const s = run(stateWith({ acts }), { type: 'moveAct', id: 'w1', target: { kind: 'hot' }, index: 0, now: NOW })
+    expect(s.doc.acts.find((a) => a.id === 'w1')!.pinned).toBe(true)
+  })
+
+  it('отказ при переполнении — doc.acts прежний по ссылке', () => {
+    const eightPinned: Doc['acts'] = Array.from({ length: 8 }, (_, i) => ({
+      id: 'p' + i,
+      name: 'P' + i,
+      color: '#fff',
+      cat: 'byt' as const,
+      pinned: true,
+    }))
+    const before = stateWith({ acts: [...eightPinned, { id: 'x', name: 'X', color: '#fff', cat: 'byt' }] })
+    const s = run(before, { type: 'moveAct', id: 'x', target: { kind: 'hot' }, index: 0, now: NOW })
+    expect(s.doc.acts).toBe(before.doc.acts)
+    expect(s.doc.acts.filter((a) => a.pinned)).toHaveLength(8)
+  })
+
+  it('неизвестный id — no-op', () => {
+    const before = stateWith({ acts })
+    const s = run(before, {
+      type: 'moveAct',
+      id: 'ghost',
+      target: { kind: 'band', cat: 'health' },
+      index: 0,
+      now: NOW,
+    })
+    expect(s.doc.acts).toBe(before.doc.acts)
+  })
+
+  it('перенос на то же место — doc.acts прежний по ссылке', () => {
+    const before = stateWith({ acts })
+    // w2 уже единственный после w1 в полосе work — index 0 среди остальных членов (w1) не двигает её
+    const s = run(before, { type: 'moveAct', id: 'w2', target: { kind: 'band', cat: 'work' }, index: 1, now: NOW })
+    expect(s.doc.acts).toBe(before.doc.acts)
+  })
+})
+
 describe('поздравление', () => {
   it('срабатывает на переходе цели через 100% и только один раз', () => {
     let s = stateWith({ sectors: [goalAt(90, 100)] })

@@ -1,3 +1,4 @@
+import type { MoveTarget } from '../logic/actLayout'
 import { uid } from '../logic/uid'
 import type { Action } from './reducer'
 import { DEFAULT_REMINDER_INTERVAL_DAYS } from '../constants'
@@ -113,6 +114,13 @@ export const A = {
   saveAct: (act: Activity): Action => ({ type: 'saveAct', act, now: Date.now() }),
   deleteAct: (id: string): Action => ({ type: 'deleteAct', id, now: minuteStart() }),
   toggleActPin: (id: string): Action => ({ type: 'toggleActPin', id, now: Date.now() }),
+  moveAct: (id: string, target: MoveTarget, index: number): Action => ({
+    type: 'moveAct',
+    id,
+    target,
+    index,
+    now: Date.now(),
+  }),
   saveEntry: (entry: TimeEntry): Action => ({ type: 'saveEntry', entry, now: Date.now() }),
   deleteEntry: (id: string): Action => ({ type: 'deleteEntry', id, now: Date.now() }),
 

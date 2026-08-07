@@ -32,6 +32,68 @@ export function splitActs(acts: Activity[]): ActLayout {
   return { hot, bands }
 }
 
+export type MoveTarget = { kind: 'hot' } | { kind: 'band'; cat: Category }
+
+export type MoveResult =
+  | { ok: true; acts: Activity[]; catChanged: Category | null; pin: 'pinned' | 'unpinned' | null }
+  | { ok: false; reason: 'unknownId' | 'hotFull' }
+
+/**
+ * Перенос кнопки в горячий ряд / полосу на позицию index (правила DnD из
+ * доки). Чистая функция — используется и превью-рендером во время
+ * перетаскивания, и редьюсером на drop, поэтому превью всегда совпадает
+ * с итогом.
+ *
+ * index считается среди членов ЦЕЛЕВОЙ зоны после переноса (без учёта
+ * самой переносимой кнопки) — 0..members.length.
+ */
+export function moveActTo(acts: Activity[], id: string, target: MoveTarget, index: number): MoveResult {
+  const from = acts.findIndex((a) => a.id === id)
+  if (from === -1) return { ok: false, reason: 'unknownId' }
+
+  const act = acts[from]!
+  const remaining = acts.toSpliced(from, 1)
+
+  if (target.kind === 'hot' && !act.pinned) {
+    const pinnedCount = remaining.filter((a) => a.pinned).length
+    if (pinnedCount >= HOT_MAX) return { ok: false, reason: 'hotFull' }
+  }
+
+  let patched: Activity
+  let pin: 'pinned' | 'unpinned' | null
+  let catChanged: Category | null
+  if (target.kind === 'hot') {
+    // ряд смешанный по категориям — cat переносимой кнопки не трогаем
+    patched = { ...act, pinned: true }
+    pin = act.pinned ? null : 'pinned'
+    catChanged = null
+  } else {
+    patched = { ...act, cat: target.cat }
+    delete patched.pinned // открепление — поле уходит совсем, как в toggleActPin
+    pin = act.pinned ? 'unpinned' : null
+    catChanged = act.cat !== target.cat ? target.cat : null
+  }
+
+  // членство в зоне — через splitActs, те же правила (включая переполнение),
+  // не рукописный filter; splitActs отдаёт исходные ссылки, поэтому indexOf ниже валиден
+  const layout = splitActs(remaining)
+  const members = target.kind === 'hot' ? layout.hot : (layout.bands.find((b) => b.cat === target.cat)?.acts ?? [])
+
+  let insertAt: number
+  if (members.length === 0) {
+    // пустая зона — детерминированно оставляем кнопку на её месте в массиве
+    insertAt = from
+  } else {
+    const idx = Math.max(0, Math.min(index, members.length))
+    insertAt = idx < members.length ? remaining.indexOf(members[idx]!) : remaining.indexOf(members[members.length - 1]!) + 1
+  }
+
+  if (pin === null && catChanged === null && insertAt === from) {
+    return { ok: true, acts, catChanged: null, pin: null }
+  }
+  return { ok: true, acts: remaining.toSpliced(insertAt, 0, patched), catChanged, pin }
+}
+
 /** Можно ли закрепить ещё одну (id уже закреплённой — всегда можно снять) */
 export function canPin(acts: Activity[], id: string): boolean {
   const a = acts.find((x) => x.id === id)

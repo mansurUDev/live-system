@@ -14,6 +14,10 @@ interface Props {
   zone: Zone
   todayMs: Map<string, number>
   editing: boolean
+  /** id перетаскиваемой сейчас кнопки — она рендерится плейсхолдером */
+  dragId?: string | null
+  /** указатель сейчас над горячим рядом, а тот уже полон — красная рамка-отказ */
+  hotRejected?: boolean
   onPress: (id: string) => void
   onEdit: (act: Activity) => void
   onToggleEditing: () => void
@@ -33,6 +37,8 @@ export function ActBoard({
   zone,
   todayMs,
   editing,
+  dragId = null,
+  hotRejected = false,
   onPress,
   onEdit,
   onToggleEditing,
@@ -58,6 +64,7 @@ export function ActBoard({
     running: act.id === runningId,
     ms: fmtHm(todayMs.get(act.id) ?? 0),
     editing,
+    dragged: act.id === dragId,
     onPress,
     onEdit,
     onLongPress,
@@ -67,7 +74,7 @@ export function ActBoard({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: zone === 'wide' ? 20 : 16 }}>
       {zone !== 'phone' && (
-        <div>
+        <div data-drop-zone="hot">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
             <span style={{ fontSize: 11, letterSpacing: '2.5px', color: C.dim, textTransform: 'uppercase' }}>
               ★ Горячий ряд{zone === 'wide' ? ' · Жизненный цикл дня' : ''}
@@ -82,6 +89,9 @@ export function ActBoard({
                 display: 'grid',
                 gridTemplateColumns: `repeat(${HOT_MAX}, 1fr)`,
                 gap: zone === 'wide' ? 10 : 8,
+                ...(hotRejected
+                  ? { outline: '1px dashed rgba(248,113,113,.55)', outlineOffset: 6, borderRadius: 13 }
+                  : null),
               }}
             >
               {hot.map((act) => (
@@ -91,7 +101,7 @@ export function ActBoard({
           ) : (
             <div
               style={{
-                border: '1px dashed rgba(148,163,184,.28)',
+                border: `1px dashed ${hotRejected ? 'rgba(248,113,113,.55)' : 'rgba(148,163,184,.28)'}`,
                 borderRadius: 13,
                 padding: '14px 16px',
                 fontSize: 13,
@@ -110,6 +120,7 @@ export function ActBoard({
         runningId={runningId}
         todayMs={todayMs}
         editing={editing}
+        dragId={dragId}
         onPress={onPress}
         onEdit={onEdit}
         onLongPress={onLongPress}

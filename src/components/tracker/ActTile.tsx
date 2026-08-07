@@ -36,13 +36,26 @@ interface Props {
   /** минуты за сегодня, уже отформатированные («0:45»); пусто — не отслеживалось */
   ms: string
   editing: boolean
+  /** сейчас перетаскивается — плитка держит место, но невидима и не кликается (плейсхолдер) */
+  dragged?: boolean
   onPress: (id: string) => void
   onEdit: (act: Activity) => void
   onLongPress: (act: Activity, x: number, y: number) => void
   onTogglePin: (id: string) => void
 }
 
-export function ActTile({ act, variant, running, ms, editing, onPress, onEdit, onLongPress, onTogglePin }: Props) {
+export function ActTile({
+  act,
+  variant,
+  running,
+  ms,
+  editing,
+  dragged,
+  onPress,
+  onEdit,
+  onLongPress,
+  onTogglePin,
+}: Props) {
   const spec = SPEC[variant]
   const lp = useLongPress((x, y) => onLongPress(act, x, y), !editing)
 
@@ -109,7 +122,15 @@ export function ActTile({ act, variant, running, ms, editing, onPress, onEdit, o
       }
 
   return (
-    <div style={{ position: 'relative', display: 'flex', minWidth: 0 }}>
+    <div
+      data-act-id={act.id}
+      style={{
+        position: 'relative',
+        display: 'flex',
+        minWidth: 0,
+        ...(dragged ? { opacity: 0, pointerEvents: 'none' } : null),
+      }}
+    >
       <button
         className="h-tile"
         onClick={click}
@@ -118,7 +139,7 @@ export function ActTile({ act, variant, running, ms, editing, onPress, onEdit, o
           ...actTileShell(act.color, running),
           fontFamily: 'inherit',
           textAlign: 'left',
-          cursor: 'pointer',
+          cursor: editing ? 'grab' : 'pointer',
           padding: spec.pad,
           minHeight: spec.minH,
           borderRadius: spec.radius,
@@ -129,6 +150,7 @@ export function ActTile({ act, variant, running, ms, editing, onPress, onEdit, o
           alignItems: spec.stack ? 'stretch' : 'center',
           justifyContent: spec.stack ? 'space-between' : 'flex-start',
           gap: spec.stack ? 6 : 8,
+          ...(editing ? { touchAction: 'none', userSelect: 'none', WebkitUserSelect: 'none' } : null),
         }}
       >
         <span style={nameStyle}>{act.name}</span>
@@ -153,6 +175,7 @@ export function ActTile({ act, variant, running, ms, editing, onPress, onEdit, o
       {editing && (
         <button
           type="button"
+          data-pin
           aria-pressed={!!act.pinned}
           aria-label={act.pinned ? `Открепить «${act.name}»` : `Закрепить «${act.name}»`}
           onClick={() => onTogglePin(act.id)}

@@ -13,6 +13,8 @@ interface Props {
   runningId: string | null
   todayMs: Map<string, number>
   editing: boolean
+  /** id перетаскиваемой сейчас кнопки — она рендерится плейсхолдером */
+  dragId?: string | null
   onPress: (id: string) => void
   onEdit: (act: Activity) => void
   onLongPress: (act: Activity, x: number, y: number) => void
@@ -51,7 +53,18 @@ function Header({ band, sticky }: { band: Band; sticky: boolean }) {
   )
 }
 
-export function CatBands({ bands, zone, runningId, todayMs, editing, onPress, onEdit, onLongPress, onTogglePin }: Props) {
+export function CatBands({
+  bands,
+  zone,
+  runningId,
+  todayMs,
+  editing,
+  dragId = null,
+  onPress,
+  onEdit,
+  onLongPress,
+  onTogglePin,
+}: Props) {
   if (!bands.length) return null
 
   const tileProps = (act: Activity) => ({
@@ -59,6 +72,7 @@ export function CatBands({ bands, zone, runningId, todayMs, editing, onPress, on
     running: act.id === runningId,
     ms: fmtHm(todayMs.get(act.id) ?? 0),
     editing,
+    dragged: act.id === dragId,
     onPress,
     onEdit,
     onLongPress,
@@ -69,7 +83,7 @@ export function CatBands({ bands, zone, runningId, todayMs, editing, onPress, on
     return (
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 18, alignItems: 'start' }}>
         {bands.map((band) => (
-          <div key={band.cat}>
+          <div key={band.cat} data-drop-zone={'band:' + band.cat}>
             <Header band={band} sticky={false} />
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
               {band.acts.map((act) => (
@@ -86,7 +100,7 @@ export function CatBands({ bands, zone, runningId, todayMs, editing, onPress, on
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {bands.map((band) => (
-          <div key={band.cat}>
+          <div key={band.cat} data-drop-zone={'band:' + band.cat}>
             <Header band={band} sticky={false} />
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
               {band.acts.map((act) => (
@@ -103,7 +117,7 @@ export function CatBands({ bands, zone, runningId, todayMs, editing, onPress, on
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       {bands.map((band) => (
-        <div key={band.cat}>
+        <div key={band.cat} data-drop-zone={'band:' + band.cat}>
           <Header band={band} sticky />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 9 }}>
             {band.acts.map((act) => (

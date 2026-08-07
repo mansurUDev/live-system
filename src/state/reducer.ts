@@ -16,6 +16,7 @@ import {
   MAX_VIDEOS,
   SHOW_KIND_LABELS,
 } from '../constants'
+import { moveActTo, type MoveTarget } from '../logic/actLayout'
 import { money } from '../logic/currency'
 import { rollMonth } from '../logic/finance'
 import { resetQuit, toggleToday } from '../logic/habits'
@@ -77,6 +78,7 @@ export type Action =
   | { type: 'saveAct'; act: Activity; now: number }
   | { type: 'deleteAct'; id: string; now: number }
   | { type: 'toggleActPin'; id: string; now: number }
+  | { type: 'moveAct'; id: string; target: MoveTarget; index: number; now: number }
   | { type: 'saveEntry'; entry: TimeEntry; now: number }
   | { type: 'deleteEntry'; id: string; now: number }
   // привычки
@@ -298,6 +300,13 @@ function coreReducer(doc: Doc, action: Action): Doc {
       // девятую не берём: тост показывает контейнер, редьюсер просто не меняет doc
       if (doc.acts.filter((a) => a.pinned).length >= HOT_MAX) return doc
       return { ...doc, acts: doc.acts.map((a) => (a.id === action.id ? { ...a, pinned: true } : a)) }
+    }
+
+    case 'moveAct': {
+      const res = moveActTo(doc.acts, action.id, action.target, action.index)
+      // отказ (переполнение) и no-op не трогают doc: тосты показывает контейнер
+      if (!res.ok || res.acts === doc.acts) return doc
+      return { ...doc, acts: res.acts }
     }
 
     case 'saveEntry': {

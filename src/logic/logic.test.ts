@@ -3,7 +3,7 @@ import { avgPct, pct } from './pct'
 import { findConflict, overlaps, resolveEnd } from './overlap'
 import { runningEntry, segs, splitByDay, totalMs } from './segs'
 import { actTotals, catTotals, topActs, untrackedMs, weekdayTotals } from './analytics'
-import { canPin, DOCK, hotDockHeight, mergeAct, splitActs } from './actLayout'
+import { canPin, DOCK, hotDockHeight, mergeAct, moveActTo, splitActs } from './actLayout'
 import { numberForecast, stepsForecast } from './forecast'
 import { buildHints } from './hints'
 import { normalize } from './normalize'
@@ -545,6 +545,112 @@ describe('раскладка трекера', () => {
     expect(hotDockHeight(5)).toBe(twoRows)
     expect(hotDockHeight(8)).toBe(twoRows)
     expect(hotDockHeight(9)).toBe(twoRows)
+  })
+})
+
+describe('moveActTo (drag-and-drop)', () => {
+  const moveActs: Activity[] = [
+    { id: 'w1', name: 'W1', color: '#111', cat: 'work' },
+    { id: 'w2', name: 'W2', color: '#222', cat: 'work' },
+    { id: 'w3', name: 'W3', color: '#333', cat: 'work' },
+    { id: 'h1', name: 'H1', color: '#444', cat: 'health' },
+    { id: 'p1', name: 'P1', color: '#555', cat: 'byt', pinned: true },
+  ]
+
+  it('перестановка внутри полосы сохраняет состав и относительный порядок остальных', () => {
+    const res = moveActTo(moveActs, 'w3', { kind: 'band', cat: 'work' }, 0)
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.acts.map((a) => a.id).sort()).toEqual(['h1', 'p1', 'w1', 'w2', 'w3'])
+    expect(res.acts.map((a) => a.id)).toEqual(['w3', 'w1', 'w2', 'h1', 'p1'])
+  })
+
+  it('граничные индексы — 0 и длина зоны', () => {
+    const front = moveActTo(moveActs, 'w1', { kind: 'band', cat: 'work' }, 0)
+    if (front.ok) expect(front.acts.map((a) => a.id)).toEqual(['w1', 'w2', 'w3', 'h1', 'p1']) // уже там — no-op
+
+    const back = moveActTo(moveActs, 'w1', { kind: 'band', cat: 'work' }, 2)
+    expect(back.ok).toBe(true)
+    if (back.ok) expect(back.acts.map((a) => a.id)).toEqual(['w2', 'w3', 'w1', 'h1', 'p1'])
+  })
+
+  it('перенос в другую полосу меняет cat и сообщает catChanged', () => {
+    const res = moveActTo(moveActs, 'w1', { kind: 'band', cat: 'health' }, 0)
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.catChanged).toBe('health')
+    expect(res.acts.find((a) => a.id === 'w1')!.cat).toBe('health')
+  })
+
+  it('перенос в горячий ряд ставит pinned и позицию среди закреплённых', () => {
+    const res = moveActTo(moveActs, 'w2', { kind: 'hot' }, 0)
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.pin).toBe('pinned')
+    expect(res.acts.find((a) => a.id === 'w2')!.pinned).toBe(true)
+    expect(res.acts.map((a) => a.id)).toEqual(['w1', 'w3', 'h1', 'w2', 'p1'])
+  })
+
+  it('девятая в горячий ряд — отказ hotFull, исходный массив не тронут', () => {
+    const eightPinned: Activity[] = Array.from({ length: 8 }, (_, i) => ({
+      id: 'p' + i,
+      name: 'P' + i,
+      color: '#fff',
+      cat: 'byt',
+      pinned: true,
+    }))
+    const acts: Activity[] = [...eightPinned, { id: 'x', name: 'X', color: '#fff', cat: 'byt' }]
+    const res = moveActTo(acts, 'x', { kind: 'hot' }, 0)
+    expect(res).toEqual({ ok: false, reason: 'hotFull' })
+    expect(acts.filter((a) => a.pinned)).toHaveLength(8)
+  })
+
+  it('из горячего ряда в полосу — поле pinned удаляется совсем, cat меняется при другой полосе', () => {
+    const res = moveActTo(moveActs, 'p1', { kind: 'band', cat: 'health' }, 0)
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.pin).toBe('unpinned')
+    expect(res.catChanged).toBe('health')
+    const moved = res.acts.find((a) => a.id === 'p1')!
+    expect('pinned' in moved).toBe(false)
+    expect(moved.cat).toBe('health')
+  })
+
+  it('перестановка внутри горячего ряда не трогает pinned', () => {
+    const twoHot: Activity[] = [
+      { id: 'p1', name: 'P1', color: '#111', cat: 'byt', pinned: true },
+      { id: 'p2', name: 'P2', color: '#222', cat: 'work', pinned: true },
+    ]
+    const res = moveActTo(twoHot, 'p2', { kind: 'hot' }, 0)
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.pin).toBeNull()
+    expect(res.acts.find((a) => a.id === 'p2')!.pinned).toBe(true)
+    expect(res.acts.map((a) => a.id)).toEqual(['p2', 'p1'])
+  })
+
+  it('в пустой горячий ряд — кнопка остаётся на своём месте массива', () => {
+    const noPins: Activity[] = [
+      { id: 'w1', name: 'W1', color: '#111', cat: 'work' },
+      { id: 'w2', name: 'W2', color: '#222', cat: 'work' },
+      { id: 'w3', name: 'W3', color: '#333', cat: 'work' },
+    ]
+    const res = moveActTo(noPins, 'w2', { kind: 'hot' }, 0)
+    expect(res.ok).toBe(true)
+    if (!res.ok) return
+    expect(res.acts.map((a) => a.id)).toEqual(['w1', 'w2', 'w3'])
+    expect(res.acts.find((a) => a.id === 'w2')!.pinned).toBe(true)
+  })
+
+  it('перенос на то же место — тот же массив по ссылке (no-op)', () => {
+    const res = moveActTo(moveActs, 'w2', { kind: 'band', cat: 'work' }, 1)
+    expect(res).toEqual({ ok: true, acts: moveActs, catChanged: null, pin: null })
+    if (res.ok) expect(res.acts).toBe(moveActs)
+  })
+
+  it('неизвестный id — отказ', () => {
+    const res = moveActTo(moveActs, 'ghost', { kind: 'hot' }, 0)
+    expect(res).toEqual({ ok: false, reason: 'unknownId' })
   })
 })
 
