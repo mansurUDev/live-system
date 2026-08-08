@@ -2,8 +2,13 @@
 <html lang="ru">
   <head>
     <meta charset="UTF-8" />
-    <!-- viewport-fit=cover — чтобы фон уходил под «чёлку» и домашнюю полосу телефона -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- viewport-fit=cover — чтобы фон уходил под «чёлку» и домашнюю полосу телефона.
+         maximum-scale/user-scalable — запрет зума: без авто-приближения при фокусе на поле
+         ввода (шрифты меньше 16px) и без pinch/double-tap в установленном приложении -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
     <title>Система жизни</title>
     <meta name="description" content="Колесо жизни, трекер времени и аналитика по ним" />
 
