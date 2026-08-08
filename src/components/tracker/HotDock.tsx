@@ -1,5 +1,6 @@
+import { useEffect } from 'react'
 import { HOT_MAX } from '../../constants'
-import { DOCK } from '../../logic/actLayout'
+import { DOCK, hotDockHeight } from '../../logic/actLayout'
 import { fmtHm } from '../../logic/time'
 import { C, NAV_H } from '../../theme'
 import type { Activity } from '../../types'
@@ -38,7 +39,20 @@ export function HotDock({
   onLongPress,
   onTogglePin,
 }: Props) {
-  if (!hot.length && !editing) return null
+  const visible = hot.length > 0 || editing
+
+  // Пока док на экране, он публикует --toast-bottom — полный отступ тоста от
+  // низа окна (навигация + док + зазор), чтобы тост вставал над доком, а не под ним.
+  useEffect(() => {
+    if (!visible) return
+    const dockH = hotDockHeight(Math.max(editing ? 1 : 0, hot.length))
+    document.documentElement.style.setProperty('--toast-bottom', NAV_H + dockH + 10 + 'px')
+    return () => {
+      document.documentElement.style.removeProperty('--toast-bottom')
+    }
+  }, [visible, hot.length, editing])
+
+  if (!visible) return null
 
   return (
     <div

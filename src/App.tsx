@@ -5,6 +5,7 @@ import { DataProvider, useData } from './state/DataProvider'
 import { NowProvider } from './state/NowProvider'
 import { ToastProvider } from './state/ToastProvider'
 import { useIsMobile } from './hooks/useIsMobile'
+import { NAV_H } from './theme'
 import { useBackup } from './hooks/useBackup'
 import { readTab, writeTab } from './state/storage'
 import { BottomNav } from './components/BottomNav'
@@ -89,7 +90,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
         {tab === 'arch' && <ArchiveTab />}
 
         {/* место под нижнюю панель, чтобы она не накрывала последний блок */}
-        {isMobile && <div style={{ height: 'calc(64px + env(safe-area-inset-bottom))' }} />}
+        {isMobile && <div style={{ height: `calc(${NAV_H + 12}px + env(safe-area-inset-bottom))` }} />}
       </div>
 
       {isMobile && (

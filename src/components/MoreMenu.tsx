@@ -1,5 +1,5 @@
 import type { CSSProperties } from 'react'
-import { C } from '../theme'
+import { C, NAV_H } from '../theme'
 import { askInstallHelp } from './InstallPrompt'
 import type { Tab } from '../types'
 
@@ -86,7 +86,7 @@ const sheetStyle: CSSProperties = {
   position: 'fixed',
   left: 10,
   right: 10,
-  bottom: 'calc(70px + env(safe-area-inset-bottom))',
+  bottom: `calc(${NAV_H + 18}px + env(safe-area-inset-bottom))`,
   zIndex: 75,
   background: 'linear-gradient(165deg, rgba(24,34,60,.97), rgba(11,17,33,.98))',
   border: '1px solid rgba(110,160,255,.25)',

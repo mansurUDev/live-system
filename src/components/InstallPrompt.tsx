@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { detectIos, detectSafari, installHint, type InstallHint } from '../logic/install'
-import { btnAccent, btnGhostSm, C } from '../theme'
+import { btnAccent, btnGhostSm, C, NAV_H } from '../theme'
 
 /** Отказ помнится по этому ключу — предложение больше не всплывает */
 const DISMISS_KEY = 'sistema-zhizni-install-dismissed'
@@ -174,7 +174,7 @@ const wrap: React.CSSProperties = {
   left: 0,
   right: 0,
   // над нижней навигацией телефона и её безопасной зоной
-  bottom: 'calc(env(safe-area-inset-bottom) + 72px)',
+  bottom: `calc(env(safe-area-inset-bottom) + ${NAV_H + 20}px)`,
   // выше приветственного экрана (z-index 100): предложение установить нужно
   // именно при первом открытии, а первым открытием и является этот экран
   zIndex: 101,
