@@ -313,7 +313,9 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
     v: DOC_VERSION,
     currency,
     rates: normRates(d.rates),
-    hideWatch: !!d.hideWatch,
+    // по умолчанию спрятана: полка с фильмами — не то, что показывают через плечо.
+    // Явное false ставится только из настроек, поэтому «показывать» переживает перезагрузку
+    hideWatch: d.hideWatch === undefined ? true : !!d.hideWatch,
     sectors: normSectors(d.sectors, nowIso),
     acts: normActs(d.acts, defaultDoc(now).acts),
     entries: normEntries(d.entries),

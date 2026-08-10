@@ -402,6 +402,15 @@ describe('библиотека', () => {
     expect(readingPlan(book({ pageTotal: 0, targetDate: '2026-03-24' }), NOW)).toEqual({ kind: 'none' })
   })
 
+  it('полка «Смотреть» спрятана, пока её не показали явно', () => {
+    // старый документ без поля — прячем: это раздел для себя
+    expect(normalize({ sectors: [] }, NOW).hideWatch).toBe(true)
+    expect(defaultDoc(NOW).hideWatch).toBe(true)
+    // явный выбор «показывать» переживает нормализацию, а не откатывается к умолчанию
+    expect(normalize({ sectors: [], hideWatch: false }, NOW).hideWatch).toBe(false)
+    expect(normalize(normalize({ sectors: [], hideWatch: false }, NOW), NOW).hideWatch).toBe(false)
+  })
+
   it('нормализация: битый срок прочтения обнуляется', () => {
     const d = normalize(
       { sectors: [], lib: { books: [{ title: 'X', targetDate: 'когда-нибудь' }, { title: 'Y', targetDate: '2026-05-01' }] } },
