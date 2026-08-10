@@ -7,7 +7,7 @@ import { btnGhost, C, chipBtn, fieldLabel } from '../../theme'
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const { state, dispatch } = useData()
-  const { currency, rates } = state.doc
+  const { currency, rates, hideWatch } = state.doc
 
   return (
     <Modal
@@ -34,6 +34,29 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               {c.label}
             </button>
           ))}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <div style={fieldLabel}>Вкладка «Смотреть»</div>
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 6 }}>
+          <button
+            style={chipBtn(!hideWatch, '#22d3ee')}
+            onClick={() => dispatch(A.patchDoc({ hideWatch: false }))}
+          >
+            показывать
+          </button>
+          <button
+            style={chipBtn(hideWatch, '#22d3ee')}
+            onClick={() => dispatch(A.patchDoc({ hideWatch: true }))}
+          >
+            прятать
+          </button>
+        </div>
+        <div style={{ fontSize: 12.5, color: C.faint, marginTop: 7, lineHeight: 1.5 }}>
+          Спрятанная вкладка исчезает из панели и меню, но никуда не девается: чтобы открыть её,
+          нажми на точку слева от заголовка «Система жизни» — или на слово «баланса» под ним на
+          большом экране. Данные остаются на месте в любом случае.
         </div>
       </div>
 

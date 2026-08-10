@@ -313,6 +313,7 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
     v: DOC_VERSION,
     currency,
     rates: normRates(d.rates),
+    hideWatch: !!d.hideWatch,
     sectors: normSectors(d.sectors, nowIso),
     acts: normActs(d.acts, defaultDoc(now).acts),
     entries: normEntries(d.entries),

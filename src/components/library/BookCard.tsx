@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { bookProgress, fmtAudio, parseAudio } from '../../logic/library'
-import { fmtD } from '../../logic/time'
+import { bookProgress, fmtAudio, parseAudio, readingPlan } from '../../logic/library'
+import { fmtD, plural } from '../../logic/time'
 import { useNow } from '../../state/NowProvider'
 import {
   btnAccent,
@@ -32,9 +32,11 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDel
   const [page, setPage] = useState(String(book.pageCur || ''))
   const [audio, setAudio] = useState(book.audioTotal > 0 ? fmtAudio(book.audioCur) : '')
   const [excerpt, setExcerpt] = useState(book.excerpt)
+  const [targetDate, setTargetDate] = useState(book.targetDate)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const pct = bookProgress(book)
+  const plan = readingPlan(book, now)
 
   const savePosition = () => {
     const p = parseInt(page.replace(/\s/g, ''), 10)
@@ -43,6 +45,7 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDel
       pageCur: Number.isFinite(p) ? Math.max(0, Math.min(book.pageTotal || p, p)) : book.pageCur,
       audioCur: book.audioTotal > 0 ? Math.min(book.audioTotal, parseAudio(audio)) : book.audioCur,
       excerpt: excerpt.slice(0, 400),
+      targetDate,
     })
   }
 
@@ -81,6 +84,22 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDel
         ]}
       />
 
+      {plan.kind !== 'none' && (
+        <div
+          style={{
+            fontSize: 12.5,
+            marginTop: 9,
+            color: plan.kind === 'overdue' ? C.dangerText : plan.kind === 'done' ? C.ok : C.muted,
+          }}
+        >
+          {plan.kind === 'done'
+            ? '✓ прочитана — план закрыт'
+            : plan.kind === 'overdue'
+              ? `срок прошёл ${plan.daysLate} ${plural(plan.daysLate, 'день', 'дня', 'дней')} назад — осталось ${plan.pagesLeft} с.`
+              : `по ${plan.perDay} ${plural(plan.perDay, 'странице', 'страницы', 'страниц')} в день — успеть к ${fmtD(book.targetDate + 'T00:00:00', now)}`}
+        </div>
+      )}
+
       {open && (
         <div style={{ marginTop: 14, borderTop: '1px dashed rgba(148,163,184,.25)', paddingTop: 12 }}>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
@@ -105,6 +124,21 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDel
                 />
               </div>
             )}
+          </div>
+
+          <div style={{ marginTop: 10, maxWidth: 220 }}>
+            <div style={fieldLabel}>
+              Дочитать к <span style={{ color: C.faint }}>— необязательно</span>
+            </div>
+            <input
+              value={targetDate}
+              onChange={(e) => setTargetDate(e.target.value)}
+              type="date"
+              style={{ ...input, padding: '8px 11px' }}
+            />
+            <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>
+              покажу, по сколько страниц в день нужно
+            </div>
           </div>
 
           <div style={{ marginTop: 10 }}>

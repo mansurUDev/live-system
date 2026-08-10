@@ -258,6 +258,7 @@ export function normLibrary(x: unknown, nowIso: string): Library {
           audioCur: count(b.audioCur),
           audioTotal: count(b.audioTotal),
           excerpt: str(b.excerpt, MAX_EXCERPT),
+          targetDate: dayKey(b.targetDate),
           notes: notes(b.notes, nowIso),
           startedAt: iso(b.startedAt, nowIso),
         }

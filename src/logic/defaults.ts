@@ -58,6 +58,7 @@ export function defaultDoc(now: number = Date.now()): Doc {
     v: DOC_VERSION,
     currency: DEFAULT_CURRENCY,
     rates: neutralRates(),
+    hideWatch: false,
     sectors: [
       makeSector(
         { id: 's1', name: 'Накопить 1000 $', color: '#fbbf24', kind: 'number', target: 1000, unit: '$', current: 0 },

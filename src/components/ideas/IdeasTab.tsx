@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MAX_IDEAS } from '../../constants'
+import { MAX_BOOKS, MAX_IDEAS, PAL } from '../../constants'
 import { useAuth } from '../../state/AuthProvider'
 import { useData } from '../../state/DataProvider'
 import { useToast } from '../../state/ToastProvider'
@@ -33,6 +33,27 @@ export function IdeasTab() {
       return
     }
     setEditing({ idea: null })
+  }
+
+  /**
+   * Идея, записанная про книгу, переезжает в «Библиотеку»: там позиция, план по
+   * прочтению и заметки. Текст идеи не теряется — становится первой заметкой
+   * книги, а число страниц проставляется потом в самой карточке.
+   */
+  const toBook = (idea: Idea) => {
+    if (state.doc.lib.books.length >= MAX_BOOKS) {
+      toast('Слишком много книг — заверши или убери лишние')
+      return
+    }
+    const usedColors = state.doc.lib.books.map((b) => b.color)
+    const color = PAL.find((c) => !usedColors.includes(c)) ?? PAL[2]!
+    const book = A.newBook(idea.title, '', color, 0, 0)
+    dispatch(A.saveBook(book))
+    const text = idea.text.trim()
+    if (text) dispatch(A.addNote('book', book.id, text))
+    idea.images.forEach((url) => void deleteImage(code, url))
+    dispatch(A.deleteIdea(idea.id))
+    toast(`«${idea.title}» — теперь в «Библиотеке», укажи страницы`)
   }
 
   return (
@@ -70,6 +91,7 @@ export function IdeasTab() {
               confirmingDelete={deleteId === idea.id}
               onToggleDone={() => dispatch(A.saveIdea({ ...idea, done: !idea.done }))}
               onEdit={() => setEditing({ idea })}
+              onToBook={() => toBook(idea)}
               onAskDelete={() => setDeleteId(idea.id)}
               onCancelDelete={() => setDeleteId(null)}
               onDelete={() => {

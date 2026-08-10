@@ -92,7 +92,7 @@ export const A = {
     archiveId: uid('ar'),
     now: Date.now(),
   }),
-  patchDoc: (patch: Partial<Pick<Doc, 'currency' | 'rates'>>): Action => ({
+  patchDoc: (patch: Partial<Pick<Doc, 'currency' | 'rates' | 'hideWatch'>>): Action => ({
     type: 'patchDoc',
     patch,
     now: Date.now(),
@@ -214,6 +214,7 @@ export const A = {
     audioCur: 0,
     audioTotal,
     excerpt: '',
+    targetDate: '',
     notes: [],
     startedAt: new Date().toISOString(),
   }),

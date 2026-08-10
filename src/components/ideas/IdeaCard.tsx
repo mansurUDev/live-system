@@ -8,6 +8,7 @@ interface Props {
   confirmingDelete: boolean
   onToggleDone: () => void
   onEdit: () => void
+  onToBook: () => void
   onAskDelete: () => void
   onCancelDelete: () => void
   onDelete: () => void
@@ -24,7 +25,16 @@ function hostname(url: string): string {
   }
 }
 
-export function IdeaCard({ idea, confirmingDelete, onToggleDone, onEdit, onAskDelete, onCancelDelete, onDelete }: Props) {
+export function IdeaCard({
+  idea,
+  confirmingDelete,
+  onToggleDone,
+  onEdit,
+  onToBook,
+  onAskDelete,
+  onCancelDelete,
+  onDelete,
+}: Props) {
   const [expanded, setExpanded] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const long = idea.text.length > COLLAPSE_AT
@@ -176,6 +186,10 @@ export function IdeaCard({ idea, confirmingDelete, onToggleDone, onEdit, onAskDe
           }}
         >
           ✎
+        </button>
+        {/* книга — не идея: у неё есть позиция и срок, им место в «Библиотеке» */}
+        <button className="h-ghost-bright" style={btnCancelSm} onClick={onToBook}>
+          В книги
         </button>
         <div style={{ flex: 1 }} />
         {confirmingDelete ? (

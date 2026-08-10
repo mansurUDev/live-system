@@ -72,13 +72,14 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
       <div style={{ position: 'relative', zIndex: 1 }}>
         <Header
           sync={sync}
+          onSecret={() => go('watch')}
           onExport={backup.onExport}
           onImport={backup.onImport}
           onChangeCode={() => setChangingCode(true)}
           onSettings={() => setSettingsOpen(true)}
           onLogout={logout}
         />
-        <Tabs tab={tab} onChange={go} archiveCount={state.doc.archive.length} />
+        <Tabs tab={tab} onChange={go} archiveCount={state.doc.archive.length} hideWatch={state.doc.hideWatch} />
 
         {tab === 'brief' && <BriefTab onGo={go} />}
         {tab === 'wheel' && <WheelTab />}
@@ -102,6 +103,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
         <MoreMenu
           tab={tab}
           archiveCount={state.doc.archive.length}
+          hideWatch={state.doc.hideWatch}
           onGo={go}
           onClose={() => setMoreOpen(false)}
           onExport={() => {

@@ -23,14 +23,15 @@ interface Props {
   tab: Tab
   onChange: (tab: Tab) => void
   archiveCount: number
+  hideWatch: boolean
 }
 
 /** Полоса вкладок для большого экрана; на телефоне её заменяет нижняя панель */
-export function Tabs({ tab, onChange, archiveCount }: Props) {
+export function Tabs({ tab, onChange, archiveCount, hideWatch }: Props) {
   const isMobile = useIsMobile()
   if (isMobile) return null
 
-  const items: { key: Tab; label: string }[] = [
+  const all: { key: Tab; label: string }[] = [
     { key: 'brief', label: 'Брифинг' },
     { key: 'wheel', label: 'Колесо' },
     { key: 'track', label: 'Трекер времени' },
@@ -42,6 +43,10 @@ export function Tabs({ tab, onChange, archiveCount }: Props) {
     { key: 'an', label: 'Аналитика' },
     { key: 'arch', label: 'Архив' + (archiveCount ? ' · ' + archiveCount : '') },
   ]
+
+  // спрятанная вкладка исчезает из полосы, но открытую не закрываем — иначе
+  // потайной переход приводил бы на страницу без подсветки в навигации
+  const items = all.filter((i) => i.key !== 'watch' || !hideWatch || tab === 'watch')
 
   return (
     <nav className="no-scrollbar" style={navStyle(false)}>

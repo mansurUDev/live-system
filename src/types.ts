@@ -178,6 +178,8 @@ export interface Book {
   audioTotal: number
   /** отрывок, на котором остановился */
   excerpt: string
+  /** план по прочтению: дата, к которой хочешь дочитать; YYYY-MM-DD, пусто — без срока */
+  targetDate: string
   notes: LibNote[]
   startedAt: string
 }
@@ -281,7 +283,7 @@ export interface Idea {
 }
 
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 8
+export const DOC_VERSION = 9
 
 export interface Doc {
   v: number
@@ -289,6 +291,8 @@ export interface Doc {
   currency: CurrencyCode
   /** курсы валют, вводятся вручную; по ним расходы в чужой валюте пересчитываются в валюту отображения */
   rates: Rates
+  /** убрать «Смотреть» из навигации — раздел остаётся доступен по скрытому переходу из шапки */
+  hideWatch: boolean
   sectors: Sector[]
   acts: Activity[]
   entries: TimeEntry[]

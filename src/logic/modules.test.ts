@@ -10,7 +10,7 @@ import {
   toggleToday,
 } from './habits'
 import { financeCalc, goalHistory, goalProgress, rollMonth, type Conv } from './finance'
-import { bookProgress, courseProgress, fmtAudio, parseAudio } from './library'
+import { bookProgress, courseProgress, fmtAudio, parseAudio, readingPlan } from './library'
 import { nextSteps, pickPriority } from './briefing'
 import { convert, money } from './currency'
 import { normalize } from './normalize'
@@ -340,6 +340,7 @@ describe('библиотека', () => {
     color: '#22d3ee',
     pageCur: 0,
     pageTotal: 300,
+    targetDate: '',
     audioCur: 0,
     audioTotal: 580,
     excerpt: '',
@@ -366,6 +367,48 @@ describe('библиотека', () => {
 
   it('не делит на ноль, когда объём не указан', () => {
     expect(bookProgress(book({ pageTotal: 0, audioTotal: 0, pageCur: 10 }))).toBe(0)
+  })
+
+  it('план по прочтению: делит остаток на оставшиеся дни', () => {
+    // 15 марта, дочитать к 24-му — это 10 дней вместе с сегодняшним
+    const p = readingPlan(book({ pageCur: 100, pageTotal: 300, targetDate: '2026-03-24' }), NOW)
+    expect(p).toEqual({ kind: 'ok', pagesLeft: 200, daysLeft: 10, perDay: 20 })
+  })
+
+  it('план по прочтению: срок сегодня — считается как один оставшийся день', () => {
+    const p = readingPlan(book({ pageCur: 280, pageTotal: 300, targetDate: '2026-03-15' }), NOW)
+    expect(p).toEqual({ kind: 'ok', pagesLeft: 20, daysLeft: 1, perDay: 20 })
+  })
+
+  it('план по прочтению: остаток округляется вверх — иначе не успеть', () => {
+    const p = readingPlan(book({ pageCur: 0, pageTotal: 10, targetDate: '2026-03-17' }), NOW)
+    // 10 страниц на 3 дня — по 4 в день, а не по 3,33
+    expect(p.kind === 'ok' && p.perDay).toBe(4)
+  })
+
+  it('план по прочтению: прошедший срок помечается просроченным', () => {
+    const p = readingPlan(book({ pageCur: 50, pageTotal: 300, targetDate: '2026-03-10' }), NOW)
+    expect(p).toEqual({ kind: 'overdue', pagesLeft: 250, daysLate: 5 })
+  })
+
+  it('план по прочтению: дочитанная книга закрывает план даже с прошедшим сроком', () => {
+    expect(readingPlan(book({ pageCur: 300, pageTotal: 300, targetDate: '2026-03-10' }), NOW)).toEqual({
+      kind: 'done',
+    })
+  })
+
+  it('план по прочтению: без срока или без объёма считать нечего', () => {
+    expect(readingPlan(book({ targetDate: '' }), NOW)).toEqual({ kind: 'none' })
+    expect(readingPlan(book({ pageTotal: 0, targetDate: '2026-03-24' }), NOW)).toEqual({ kind: 'none' })
+  })
+
+  it('нормализация: битый срок прочтения обнуляется', () => {
+    const d = normalize(
+      { sectors: [], lib: { books: [{ title: 'X', targetDate: 'когда-нибудь' }, { title: 'Y', targetDate: '2026-05-01' }] } },
+      NOW,
+    )
+    expect(d.lib.books[0]!.targetDate).toBe('')
+    expect(d.lib.books[1]!.targetDate).toBe('2026-05-01')
   })
 
   it('считает прогресс курса по разделам', () => {

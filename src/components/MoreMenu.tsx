@@ -7,6 +7,7 @@ import type { Tab } from '../types'
 interface Props {
   tab: Tab
   archiveCount: number
+  hideWatch: boolean
   onGo: (tab: Tab) => void
   onClose: () => void
   onExport: () => void
@@ -20,6 +21,7 @@ interface Props {
 export function MoreMenu({
   tab,
   archiveCount,
+  hideWatch,
   onGo,
   onClose,
   onExport,
@@ -29,7 +31,9 @@ export function MoreMenu({
   onLogout,
 }: Props) {
   // список берётся из панели — иначе вкладка однажды выпадет из обоих мест разом
-  const rows: { key: Tab; label: string }[] = MORE_TABS.map((key) => ({
+  const rows: { key: Tab; label: string }[] = MORE_TABS.filter(
+    (key) => key !== 'watch' || !hideWatch || tab === 'watch',
+  ).map((key) => ({
     key,
     label: TAB_LABELS[key] + (key === 'arch' && archiveCount ? ' · ' + archiveCount : ''),
   }))

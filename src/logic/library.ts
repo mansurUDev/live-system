@@ -1,3 +1,5 @@
+import { DAY_MS } from '../constants'
+import { startOfDay } from './time'
 import type { Book, Course } from '../types'
 
 /**
@@ -37,4 +39,36 @@ export function bookProgress(b: Book): number {
 export function courseProgress(c: Course): number {
   if (!c.sections.length) return 0
   return Math.round((c.sections.filter((s) => s.done).length / c.sections.length) * 100)
+}
+
+export type ReadingPlan =
+  /** срок не задан или неизвестно общее число страниц — считать нечего */
+  | { kind: 'none' }
+  | { kind: 'done' }
+  /** срок прошёл, а книга не дочитана */
+  | { kind: 'overdue'; pagesLeft: number; daysLate: number }
+  | { kind: 'ok'; pagesLeft: number; daysLeft: number; perDay: number }
+
+/**
+ * План по прочтению: сколько страниц в день нужно, чтобы успеть к сроку.
+ *
+ * Считается от остатка и числа оставшихся дней, а не от прошлого темпа —
+ * позиция в книге хранится одна, истории чтения нет, и выдумывать по ней темп
+ * было бы враньём. Сегодняшний день считается оставшимся: дочитать «сегодня»
+ * значит успеть к вечеру, а не то, что срок уже прошёл.
+ */
+export function readingPlan(b: Book, now: number = Date.now()): ReadingPlan {
+  if (!b.targetDate || b.pageTotal <= 0) return { kind: 'none' }
+
+  const pagesLeft = Math.max(0, b.pageTotal - b.pageCur)
+  if (pagesLeft === 0) return { kind: 'done' }
+
+  const target = new Date(b.targetDate + 'T00:00:00').getTime()
+  if (!Number.isFinite(target)) return { kind: 'none' }
+
+  const days = Math.round((target - startOfDay(now)) / DAY_MS)
+  if (days < 0) return { kind: 'overdue', pagesLeft, daysLate: -days }
+
+  const daysLeft = days + 1
+  return { kind: 'ok', pagesLeft, daysLeft, perDay: Math.ceil(pagesLeft / daysLeft) }
 }

@@ -64,6 +64,8 @@ const ioBtn: CSSProperties = {
 
 interface Props {
   sync: SyncState
+  /** потайной переход в «Смотреть», когда вкладка спрятана из навигации */
+  onSecret: () => void
   onExport: () => void
   onImport: () => void
   onChangeCode: () => void
@@ -71,17 +73,40 @@ interface Props {
   onLogout: () => void
 }
 
-export function Header({ sync, onExport, onImport, onChangeCode, onSettings, onLogout }: Props) {
+export function Header({ sync, onSecret, onExport, onImport, onChangeCode, onSettings, onLogout }: Props) {
   const isMobile = useIsMobile()
 
   return (
     <header style={headerStyle(isMobile)}>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 10 }}>
-          <span style={dotStyle} />
+          {/* точка — потайная дверь: на телефоне подзаголовка нет, а нажать её случайно нельзя */}
+          <button
+            onClick={onSecret}
+            aria-label="Смотреть"
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 6,
+              margin: -6,
+              cursor: 'default',
+              lineHeight: 0,
+              flex: 'none',
+            }}
+          >
+            <span style={dotStyle} />
+          </button>
           <h1 style={titleStyle(isMobile)}>Система жизни</h1>
         </div>
-        {!isMobile && <div style={subtitleStyle}>командный центр баланса и целей</div>}
+        {!isMobile && (
+          <div style={subtitleStyle}>
+            командный центр{' '}
+            <span onClick={onSecret} style={{ cursor: 'default' }}>
+              баланса
+            </span>{' '}
+            и целей
+          </div>
+        )}
       </div>
       <div style={{ flex: 1 }} />
 
