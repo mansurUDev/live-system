@@ -214,7 +214,7 @@ export interface Video {
 }
 
 /** Фильм / сериал / аниме / мультфильм — очередь на посмотреть с позицией */
-export type ShowKind = 'film' | 'series' | 'anime' | 'cartoon'
+export type ShowKind = 'film' | 'series' | 'dorama' | 'anime' | 'cartoon' | 'documentary'
 
 export interface Show {
   id: string

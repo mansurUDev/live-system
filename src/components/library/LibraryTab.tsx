@@ -147,7 +147,11 @@ export function LibraryTab() {
       )}
 
       {/* ── смотреть ── */}
-      <Shelf title="Смотреть" subtitle="фильмы, сериалы, аниме и мультфильмы — с позицией" onAdd={openAddShow} />
+      <Shelf
+        title="Смотреть"
+        subtitle="фильмы, сериалы, дорамы, аниме, мультфильмы и документальные — с позицией"
+        onAdd={openAddShow}
+      />
       {lib.shows.length ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lib.shows.map((s) => (

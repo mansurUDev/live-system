@@ -82,11 +82,13 @@ export const MAX_SHOWS = 50
 /** для сериала/аниме/мультфильма — с большим запасом на нестандартную нумерацию */
 export const MAX_SHOW_NUMBER = 99999
 
-export const SHOW_KIND_LABELS: Record<'film' | 'series' | 'anime' | 'cartoon', string> = {
+export const SHOW_KIND_LABELS: Record<'film' | 'series' | 'dorama' | 'anime' | 'cartoon' | 'documentary', string> = {
   film: 'Фильм',
   series: 'Сериал',
+  dorama: 'Дорама',
   anime: 'Аниме',
   cartoon: 'Мультфильм',
+  documentary: 'Документальный',
 }
 export const SHOW_KINDS = Object.keys(SHOW_KIND_LABELS) as (keyof typeof SHOW_KIND_LABELS)[]
 

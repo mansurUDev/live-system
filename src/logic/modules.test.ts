@@ -719,6 +719,23 @@ describe('полка «Смотреть»', () => {
     expect(d.lib.shows[0]!.kind).toBe('film')
   })
 
+  it('дорама и документальный проходят наравне со старыми видами', () => {
+    const d = normalize(
+      {
+        sectors: [],
+        lib: {
+          shows: [
+            { title: 'Отель дель Луна', kind: 'dorama' },
+            { title: 'Планета Земля', kind: 'documentary' },
+          ],
+        },
+      },
+      NOW,
+    )
+    expect(d.lib.shows[0]!.kind).toBe('dorama')
+    expect(d.lib.shows[1]!.kind).toBe('documentary')
+  })
+
   it('season/episode/minute клампятся до MAX_SHOW_NUMBER, отрицательные → 0', () => {
     const d = normalize(
       {
