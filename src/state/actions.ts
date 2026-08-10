@@ -125,7 +125,8 @@ export const A = {
   deleteEntry: (id: string): Action => ({ type: 'deleteEntry', id, now: Date.now() }),
 
   toggleHabit: (id: string): Action => ({ type: 'toggleHabit', id, now: Date.now() }),
-  breakQuit: (id: string): Action => ({ type: 'breakQuit', id, now: Date.now() }),
+  breakQuit: (id: string, why: string = ''): Action => ({ type: 'breakQuit', id, why, now: Date.now() }),
+  logHabit: (id: string, minutes: number): Action => ({ type: 'logHabit', id, minutes, now: Date.now() }),
   saveHabit: (habit: Habit): Action => ({ type: 'saveHabit', habit, now: Date.now() }),
   deleteHabit: (id: string): Action => ({ type: 'deleteHabit', id, now: Date.now() }),
   newHabit: (type: HabitType, name: string, color: string): Habit => ({
@@ -137,6 +138,9 @@ export const A = {
     record: 0,
     start: new Date().toISOString(),
     best: 0,
+    slips: [],
+    riskHour: null,
+    logs: {},
     createdAt: new Date().toISOString(),
   }),
 

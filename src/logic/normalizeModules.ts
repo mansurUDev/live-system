@@ -29,6 +29,8 @@ import {
   MAX_SECTIONS,
   MAX_SHOW_NUMBER,
   MAX_SHOWS,
+  MAX_SLIPS,
+  MAX_SLIP_WHY,
   MAX_TITLE,
   MAX_VIDEO_NOTE,
   MAX_VIDEO_URL,
@@ -54,6 +56,7 @@ import type {
   OneTimeExpense,
   Reminder,
   Show,
+  Slip,
   Video,
 } from '../types'
 
@@ -117,13 +120,40 @@ function notes(x: unknown, nowIso: string): LibNote[] {
   })
 }
 
+/** Журнал срывов: битые даты выбрасываются, причины обрезаются, свежие — в конце */
+function normSlips(x: unknown): Slip[] {
+  if (!Array.isArray(x)) return []
+  const out: Slip[] = []
+  for (const raw of x) {
+    const s = obj(raw)
+    const t = new Date(String(s.d)).getTime()
+    if (!Number.isFinite(t)) continue
+    out.push({ d: new Date(t).toISOString(), why: str(s.why, MAX_SLIP_WHY) })
+  }
+  return out.sort((a, b) => (a.d < b.d ? -1 : 1)).slice(-MAX_SLIPS)
+}
+
+/** Замеры по дням: только валидные ключи и минуты в пределах суток */
+function normLogs(x: unknown): Record<string, number> {
+  const src = obj(x)
+  const entries: [string, number][] = []
+  for (const [k, v] of Object.entries(src)) {
+    if (!DAY_KEY_RE.test(k)) continue
+    const n = Number(v)
+    if (!Number.isFinite(n) || n < 0 || n >= 1440) continue
+    entries.push([k, Math.round(n)])
+  }
+  return Object.fromEntries(entries.sort().slice(-MAX_HABIT_DAYS))
+}
+
 export function normHabits(x: unknown, nowIso: string): Habit[] {
   if (!Array.isArray(x)) return []
   return x.slice(0, MAX_HABITS).map((raw, i) => {
     const h = obj(raw)
+    const riskHour = Number(h.riskHour)
     return {
       id: str(h.id, 60, 'h' + i),
-      type: h.type === 'quit' ? 'quit' : 'do',
+      type: h.type === 'quit' ? 'quit' : h.type === 'log' ? 'log' : 'do',
       name: str(h.name, MAX_HABIT_NAME, 'Привычка ' + (i + 1)),
       color: color(h.color, i),
       // отметки — только валидные ключи дней, без повторов
@@ -133,6 +163,9 @@ export function normHabits(x: unknown, nowIso: string): Habit[] {
       record: count(h.record),
       start: iso(h.start, nowIso),
       best: count(h.best),
+      slips: normSlips(h.slips),
+      riskHour: Number.isInteger(riskHour) && riskHour >= 0 && riskHour <= 23 ? riskHour : null,
+      logs: normLogs(h.logs),
       createdAt: iso(h.createdAt, nowIso),
     }
   })

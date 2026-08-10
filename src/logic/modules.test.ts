@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import {
+  avgLog,
   bestStreak,
   bestWithout,
   daysWithout,
+  fmtClockMin,
+  hoursToRisk,
   isDoneToday,
+  parseClock,
   recentDays,
   resetQuit,
+  riskSoon,
+  slipsInDays,
   streak,
   toggleToday,
 } from './habits'
@@ -48,6 +54,9 @@ function habit(patch: Partial<Habit> = {}): Habit {
     record: 0,
     start: new Date(NOW).toISOString(),
     best: 0,
+    slips: [],
+    riskHour: null,
+    logs: {},
     createdAt: new Date(NOW).toISOString(),
     ...patch,
   }
@@ -135,6 +144,108 @@ describe('привычки — «держусь без»', () => {
   it('прежний рекорд не затирается более короткой серией', () => {
     const h = habit({ type: 'quit', start: new Date(NOW - 2 * DAY_MS).toISOString(), best: 40 })
     expect(resetQuit(h, NOW).best).toBe(40)
+  })
+
+  it('срыв уходит в журнал с причиной и датой', () => {
+    const h = resetQuit(habit({ type: 'quit' }), NOW, '  гости засиделись  ')
+    expect(h.slips).toHaveLength(1)
+    expect(h.slips[0]!.why).toBe('гости засиделись')
+    expect(new Date(h.slips[0]!.d).getTime()).toBe(NOW)
+  })
+
+  it('журнал накапливается, а не перезаписывается', () => {
+    let h = habit({ type: 'quit' })
+    h = resetQuit(h, NOW - 10 * DAY_MS, 'стресс')
+    h = resetQuit(h, NOW, 'гости')
+    expect(h.slips.map((s) => s.why)).toEqual(['стресс', 'гости'])
+  })
+
+  it('slipsInDays считает только срывы внутри окна', () => {
+    let h = habit({ type: 'quit' })
+    h = resetQuit(h, NOW - 40 * DAY_MS, 'старый')
+    h = resetQuit(h, NOW - 5 * DAY_MS, 'недавний')
+    h = resetQuit(h, NOW, 'сегодня')
+    expect(slipsInDays(h, 30, NOW)).toBe(2)
+    expect(slipsInDays(h, 60, NOW)).toBe(3)
+  })
+})
+
+describe('привычки — час риска', () => {
+  const at = (h: number) => new Date('2026-03-15T00:00:00').getTime() + h * 3600_000
+
+  it('часы до риска считаются вперёд по кругу суток', () => {
+    expect(hoursToRisk(23, at(21))).toBe(2)
+    expect(hoursToRisk(0, at(23))).toBe(1)   // полночь из 23:30 — впереди, а не позади
+    expect(hoursToRisk(15, at(16))).toBe(23) // прошедший час риска — уже завтрашний
+  })
+
+  it('riskSoon срабатывает в окне предупреждения и молчит вне его', () => {
+    const h = habit({ type: 'quit', riskHour: 23 })
+    expect(riskSoon(h, at(21))).toBe(true)
+    expect(riskSoon(h, at(23))).toBe(true)
+    expect(riskSoon(h, at(15))).toBe(false)
+    expect(riskSoon(habit({ type: 'quit' }), at(22))).toBe(false) // час не задан
+  })
+
+  it('брифинг поднимает час риска наверх с серией на кону', () => {
+    const d: Doc = {
+      ...defaultDoc(NOW),
+      habits: [habit({ type: 'quit', name: 'Газировка', riskHour: 15, start: new Date(NOW - 6 * DAY_MS).toISOString() })],
+    }
+    const p = pickPriority(d, NOW) // NOW = 14:00 — до часа риска один час
+    expect(p.tag).toBe('час риска')
+    expect(p.title).toContain('Газировка')
+    expect(p.sub).toContain('6 дн')
+  })
+})
+
+describe('привычки — замер', () => {
+  it('parseClock разбирает время и отвергает мусор', () => {
+    expect(parseClock('23:30')).toBe(1410)
+    expect(parseClock('0:40')).toBe(40)
+    expect(parseClock(' 7:05 ')).toBe(425)
+    expect(parseClock('25:00')).toBeNull()
+    expect(parseClock('12:60')).toBeNull()
+    expect(parseClock('полночь')).toBeNull()
+    expect(parseClock('')).toBeNull()
+  })
+
+  it('среднее вокруг полуночи не превращается в полдень', () => {
+    const h = habit({
+      type: 'log',
+      logs: { [dayKeyAgo(1, NOW)]: 1410, [dayKeyAgo(2, NOW)]: 40 }, // 23:30 и 0:40
+    })
+    expect(fmtClockMin(avgLog(h, 7, NOW)!)).toBe('0:05')
+  })
+
+  it('среднее без отметок — null, дни без отметки не портят среднее', () => {
+    expect(avgLog(habit({ type: 'log' }), 7, NOW)).toBeNull()
+    const h = habit({ type: 'log', logs: { [dayKeyAgo(1, NOW)]: 1380 } })
+    expect(fmtClockMin(avgLog(h, 7, NOW)!)).toBe('23:00')
+  })
+
+  it('нормализация: мусорные журналы и замеры вычищаются', () => {
+    const d = normalize(
+      {
+        sectors: [],
+        habits: [
+          {
+            name: 'Сон',
+            type: 'log',
+            slips: [{ d: 'не дата', why: 'x' }, { d: new Date(NOW).toISOString(), why: 'y'.repeat(300) }, 'мусор'],
+            riskHour: 99,
+            logs: { '2026-03-14': 1410, 'не день': 5, '2026-03-13': 9999, '2026-03-12': '600' },
+          },
+        ],
+      },
+      NOW,
+    )
+    const h = d.habits[0]!
+    expect(h.type).toBe('log')
+    expect(h.slips).toHaveLength(1)
+    expect(h.slips[0]!.why).toHaveLength(120)
+    expect(h.riskHour).toBeNull()
+    expect(h.logs).toEqual({ '2026-03-14': 1410, '2026-03-12': 600 })
   })
 })
 

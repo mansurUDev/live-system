@@ -93,8 +93,14 @@ export interface Snapshot {
 /** Ключ — локальная дата YYYY-MM-DD */
 export type Snapshots = Record<string, Snapshot>
 
-/** Привычка: «делаю каждый день» либо «держусь без» */
-export type HabitType = 'do' | 'quit'
+/** Привычка: «делаю каждый день», «держусь без» либо «замер» — число без оценки */
+export type HabitType = 'do' | 'quit' | 'log'
+
+/** Запись о срыве: когда и почему. Причина — необязательная строка в одну мысль */
+export interface Slip {
+  d: string
+  why: string
+}
 
 export interface Habit {
   id: string
@@ -109,6 +115,18 @@ export interface Habit {
   start: string
   /** quit: лучшая серия без срывов, в днях */
   best: number
+  /**
+   * quit: журнал срывов. Обнулённый счётчик выглядит как чистый лист и
+   * позволяет забыть, что это уже пятый раз, — журнал не позволяет.
+   */
+  slips: Slip[]
+  /**
+   * Час, к которому обычно случается срыв или становится поздно (0–23);
+   * брифинг предупреждает заранее, пока решение ещё можно принять. null — не задан.
+   */
+  riskHour: number | null
+  /** log: отметка по дням — минуты от полуночи (время отбоя и т.п.), ключ YYYY-MM-DD */
+  logs: Record<string, number>
   createdAt: string
 }
 
@@ -283,7 +301,7 @@ export interface Idea {
 }
 
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 9
+export const DOC_VERSION = 10
 
 export interface Doc {
   v: number

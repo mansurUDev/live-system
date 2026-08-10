@@ -51,6 +51,11 @@ export const MAX_HABITS = 30
 export const MAX_HABIT_NAME = 50
 /** сколько отметок хранит привычка — с запасом больше года */
 export const MAX_HABIT_DAYS = 500
+/** журнал срывов: хватает увидеть закономерность, не превращаясь в архив */
+export const MAX_SLIPS = 100
+export const MAX_SLIP_WHY = 120
+/** за сколько часов до часа риска брифинг начинает предупреждать */
+export const RISK_WARN_HOURS = 2
 
 export const MAX_REMINDERS = 20
 export const MAX_REMINDER_NAME = 60

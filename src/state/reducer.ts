@@ -24,7 +24,7 @@ import { kindLabel, pct, summary } from '../logic/pct'
 import { markDone } from '../logic/reminders'
 import { runningEntry } from '../logic/segs'
 import { withTodaySnapshot } from '../logic/snapshot'
-import { num } from '../logic/time'
+import { localDateKey, num } from '../logic/time'
 import { uid } from '../logic/uid'
 import type {
   Activity,
@@ -83,7 +83,8 @@ export type Action =
   | { type: 'deleteEntry'; id: string; now: number }
   // привычки
   | { type: 'toggleHabit'; id: string; now: number }
-  | { type: 'breakQuit'; id: string; now: number }
+  | { type: 'breakQuit'; id: string; why: string; now: number }
+  | { type: 'logHabit'; id: string; minutes: number; now: number }
   | { type: 'saveHabit'; habit: Habit; now: number }
   | { type: 'deleteHabit'; id: string; now: number }
   // напоминания
@@ -339,8 +340,20 @@ function coreReducer(doc: Doc, action: Action): Doc {
     case 'breakQuit':
       return {
         ...doc,
-        habits: doc.habits.map((h) => (h.id === action.id ? resetQuit(h, action.now) : h)),
+        habits: doc.habits.map((h) => (h.id === action.id ? resetQuit(h, action.now, action.why) : h)),
       }
+
+    case 'logHabit': {
+      // отметка замера за сегодня; минуты за пределами суток не пишем
+      if (!Number.isFinite(action.minutes) || action.minutes < 0 || action.minutes >= 1440) return doc
+      const key = localDateKey(action.now)
+      return {
+        ...doc,
+        habits: doc.habits.map((h) =>
+          h.id === action.id ? { ...h, logs: { ...h.logs, [key]: Math.round(action.minutes) } } : h,
+        ),
+      }
+    }
 
     case 'saveHabit': {
       const exists = doc.habits.some((h) => h.id === action.habit.id)

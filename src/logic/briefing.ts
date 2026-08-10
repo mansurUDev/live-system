@@ -1,6 +1,6 @@
 import { money } from './currency'
 import { financeCalc, type FinanceCalc } from './finance'
-import { isDoneToday, streak } from './habits'
+import { daysWithout, hoursToRisk, isDoneToday, riskSoon, streak } from './habits'
 import { daysOverdue, isOverdue } from './reminders'
 import type { Doc, Habit } from '../types'
 
@@ -61,6 +61,30 @@ export function pickPriority(doc: Doc, now: number = Date.now()): Priority {
       tab: 'habits',
       title: `Серия по «${risky.h.name}» — ${risky.s} дн.`,
       sub: 'не разорви сегодня — отметь до полуночи',
+    })
+  }
+
+  // час риска: предупреждение приходит, пока решение ещё можно принять, —
+  // «поздно вспомнил» и есть та проблема, которую этот кандидат закрывает
+  const atRisk = doc.habits
+    .filter((h) => riskSoon(h, now))
+    .filter((h) => (h.type === 'do' ? !isDoneToday(h, now) : h.type === 'quit'))
+    .map((h) => ({ h, left: hoursToRisk(h.riskHour!, now) }))
+    .sort((a, b) => a.left - b.left)[0]
+
+  if (atRisk) {
+    const { h, left } = atRisk
+    const when = left === 0 ? 'уже сейчас' : left === 1 ? 'через час' : `к ${h.riskHour}:00`
+    cands.push({
+      score: left === 0 ? 3.5 : 3,
+      urgency: 'hot',
+      tag: 'час риска',
+      tab: 'habits',
+      title: h.type === 'quit' ? `«${h.name}» — опасное время ${when}` : `«${h.name}» — ${when} будет поздно`,
+      sub:
+        h.type === 'quit'
+          ? `серия ${daysWithout(h, now)} дн. на кону — реши заранее, а не в момент`
+          : 'сделай сейчас, пока день не растворился',
     })
   }
 

@@ -11,6 +11,7 @@ import { btnAccent, C, pageStyle, plainCard } from '../../theme'
 import { HabitModal } from '../modals/HabitModal'
 import { ReminderModal } from '../modals/ReminderModal'
 import { DoHabitCard } from './DoHabitCard'
+import { LogHabitCard } from './LogHabitCard'
 import { QuitHabitCard } from './QuitHabitCard'
 import { ReminderCard } from './ReminderCard'
 import type { Habit, Reminder } from '../../types'
@@ -31,6 +32,7 @@ export function HabitsTab() {
   const habits = state.doc.habits
   const dos = habits.filter((h) => h.type === 'do')
   const quits = habits.filter((h) => h.type === 'quit')
+  const logs = habits.filter((h) => h.type === 'log')
   const reminders = state.doc.reminders
 
   const toggle = (h: Habit) => {
@@ -42,11 +44,11 @@ export function HabitsTab() {
     }
   }
 
-  const breakQuit = (h: Habit) => {
+  const breakQuit = (h: Habit, why: string) => {
     const record = bestWithout(h, now)
-    dispatch(A.breakQuit(h.id))
+    dispatch(A.breakQuit(h.id, why))
     setConfirmId(null)
-    toast(`Начали заново. Рекорд — ${record} ${plural(record, 'день', 'дня', 'дней')}, побьёшь.`)
+    toast(`Записал в журнал. Рекорд — ${record} ${plural(record, 'день', 'дня', 'дней')}, побьёшь.`)
   }
 
   const openNew = () => {
@@ -122,7 +124,7 @@ export function HabitsTab() {
               confirming={confirmId === h.id}
               onAsk={() => setConfirmId(h.id)}
               onCancel={() => setConfirmId(null)}
-              onBreak={() => breakQuit(h)}
+              onBreak={(why) => breakQuit(h, why)}
               onEdit={() => setForm({ habit: h })}
             />
           ))}
@@ -131,6 +133,27 @@ export function HabitsTab() {
         <div style={plainCard({ padding: '20px 18px', color: C.faint, fontSize: 14, lineHeight: 1.5 })}>
           Добавь привычку «держусь без» — счётчик начнёт расти с этой секунды
         </div>
+      )}
+
+      {logs.length > 0 && (
+        <>
+          <div style={{ marginTop: 6 }}>
+            <div style={{ fontSize: 17, fontWeight: 600, color: C.textBright }}>Замеры</div>
+            <div style={{ fontSize: 13, color: C.dim, marginTop: 2 }}>
+              число без оценки — для того, что не полностью в твоей власти
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {logs.map((h) => (
+              <LogHabitCard
+                key={h.id}
+                habit={h}
+                onLog={(minutes) => dispatch(A.logHabit(h.id, minutes))}
+                onEdit={() => setForm({ habit: h })}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       <div style={{ marginTop: 6, display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>

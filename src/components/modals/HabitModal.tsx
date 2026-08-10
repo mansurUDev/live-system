@@ -9,6 +9,7 @@ import {
   btnDeleteLink,
   btnGhost,
   C,
+  chipBtn,
   errText,
   fieldLabel,
   input,
@@ -18,8 +19,12 @@ import type { Habit, HabitType } from '../../types'
 
 const TYPES: { key: HabitType; label: string; hint: string }[] = [
   { key: 'do', label: 'Делаю каждый день', hint: 'серия растёт, пока не пропустишь' },
-  { key: 'quit', label: 'Держусь без', hint: 'счётчик дней без срыва' },
+  { key: 'quit', label: 'Держусь без', hint: 'счётчик дней без срыва и журнал причин' },
+  { key: 'log', label: 'Замер', hint: 'время числом, без «смог/не смог» — для того, что не полностью в твоей власти' },
 ]
+
+/** Часы, в которые чаще всего случаются срывы, — быстрые пресеты */
+const RISK_PRESETS = [15, 21, 22, 23, 0]
 
 interface Props {
   /** null — создаём новую */
@@ -34,6 +39,7 @@ export function HabitModal({ habit, usedColors, onCancel, onSave, onDelete }: Pr
   const [type, setType] = useState<HabitType>(habit?.type ?? 'do')
   const [name, setName] = useState(habit?.name ?? '')
   const [color, setColor] = useState(habit?.color ?? PAL.find((c) => !usedColors.includes(c)) ?? PAL[1])
+  const [riskHour, setRiskHour] = useState<number | null>(habit?.riskHour ?? null)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -43,11 +49,8 @@ export function HabitModal({ habit, usedColors, onCancel, onSave, onDelete }: Pr
 
     // тип у заведённой привычки не меняем: у «делаю» и «держусь без» разные
     // счётчики, и подмена обнулила бы накопленное
-    onSave(
-      habit
-        ? { ...habit, name: trimmed.slice(0, MAX_HABIT_NAME), color }
-        : A.newHabit(type, trimmed.slice(0, MAX_HABIT_NAME), color),
-    )
+    const base = habit ?? A.newHabit(type, trimmed.slice(0, MAX_HABIT_NAME), color)
+    onSave({ ...base, name: trimmed.slice(0, MAX_HABIT_NAME), color, riskHour })
   }
 
   return (
@@ -118,7 +121,9 @@ export function HabitModal({ habit, usedColors, onCancel, onSave, onDelete }: Pr
           }}
           type="text"
           maxLength={MAX_HABIT_NAME}
-          placeholder={type === 'quit' ? 'например, Газировка' : 'например, Английский 40 минут'}
+          placeholder={
+            type === 'quit' ? 'например, Газировка' : type === 'log' ? 'например, Во сколько лёг' : 'например, Английский 40 минут'
+          }
           style={input}
         />
       </div>
@@ -131,6 +136,28 @@ export function HabitModal({ habit, usedColors, onCancel, onSave, onDelete }: Pr
           ))}
         </div>
       </div>
+
+      {(habit?.type ?? type) !== 'log' && (
+        <div style={{ marginTop: 13 }}>
+          <div style={fieldLabel}>
+            Час риска <span style={{ color: C.faint }}>— необязательно</span>
+          </div>
+          <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 6 }}>
+            <button style={chipBtn(riskHour === null, '#94a3b8')} onClick={() => setRiskHour(null)}>
+              нет
+            </button>
+            {RISK_PRESETS.map((hh) => (
+              <button key={hh} style={chipBtn(riskHour === hh, '#f87171')} onClick={() => setRiskHour(hh)}>
+                {hh}:00
+              </button>
+            ))}
+          </div>
+          <div style={{ fontSize: 12, color: C.faint, marginTop: 5, lineHeight: 1.45 }}>
+            время, к которому обычно случается срыв или становится поздно — брифинг предупредит за
+            пару часов, пока решение ещё можно принять
+          </div>
+        </div>
+      )}
 
       {error && <div style={errText}>{error}</div>}
     </Modal>
