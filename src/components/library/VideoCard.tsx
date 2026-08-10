@@ -6,6 +6,7 @@ interface Props {
   confirmingDelete: boolean
   onFinish: () => void
   onEdit: () => void
+  onCopyLink: () => void
   onAskDelete: () => void
   onCancelDelete: () => void
   onDelete: () => void
@@ -16,6 +17,7 @@ export function VideoCard({
   confirmingDelete,
   onFinish,
   onEdit,
+  onCopyLink,
   onAskDelete,
   onCancelDelete,
   onDelete,
@@ -52,6 +54,10 @@ export function VideoCard({
       </div>
 
       <div style={{ display: 'flex', gap: 9, marginTop: 11, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* копия ссылки нужнее перехода: внешний браузер открывает её без входа в аккаунт */}
+        <button className="h-ghost-bright" style={btnCancelSm} onClick={onCopyLink}>
+          ⧉ Ссылка
+        </button>
         <a
           href={video.url}
           target="_blank"

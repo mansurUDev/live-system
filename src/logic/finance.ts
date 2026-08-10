@@ -1,9 +1,23 @@
 import { DAY_MS } from '../constants'
+import { convert, roundMoney } from './currency'
 import { localDateKey, monthKeyOf, startOfDay } from './time'
-import type { Finance, OneTimeExpense } from '../types'
+import type { CurrencyCode, Finance, OneTimeExpense, Rates } from '../types'
 
 /** Если период по дате следующего поступления не задан — считаем на месяц вперёд */
 const FALLBACK_DAYS = 30
+
+/**
+ * Во что сводить расходы.
+ *
+ * У каждого расхода своя валюта — подписка в долларах, аренда в сумах, — а
+ * лимит должен быть одним числом, поэтому суммы приводятся к валюте отображения
+ * по вручную заданным курсам. Суммы «на руках», планка и запас уже хранятся в
+ * ней, пересчитывать их не нужно.
+ */
+export interface Conv {
+  currency: CurrencyCode
+  rates: Rates
+}
 
 export interface FinanceCalc {
   /** дней до следующего поступления */
@@ -39,9 +53,12 @@ export interface FinanceCalc {
  * остаток делится на дни до следующего поступления. Достаточно изредка сверять
  * баланс — перерасход сам опустит планку на следующий день.
  */
-export function financeCalc(fin: Finance, now: number = Date.now()): FinanceCalc {
+export function financeCalc(fin: Finance, conv: Conv, now: number = Date.now()): FinanceCalc {
   const today = startOfDay(now)
   const todayKey = localDateKey(now)
+  // расход хранится в своей валюте, а складывать можно только приведённые
+  const inDisplay = (x: { amount: number; currency: CurrencyCode }) =>
+    convert(x.amount, x.currency, conv.currency, conv.rates)
 
   let days = FALLBACK_DAYS
   let dateOk = false
@@ -54,7 +71,7 @@ export function financeCalc(fin: Finance, now: number = Date.now()): FinanceCalc
   }
 
   const reserveCutoff = today + days * DAY_MS
-  const mandatory = fin.mandatory.reduce((a, x) => a + x.amount, 0)
+  const mandatory = roundMoney(fin.mandatory.reduce((a, x) => a + inDisplay(x), 0))
 
   const upcoming = fin.oneTime
     .filter((o) => o.date && o.date >= todayKey)
@@ -63,15 +80,17 @@ export function financeCalc(fin: Finance, now: number = Date.now()): FinanceCalc
     .filter((o) => !o.date || o.date < todayKey)
     .sort((a, b) => (a.date < b.date ? 1 : -1))
 
-  const upcomingTotal = upcoming.reduce((a, x) => a + x.amount, 0)
+  const upcomingTotal = roundMoney(upcoming.reduce((a, x) => a + inDisplay(x), 0))
 
   // Из сегодняшних денег резервируем только то, что нужно закрыть до следующего
   // поступления — более поздний расход покроет будущая зарплата, а не текущий
   // остаток. Без этого разбиения далёкий крупный платёж (день рождения через
   // полгода) обнулял бы дневной лимит на месяцы вперёд.
-  const reservedTotal = upcoming
-    .filter((o) => new Date(o.date + 'T00:00:00').getTime() < reserveCutoff)
-    .reduce((a, x) => a + x.amount, 0)
+  const reservedTotal = roundMoney(
+    upcoming
+      .filter((o) => new Date(o.date + 'T00:00:00').getTime() < reserveCutoff)
+      .reduce((a, x) => a + inDisplay(x), 0),
+  )
 
   const free = fin.onHand - mandatory - reservedTotal - fin.cushion
   const limit = Math.max(0, Math.floor(free / days))

@@ -1,3 +1,4 @@
+import { money } from './currency'
 import { financeCalc, type FinanceCalc } from './finance'
 import { isDoneToday, streak } from './habits'
 import { daysOverdue, isOverdue } from './reminders'
@@ -29,7 +30,7 @@ interface Candidate extends Priority {
  * вечеру — утром напоминать про несделанное рано.
  */
 export function pickPriority(doc: Doc, now: number = Date.now()): Priority {
-  const fc = financeCalc(doc.fin, now)
+  const fc = financeCalc(doc.fin, { currency: doc.currency, rates: doc.rates }, now)
   const hour = new Date(now).getHours()
   const cands: Candidate[] = []
 
@@ -41,7 +42,7 @@ export function pickPriority(doc: Doc, now: number = Date.now()): Priority {
       tag: 'финансы',
       tab: 'fin',
       title: `До «${fc.nearest.name}» — ${d === 0 ? 'сегодня' : d + ' дн.'}`,
-      sub: `нужно ${fc.nearest.amount} — сумма уже вычтена из дневного лимита`,
+      sub: `нужно ${money(fc.nearest.amount, fc.nearest.currency)} — сумма уже вычтена из дневного лимита`,
     })
   }
 
@@ -89,7 +90,7 @@ export function pickPriority(doc: Doc, now: number = Date.now()): Priority {
 function calmPriority(doc: Doc, fc: FinanceCalc): Priority {
   const dos = doc.habits.filter((h) => h.type === 'do')
   const bits: string[] = []
-  if (fc.limit > 0) bits.push(`можно ${fc.limit} сегодня`)
+  if (fc.limit > 0) bits.push(`можно ${money(fc.limit, doc.currency)} сегодня`)
   if (dos.length) bits.push(`привычки: ${dos.filter((h) => isDoneToday(h)).length} из ${dos.length}`)
 
   return {

@@ -307,9 +307,11 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
   if (!Array.isArray(d.sectors)) return defaultDoc(now)
 
   const nowIso = new Date(now).toISOString()
+  // валюта документа нужна раньше финансов: расходы без своей валюты наследуют её
+  const currency = normCurrency(d.currency)
   return {
     v: DOC_VERSION,
-    currency: normCurrency(d.currency),
+    currency,
     rates: normRates(d.rates),
     sectors: normSectors(d.sectors, nowIso),
     acts: normActs(d.acts, defaultDoc(now).acts),
@@ -319,7 +321,7 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
     habits: normHabits(d.habits, nowIso),
     reminders: normReminders(d.reminders, nowIso),
     ideas: normIdeas(d.ideas, nowIso),
-    fin: normFinance(d.fin, now),
+    fin: normFinance(d.fin, now, currency),
     lib: normLibrary(d.lib, nowIso),
   }
 }

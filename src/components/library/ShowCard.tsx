@@ -21,11 +21,12 @@ interface Props {
   open: boolean
   onToggle: () => void
   onSave: (show: Show) => void
+  onCopyLink: () => void
   onFinish: () => void
   onDelete: () => void
 }
 
-export function ShowCard({ show, open, onToggle, onSave, onFinish, onDelete }: Props) {
+export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, onDelete }: Props) {
   const now = useNow()
   const [season, setSeason] = useState(String(show.season || ''))
   const [episode, setEpisode] = useState(String(show.episode || ''))
@@ -115,15 +116,21 @@ export function ShowCard({ show, open, onToggle, onSave, onFinish, onDelete }: P
               Досмотрел
             </button>
             {show.link && (
-              <a
-                href={show.link}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-ghost-bright"
-                style={{ ...btnCancelSm, textDecoration: 'none', display: 'inline-block' }}
-              >
-                Смотреть ↗
-              </a>
+              <>
+                {/* копия ссылки нужнее перехода: внешний браузер открывает её без входа в аккаунт */}
+                <button className="h-ghost-bright" style={btnCancelSm} onClick={onCopyLink}>
+                  ⧉ Ссылка
+                </button>
+                <a
+                  href={show.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-ghost-bright"
+                  style={{ ...btnCancelSm, textDecoration: 'none', display: 'inline-block' }}
+                >
+                  Смотреть ↗
+                </a>
+              </>
             )}
             <div style={{ flex: 1 }} />
             {confirmDelete ? (

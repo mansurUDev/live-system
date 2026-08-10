@@ -9,10 +9,10 @@ import {
   streak,
   toggleToday,
 } from './habits'
-import { financeCalc, goalHistory, goalProgress, rollMonth } from './finance'
+import { financeCalc, goalHistory, goalProgress, rollMonth, type Conv } from './finance'
 import { bookProgress, courseProgress, fmtAudio, parseAudio } from './library'
 import { nextSteps, pickPriority } from './briefing'
-import { money } from './currency'
+import { convert, money } from './currency'
 import { normalize } from './normalize'
 import { emptyFinance, emptyLibrary, normHabits } from './normalizeModules'
 import { defaultDoc } from './defaults'
@@ -56,6 +56,9 @@ function habit(patch: Partial<Habit> = {}): Habit {
 function fin(patch: Partial<Finance> = {}): Finance {
   return { ...emptyFinance(NOW), ...patch }
 }
+
+/** Все курсы 1 — расходы в разных валютах складываются один к одному */
+const CONV: Conv = { currency: 'UZS', rates: { UZS: 1, USD: 1, EUR: 1, RUB: 1 } }
 
 function reminder(patch: Partial<Reminder> = {}): Reminder {
   return {
@@ -138,7 +141,8 @@ describe('привычки — «держусь без»', () => {
 describe('финансы — дневной лимит', () => {
   it('делит свободные деньги на дни до поступления', () => {
     const c = financeCalc(
-      fin({ onHand: 1000, cushion: 100, mandatory: [{ id: 'm', name: 'Еда', amount: 300 }], nextIncome: '2026-03-25' }),
+      fin({ onHand: 1000, cushion: 100, mandatory: [{ id: 'm', name: 'Еда', amount: 300, currency: 'UZS' }], nextIncome: '2026-03-25' }),
+      CONV,
       NOW,
     )
     expect(c.dateOk).toBe(true)
@@ -154,11 +158,12 @@ describe('финансы — дневной лимит', () => {
         onHand: 1000,
         nextIncome: '2026-03-25',
         oneTime: [
-          { id: 'o1', name: 'Телефон брату', amount: 300, date: '2026-03-20' },
-          { id: 'o2', name: 'Подписка', amount: 100, date: '2026-03-18' },
-          { id: 'o3', name: 'Прошлое', amount: 50, date: '2026-03-01' },
+          { id: 'o1', name: 'Телефон брату', amount: 300, currency: 'UZS', date: '2026-03-20' },
+          { id: 'o2', name: 'Подписка', amount: 100, currency: 'UZS', date: '2026-03-18' },
+          { id: 'o3', name: 'Прошлое', amount: 50, currency: 'UZS', date: '2026-03-01' },
         ],
       }),
+      CONV,
       NOW,
     )
     expect(c.upcomingTotal).toBe(400)
@@ -174,8 +179,9 @@ describe('финансы — дневной лимит', () => {
       fin({
         onHand: 1000,
         nextIncome: '2026-03-20',
-        oneTime: [{ id: 'o1', name: 'Подарок брату', amount: 800, date: '2026-09-27' }],
+        oneTime: [{ id: 'o1', name: 'Подарок брату', amount: 800, currency: 'UZS', date: '2026-09-27' }],
       }),
+      CONV,
       NOW,
     )
     expect(c.reservedTotal).toBe(0)
@@ -187,29 +193,110 @@ describe('финансы — дневной лимит', () => {
 
   it('резервирует расход ровно на границе следующей зарплаты', () => {
     const c = financeCalc(
-      fin({ onHand: 1000, nextIncome: '2026-03-20', oneTime: [{ id: 'o1', name: 'X', amount: 100, date: '2026-03-19' }] }),
+      fin({ onHand: 1000, nextIncome: '2026-03-20', oneTime: [{ id: 'o1', name: 'X', amount: 100, currency: 'UZS', date: '2026-03-19' }] }),
+      CONV,
       NOW,
     )
     expect(c.reservedTotal).toBe(100)
   })
 
   it('не уходит в минус при перерасходе', () => {
-    const c = financeCalc(fin({ onHand: 50, cushion: 200, nextIncome: '2026-03-25' }), NOW)
+    const c = financeCalc(fin({ onHand: 50, cushion: 200, nextIncome: '2026-03-25' }), CONV, NOW)
     expect(c.free).toBeLessThan(0)
     expect(c.limit).toBe(0)
   })
 
   it('без даты поступления считает на месяц вперёд', () => {
-    const c = financeCalc(fin({ onHand: 3000 }), NOW)
+    const c = financeCalc(fin({ onHand: 3000 }), CONV, NOW)
     expect(c.dateOk).toBe(false)
     expect(c.days).toBe(30)
     expect(c.limit).toBe(100)
   })
 
   it('прошедшая дата поступления не даёт отрицательных дней', () => {
-    const c = financeCalc(fin({ onHand: 300, nextIncome: '2026-03-01' }), NOW)
+    const c = financeCalc(fin({ onHand: 300, nextIncome: '2026-03-01' }), CONV, NOW)
     expect(c.dateOk).toBe(false)
     expect(c.days).toBe(30)
+  })
+})
+
+describe('финансы — расходы в разных валютах', () => {
+  /** сум — основа, доллар стоит 12500 сум */
+  const UZS: Conv = { currency: 'UZS', rates: { UZS: 1, USD: 12500, EUR: 1, RUB: 1 } }
+
+  it('обязательные сводятся к валюте отображения по курсу', () => {
+    const c = financeCalc(
+      fin({
+        mandatory: [
+          { id: 'm1', name: 'Подписка Claude', amount: 20, currency: 'USD' },
+          { id: 'm2', name: 'Аренда', amount: 500_000, currency: 'UZS' },
+        ],
+      }),
+      UZS,
+      NOW,
+    )
+    expect(c.mandatory).toBe(750_000)
+  })
+
+  it('запланированные в чужой валюте резервируются в пересчёте', () => {
+    const c = financeCalc(
+      fin({
+        onHand: 1_000_000,
+        nextIncome: '2026-03-25',
+        oneTime: [{ id: 'o1', name: 'Подписка', amount: 20, currency: 'USD', date: '2026-03-18' }],
+      }),
+      UZS,
+      NOW,
+    )
+    expect(c.reservedTotal).toBe(250_000)
+    expect(c.upcomingTotal).toBe(250_000)
+    expect(c.free).toBe(750_000)
+  })
+
+  it('та же сумма в валюте отображения не трогается курсом', () => {
+    const c = financeCalc(fin({ mandatory: [{ id: 'm', name: 'Еда', amount: 300, currency: 'UZS' }] }), UZS, NOW)
+    expect(c.mandatory).toBe(300)
+  })
+
+  it('convert: туда и обратно возвращает исходное', () => {
+    const there = convert(20, 'USD', 'UZS', UZS.rates)
+    expect(there).toBe(250_000)
+    expect(convert(there, 'UZS', 'USD', UZS.rates)).toBe(20)
+  })
+
+  it('convert: нулевой или битый курс оставляет сумму как есть', () => {
+    const broken = { UZS: 1, USD: 0, EUR: 1, RUB: 1 }
+    expect(convert(20, 'USD', 'UZS', broken)).toBe(20)
+    expect(convert(20, 'USD', 'USD', UZS.rates)).toBe(20)
+  })
+
+  it('нормализация: расход без валюты наследует валюту документа', () => {
+    const d = normalize(
+      {
+        sectors: [],
+        currency: 'USD',
+        fin: { mandatory: [{ id: 'm', name: 'Еда', amount: 10 }], oneTime: [{ id: 'o', name: 'X', amount: 5 }] },
+      },
+      NOW,
+    )
+    expect(d.fin.mandatory[0]!.currency).toBe('USD')
+    expect(d.fin.oneTime[0]!.currency).toBe('USD')
+  })
+
+  it('нормализация: мусорная валюта расхода заменяется валютой документа', () => {
+    const d = normalize(
+      { sectors: [], currency: 'RUB', fin: { mandatory: [{ id: 'm', name: 'Еда', amount: 10, currency: 'БТЦ' }] } },
+      NOW,
+    )
+    expect(d.fin.mandatory[0]!.currency).toBe('RUB')
+  })
+
+  it('нормализация: своя валюта расхода сохраняется', () => {
+    const d = normalize(
+      { sectors: [], currency: 'UZS', fin: { mandatory: [{ id: 'm', name: 'Claude', amount: 20, currency: 'USD' }] } },
+      NOW,
+    )
+    expect(d.fin.mandatory[0]!.currency).toBe('USD')
   })
 })
 
@@ -311,7 +398,7 @@ describe('брифинг', () => {
   it('поднимает наверх ближайший денежный срок', () => {
     const p = pickPriority(
       doc({
-        fin: fin({ onHand: 900, oneTime: [{ id: 'o1', name: 'Телефон брату', amount: 300, date: '2026-03-16' }] }),
+        fin: fin({ onHand: 900, oneTime: [{ id: 'o1', name: 'Телефон брату', amount: 300, currency: 'UZS', date: '2026-03-16' }] }),
       }),
       NOW,
     )

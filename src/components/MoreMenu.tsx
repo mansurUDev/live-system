@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { C, NAV_H } from '../theme'
+import { MORE_TABS, TAB_LABELS } from './BottomNav'
 import { askInstallHelp } from './InstallPrompt'
 import type { Tab } from '../types'
 
@@ -27,12 +28,11 @@ export function MoreMenu({
   onSettings,
   onLogout,
 }: Props) {
-  const rows: { key: Tab; label: string }[] = [
-    { key: 'habits', label: 'Привычки' },
-    { key: 'fin', label: 'Финансы' },
-    { key: 'an', label: 'Аналитика' },
-    { key: 'arch', label: 'Архив' + (archiveCount ? ' · ' + archiveCount : '') },
-  ]
+  // список берётся из панели — иначе вкладка однажды выпадет из обоих мест разом
+  const rows: { key: Tab; label: string }[] = MORE_TABS.map((key) => ({
+    key,
+    label: TAB_LABELS[key] + (key === 'arch' && archiveCount ? ' · ' + archiveCount : ''),
+  }))
 
   return (
     <>
@@ -94,6 +94,9 @@ const sheetStyle: CSSProperties = {
   boxShadow: '0 -14px 50px rgba(0,0,0,.6), 0 0 26px rgba(34,211,238,.07)',
   padding: '10px 10px 8px',
   animation: 'sheetUp .22s ease',
+  // на невысоком телефоне список разделов со служебными действиями не помещается
+  maxHeight: `calc(100vh - ${NAV_H + 40}px - env(safe-area-inset-bottom))`,
+  overflowY: 'auto',
 }
 
 function rowStyle(active: boolean): CSSProperties {

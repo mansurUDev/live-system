@@ -2,8 +2,36 @@ import type { CSSProperties, ReactNode } from 'react'
 import { C } from '../theme'
 import type { Tab } from '../types'
 
-/** Вкладки, спрятанные под «Ещё» */
-export const MORE_TABS: Tab[] = ['habits', 'fin', 'an', 'arch']
+/**
+ * Вкладки, до которых дотягивается большой палец. Всё остальное — под бургером:
+ * четыре кнопки остаются широкими, а редкие разделы всё равно открываются
+ * в один лишний тап.
+ */
+const BAR_ITEMS: { key: Tab; label: string; icon: ReactNode }[] = [
+  { key: 'brief', label: 'Брифинг', icon: <IconBrief /> },
+  { key: 'track', label: 'Трекер', icon: <IconClock /> },
+  { key: 'habits', label: 'Привычки', icon: <IconHabit /> },
+  { key: 'fin', label: 'Финансы', icon: <IconMoney /> },
+]
+
+const BAR_TABS: Tab[] = BAR_ITEMS.map((i) => i.key)
+
+/** Вкладки, спрятанные под бургером, — ровно те, что не влезли в панель */
+export const MORE_TABS: Tab[] = ['wheel', 'lib', 'watch', 'ideas', 'an', 'arch']
+
+/** Подписи для бургер-меню; в панели у кнопок свои, покороче */
+export const TAB_LABELS: Record<Tab, string> = {
+  brief: 'Брифинг',
+  wheel: 'Колесо',
+  track: 'Трекер времени',
+  habits: 'Привычки',
+  fin: 'Финансы',
+  lib: 'Библиотека',
+  watch: 'Смотреть',
+  ideas: 'Идеи',
+  an: 'Аналитика',
+  arch: 'Архив',
+}
 
 interface Props {
   tab: Tab
@@ -14,27 +42,24 @@ interface Props {
 
 /**
  * Нижняя панель телефона: главные разделы под большим пальцем, остальные — под
- * «Ещё». Учитывает домашнюю полосу, иначе последняя кнопка ложится под неё.
+ * бургером. Учитывает домашнюю полосу, иначе последняя кнопка ложится под неё.
  */
 export function BottomNav({ tab, onGo, moreOpen, onToggleMore }: Props) {
-  const items: { key: Tab; label: string; icon: ReactNode }[] = [
-    { key: 'brief', label: 'Брифинг', icon: <IconBrief /> },
-    { key: 'wheel', label: 'Колесо', icon: <IconWheel /> },
-    { key: 'track', label: 'Трекер', icon: <IconClock /> },
-    { key: 'lib', label: 'Книги', icon: <IconBook /> },
-    { key: 'ideas', label: 'Идеи', icon: <IconIdea /> },
-  ]
-
   return (
     <nav style={barStyle}>
-      {items.map((it) => (
+      {BAR_ITEMS.map((it) => (
         <button key={it.key} onClick={() => onGo(it.key)} style={btnStyle(tab === it.key)}>
           {it.icon}
           <span style={labelStyle}>{it.label}</span>
         </button>
       ))}
-      <button onClick={onToggleMore} style={btnStyle(MORE_TABS.includes(tab) || moreOpen)}>
-        <IconMore />
+      <button
+        onClick={onToggleMore}
+        aria-label="Ещё разделы"
+        aria-expanded={moreOpen}
+        style={btnStyle(!BAR_TABS.includes(tab) || moreOpen)}
+      >
+        <IconBurger />
         <span style={labelStyle}>Ещё</span>
       </button>
     </nav>
@@ -89,15 +114,6 @@ function IconBrief() {
     </svg>
   )
 }
-function IconWheel() {
-  return (
-    <svg {...SVG}>
-      <circle cx="12" cy="12" r="8.5" />
-      <circle cx="12" cy="12" r="2.6" />
-      <path d="M12 3.5v5M12 15.4v5M3.5 12h5M15.4 12h5" strokeLinecap="round" />
-    </svg>
-  )
-}
 function IconClock() {
   return (
     <svg {...SVG}>
@@ -106,28 +122,26 @@ function IconClock() {
     </svg>
   )
 }
-function IconBook() {
+function IconHabit() {
   return (
     <svg {...SVG}>
-      <path d="M5 4.5h9a3 3 0 0 1 3 3v12a2.5 2.5 0 0 0-2.5-2.5H5z" strokeLinejoin="round" />
-      <path d="M19 6.5v13" strokeLinecap="round" />
+      <path d="M4.5 12.5l4 4 11-11" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M4.5 19.5h8" strokeLinecap="round" />
     </svg>
   )
 }
-function IconIdea() {
+function IconMoney() {
   return (
     <svg {...SVG}>
-      <path d="M9 18h6M10 21h4" strokeLinecap="round" />
-      <path d="M12 3.5a5.5 5.5 0 0 0-3 10.1c.6.4 1 1 1 1.7V16h4v-.7c0-.7.4-1.3 1-1.7A5.5 5.5 0 0 0 12 3.5Z" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="8.5" />
+      <path d="M14.5 9.3a2.8 2.8 0 0 0-2.5-1.3c-1.5 0-2.5.8-2.5 2s1 1.8 2.5 2 2.5.8 2.5 2-1 2-2.5 2a2.8 2.8 0 0 1-2.5-1.3M12 6.3v11.4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   )
 }
-function IconMore() {
+function IconBurger() {
   return (
     <svg {...SVG}>
-      <circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none" />
-      <circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none" />
-      <circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none" />
+      <path d="M4 7h16M4 12h16M4 17h16" strokeLinecap="round" />
     </svg>
   )
 }

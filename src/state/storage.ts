@@ -81,7 +81,7 @@ export function clearCode(): void {
   }
 }
 
-const TABS: Tab[] = ['brief', 'wheel', 'track', 'habits', 'fin', 'lib', 'an', 'arch', 'ideas']
+const TABS: Tab[] = ['brief', 'wheel', 'track', 'habits', 'fin', 'lib', 'watch', 'an', 'arch', 'ideas']
 
 /** Последняя открытая вкладка — чтобы перезагрузка не выбрасывала в брифинг */
 export function readTab(): Tab {

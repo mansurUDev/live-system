@@ -1,7 +1,7 @@
 export type Category = 'work' | 'health' | 'rest' | 'byt' | 'sleep'
 export type SectorKind = 'sphere' | 'number' | 'steps'
 export type Period = 'day' | 'week' | 'month'
-export type Tab = 'brief' | 'wheel' | 'track' | 'habits' | 'fin' | 'lib' | 'an' | 'arch' | 'ideas'
+export type Tab = 'brief' | 'wheel' | 'track' | 'habits' | 'fin' | 'lib' | 'watch' | 'an' | 'arch' | 'ideas'
 
 export interface HistoryRec {
   id: string
@@ -128,6 +128,8 @@ export interface MandatoryExpense {
   id: string
   name: string
   amount: number
+  /** своя валюта у каждого расхода: подписка в долларах, аренда в сумах */
+  currency: CurrencyCode
 }
 
 /** Разовый запланированный расход с датой */
@@ -135,6 +137,7 @@ export interface OneTimeExpense {
   id: string
   name: string
   amount: number
+  currency: CurrencyCode
   /** YYYY-MM-DD; пустая строка — дата не назначена */
   date: string
 }
@@ -252,6 +255,9 @@ export interface Library {
 /** Фиксированный список поддерживаемых валют */
 export type CurrencyCode = 'UZS' | 'USD' | 'EUR' | 'RUB'
 
+/** Сколько единиц внутренней базы стоит одна единица валюты; база — та, у которой курс 1 */
+export type Rates = Record<CurrencyCode, number>
+
 export interface IdeaLink {
   id: string
   url: string
@@ -275,14 +281,14 @@ export interface Idea {
 }
 
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 7
+export const DOC_VERSION = 8
 
 export interface Doc {
   v: number
-  /** валюта отображения — общая для Финансов и денежных целей на колесе */
+  /** валюта отображения: в ней хранятся суммы «на руках», планка и запас, в неё же сводятся расходы */
   currency: CurrencyCode
-  /** курс каждой валюты к фиксированной внутренней базе; вводится вручную, ни в одном расчёте пока не участвует */
-  rates: Record<CurrencyCode, number>
+  /** курсы валют, вводятся вручную; по ним расходы в чужой валюте пересчитываются в валюту отображения */
+  rates: Rates
   sectors: Sector[]
   acts: Activity[]
   entries: TimeEntry[]

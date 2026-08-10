@@ -1,4 +1,5 @@
 import {
+  CURRENCY_CODES,
   HEX_RE,
   IDEA_CATEGORY_SUGGESTIONS,
   MAX_BOOKS,
@@ -41,6 +42,7 @@ import { monthKeyOf } from './time'
 import type {
   Book,
   Course,
+  CurrencyCode,
   Finance,
   Habit,
   Idea,
@@ -176,7 +178,15 @@ export function emptyFinance(now: number): Finance {
   }
 }
 
-export function normFinance(x: unknown, now: number): Finance {
+/**
+ * Валюта расхода. У документов, созданных до мультивалютности, поля нет — такие
+ * суммы вводились в валюте отображения, ею и остаются.
+ */
+function expenseCurrency(x: unknown, fallback: CurrencyCode): CurrencyCode {
+  return typeof x === 'string' && (CURRENCY_CODES as string[]).includes(x) ? (x as CurrencyCode) : fallback
+}
+
+export function normFinance(x: unknown, now: number, currency: CurrencyCode): Finance {
   const f = obj(x)
   const empty = emptyFinance(now)
   if (!x || typeof x !== 'object') return empty
@@ -193,6 +203,7 @@ export function normFinance(x: unknown, now: number): Finance {
           id: str(m.id, 60, 'm' + i),
           name: str(m.name, MAX_EXPENSE_NAME, '—'),
           amount: money(m.amount),
+          currency: expenseCurrency(m.currency, currency),
         }
       })
     : []
@@ -204,6 +215,7 @@ export function normFinance(x: unknown, now: number): Finance {
           id: str(o.id, 60, 'o' + i),
           name: str(o.name, MAX_EXPENSE_NAME, '—'),
           amount: money(o.amount),
+          currency: expenseCurrency(o.currency, currency),
           date: dayKey(o.date),
         }
       })

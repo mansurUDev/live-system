@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { money } from '../../logic/currency'
+import { approx, money } from '../../logic/currency'
 import { financeCalc, goalHistory, goalProgress } from '../../logic/finance'
 import { fmtD, plural } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
@@ -8,7 +8,6 @@ import { A } from '../../state/actions'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import {
   btnAccent,
-  btnGhostSm,
   C,
   fieldLabel,
   input,
@@ -17,8 +16,12 @@ import {
   plainCard,
   sectionLabel,
 } from '../../theme'
+import { ExpenseModal, type ExpenseDraft } from '../modals/ExpenseModal'
 import { MoneyField } from './MoneyField'
-import type { CurrencyCode, MandatoryExpense, OneTimeExpense } from '../../types'
+import type { CurrencyCode, OneTimeExpense, Rates } from '../../types'
+
+/** Что открыто в модалке: вид расхода и id — либо null у нового */
+type ExpenseForm = { kind: 'mandatory' | 'oneTime'; id: string | null; draft: ExpenseDraft | null } | null
 
 export function FinanceTab() {
   const { state, dispatch } = useData()
@@ -26,34 +29,31 @@ export function FinanceTab() {
   const isMobile = useIsMobile()
   const fin = state.doc.fin
   const currency = state.doc.currency
-  const calc = financeCalc(fin, now)
+  const rates = state.doc.rates
+  const calc = financeCalc(fin, { currency, rates }, now)
   const progress = goalProgress(fin)
   const months = goalHistory(fin, isMobile ? 8 : 12, now)
 
-  const [newMand, setNewMand] = useState({ name: '', amount: '' })
-  const [newOne, setNewOne] = useState({ name: '', amount: '', date: '' })
+  const [expenseForm, setExpenseForm] = useState<ExpenseForm>(null)
 
   const patch = (p: Parameters<typeof A.patchFinance>[0]) => dispatch(A.patchFinance(p))
 
-  const addMandatory = () => {
-    const amount = parseFloat(newMand.amount.replace(',', '.'))
-    if (!newMand.name.trim() || !Number.isFinite(amount) || amount <= 0) return
-    const item: MandatoryExpense = { id: A.newExpenseId(), name: newMand.name.trim(), amount }
-    dispatch(A.saveMandatory(item))
-    setNewMand({ name: '', amount: '' })
+  const saveExpense = (d: ExpenseDraft) => {
+    if (!expenseForm) return
+    const id = expenseForm.id ?? A.newExpenseId()
+    if (expenseForm.kind === 'mandatory') {
+      dispatch(A.saveMandatory({ id, name: d.name, amount: d.amount, currency: d.currency }))
+    } else {
+      dispatch(A.saveOneTime({ id, name: d.name, amount: d.amount, currency: d.currency, date: d.date }))
+    }
+    setExpenseForm(null)
   }
 
-  const addOneTime = () => {
-    const amount = parseFloat(newOne.amount.replace(',', '.'))
-    if (!newOne.name.trim() || !Number.isFinite(amount) || amount <= 0) return
-    const item: OneTimeExpense = {
-      id: A.newExpenseId(),
-      name: newOne.name.trim(),
-      amount,
-      date: newOne.date,
-    }
-    dispatch(A.saveOneTime(item))
-    setNewOne({ name: '', amount: '', date: '' })
+  const deleteExpense = () => {
+    if (!expenseForm?.id) return
+    if (expenseForm.kind === 'mandatory') dispatch(A.deleteMandatory(expenseForm.id))
+    else dispatch(A.deleteOneTime(expenseForm.id))
+    setExpenseForm(null)
   }
 
   return (
@@ -217,30 +217,33 @@ export function FinanceTab() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
           {fin.mandatory.map((m) => (
-            <div
+            <button
               key={m.id}
               className="h-row-soft"
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderRadius: 8 }}
+              onClick={() =>
+                setExpenseForm({
+                  kind: 'mandatory',
+                  id: m.id,
+                  draft: { name: m.name, amount: m.amount, currency: m.currency, date: '' },
+                })
+              }
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                padding: '8px 9px',
+                borderRadius: 8,
+                width: '100%',
+                textAlign: 'left',
+                fontFamily: 'inherit',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+              }}
             >
               <span style={{ flex: 1, fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>{m.name}</span>
-              <span style={{ fontFamily: MONO, fontSize: 14, color: C.textSoft }}>{money(m.amount, currency)}</span>
-              <button
-                onClick={() => dispatch(A.deleteMandatory(m.id))}
-                aria-label="Убрать"
-                style={{
-                  fontFamily: 'inherit',
-                  fontSize: 13,
-                  color: C.danger,
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  padding: '2px 4px',
-                  opacity: 0.7,
-                }}
-              >
-                ✕
-              </button>
-            </div>
+              <Amount amount={m.amount} from={m.currency} to={currency} rates={rates} />
+            </button>
           ))}
           {!fin.mandatory.length && (
             <div style={{ fontSize: 13.5, color: C.faint }}>
@@ -249,27 +252,13 @@ export function FinanceTab() {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          <input
-            value={newMand.name}
-            onChange={(e) => setNewMand({ ...newMand, name: e.target.value })}
-            placeholder="Название"
-            style={{ ...input, marginTop: 0, flex: '1 1 140px', width: 'auto' }}
-          />
-          <input
-            value={newMand.amount}
-            onChange={(e) => setNewMand({ ...newMand, amount: e.target.value })}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') addMandatory()
-            }}
-            inputMode="decimal"
-            placeholder="Сумма"
-            style={{ ...input, marginTop: 0, width: 100, flex: 'none' }}
-          />
-          <button className="h-ghost-bright" style={btnGhostSm} onClick={addMandatory}>
-            Добавить
-          </button>
-        </div>
+        <button
+          className="h-accent"
+          style={{ ...btnAccent, fontSize: 13.5, padding: '8px 14px', marginTop: 12 }}
+          onClick={() => setExpenseForm({ kind: 'mandatory', id: null, draft: null })}
+        >
+          + Добавить
+        </button>
       </div>
 
       {/* ── разовые запланированные ── */}
@@ -283,13 +272,22 @@ export function FinanceTab() {
               item={o}
               now={now}
               currency={currency}
+              rates={rates}
               highlight={i === 0}
               reserved={new Date(o.date + 'T00:00:00').getTime() < calc.reserveCutoff}
-              onDelete={() => dispatch(A.deleteOneTime(o.id))}
+              onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
             />
           ))}
           {calc.past.map((o) => (
-            <ExpenseRow key={o.id} item={o} now={now} currency={currency} past onDelete={() => dispatch(A.deleteOneTime(o.id))} />
+            <ExpenseRow
+              key={o.id}
+              item={o}
+              now={now}
+              currency={currency}
+              rates={rates}
+              past
+              onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
+            />
           ))}
           {!fin.oneTime.length && (
             <div style={{ fontSize: 13.5, color: C.faint }}>
@@ -298,32 +296,61 @@ export function FinanceTab() {
           )}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
-          <input
-            value={newOne.name}
-            onChange={(e) => setNewOne({ ...newOne, name: e.target.value })}
-            placeholder="Название"
-            style={{ ...input, marginTop: 0, flex: '1 1 130px', width: 'auto' }}
-          />
-          <input
-            value={newOne.amount}
-            onChange={(e) => setNewOne({ ...newOne, amount: e.target.value })}
-            inputMode="decimal"
-            placeholder="Сумма"
-            style={{ ...input, marginTop: 0, width: 90, flex: 'none' }}
-          />
-          <input
-            value={newOne.date}
-            onChange={(e) => setNewOne({ ...newOne, date: e.target.value })}
-            type="date"
-            style={{ ...input, marginTop: 0, width: 150, flex: 'none', padding: '8px 11px' }}
-          />
-          <button className="h-accent" style={{ ...btnAccent, fontSize: 13.5, padding: '8px 14px' }} onClick={addOneTime}>
-            Добавить
-          </button>
-        </div>
+        <button
+          className="h-accent"
+          style={{ ...btnAccent, fontSize: 13.5, padding: '8px 14px', marginTop: 12 }}
+          onClick={() => setExpenseForm({ kind: 'oneTime', id: null, draft: null })}
+        >
+          + Добавить
+        </button>
       </div>
+
+      {expenseForm && (
+        <ExpenseModal
+          draft={expenseForm.draft}
+          withDate={expenseForm.kind === 'oneTime'}
+          docCurrency={currency}
+          rates={rates}
+          onCancel={() => setExpenseForm(null)}
+          onSave={saveExpense}
+          onDelete={deleteExpense}
+        />
+      )}
     </main>
+  )
+}
+
+function toDraft(o: OneTimeExpense): ExpenseDraft {
+  return { name: o.name, amount: o.amount, currency: o.currency, date: o.date }
+}
+
+/** Сумма в своей валюте, а под ней — та же сумма в валюте отображения */
+function Amount({
+  amount,
+  from,
+  to,
+  rates,
+  big,
+  color,
+}: {
+  amount: number
+  from: CurrencyCode
+  to: CurrencyCode
+  rates: Rates
+  big?: boolean
+  color?: string
+}) {
+  return (
+    <span style={{ textAlign: 'right', flex: 'none' }}>
+      <span style={{ display: 'block', fontFamily: MONO, fontSize: big ? 15 : 14, color: color ?? C.textSoft }}>
+        {money(amount, from)}
+      </span>
+      {from !== to && (
+        <span style={{ display: 'block', fontFamily: MONO, fontSize: 11.5, color: C.faint, marginTop: 1 }}>
+          {approx(amount, from, to, rates)}
+        </span>
+      )}
+    </span>
   )
 }
 
@@ -331,28 +358,35 @@ function ExpenseRow({
   item,
   now,
   currency,
+  rates,
   highlight,
   past,
   reserved,
-  onDelete,
+  onEdit,
 }: {
   item: OneTimeExpense
   now: number
   currency: CurrencyCode
+  rates: Rates
   highlight?: boolean
   past?: boolean
   /** попадает ли расход в резерв текущего дневного лимита */
   reserved?: boolean
-  onDelete: () => void
+  onEdit: () => void
 }) {
   return (
-    <div
+    <button
+      onClick={onEdit}
       style={{
         display: 'flex',
         alignItems: 'center',
         gap: 10,
         padding: '9px 11px',
         borderRadius: 10,
+        width: '100%',
+        textAlign: 'left',
+        fontFamily: 'inherit',
+        cursor: 'pointer',
         background: highlight ? 'rgba(251,191,36,.08)' : 'rgba(148,163,184,.05)',
         border: `1px solid ${highlight ? 'rgba(251,191,36,.35)' : 'rgba(148,163,184,.14)'}`,
         opacity: past ? 0.5 : 1,
@@ -362,28 +396,17 @@ function ExpenseRow({
         <div style={{ fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>{item.name}</div>
         <div style={{ fontSize: 12.5, color: C.faint, marginTop: 1 }}>
           {item.date ? fmtD(item.date + 'T00:00:00', now) : 'без даты'}
-          {past ? ' · прошло' : !reserved ? ' · после зарплаты, лимит не трогает' : ''}
+          {past ? ' · прошло' : !item.date ? ' · лимит не трогает' : !reserved ? ' · после зарплаты, лимит не трогает' : ''}
         </div>
       </div>
-      <span style={{ fontFamily: MONO, fontSize: 15, color: highlight ? '#fbbf24' : C.textSoft }}>
-        {money(item.amount, currency)}
-      </span>
-      <button
-        onClick={onDelete}
-        aria-label="Убрать"
-        style={{
-          fontFamily: 'inherit',
-          fontSize: 13,
-          color: C.danger,
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          padding: '2px 4px',
-          opacity: 0.7,
-        }}
-      >
-        ✕
-      </button>
-    </div>
+      <Amount
+        amount={item.amount}
+        from={item.currency}
+        to={currency}
+        rates={rates}
+        big
+        color={highlight ? '#fbbf24' : undefined}
+      />
+    </button>
   )
 }

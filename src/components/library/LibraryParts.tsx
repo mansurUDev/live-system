@@ -1,7 +1,88 @@
 import { useState } from 'react'
 import { fmtD } from '../../logic/time'
-import { btnGhostSm, C, input, MONO } from '../../theme'
-import type { LibNote } from '../../types'
+import { btnAccent, btnGhostSm, C, chipSquare, input, MONO, plainCard } from '../../theme'
+import type { LibDone, LibNote } from '../../types'
+
+/** Заголовок полки с кнопкой добавления — общий для «Библиотеки» и «Смотреть» */
+export function Shelf({ title, subtitle, onAdd }: { title: string; subtitle: string; onAdd: () => void }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
+      <div>
+        <div style={{ fontSize: 17, fontWeight: 600, color: C.textBright }}>{title}</div>
+        <div style={{ fontSize: 13, color: C.dim, marginTop: 2 }}>{subtitle}</div>
+      </div>
+      <div style={{ flex: 1 }} />
+      <button className="h-accent" style={{ ...btnAccent, fontSize: 13.5, padding: '8px 14px' }} onClick={onAdd}>
+        + Добавить
+      </button>
+    </div>
+  )
+}
+
+export function Empty({ text }: { text: string }) {
+  return <div style={plainCard({ padding: 18, color: C.faint, fontSize: 14 })}>{text}</div>
+}
+
+const DONE_LABELS: Record<LibDone['kind'], string> = {
+  book: 'книга',
+  course: 'курс',
+  video: 'видео',
+  show: 'просмотрено',
+}
+
+/**
+ * Полка завершённого. Записи всех видов лежат в одном списке `lib.done`, но
+ * вкладки показывают только свои: книги с курсами — в «Библиотеке», видео с
+ * фильмами — в «Смотреть».
+ */
+export function DoneShelf({ items, title, now }: { items: LibDone[]; title: string; now: number }) {
+  if (!items.length) return null
+
+  return (
+    <>
+      <div style={{ marginTop: 6 }}>
+        <div style={{ fontSize: 17, fontWeight: 600, color: C.textBright }}>{title}</div>
+        <div style={{ fontSize: 13, color: C.dim, marginTop: 2 }}>{items.length} на полке</div>
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {items.map((d) => (
+          <div key={d.id} style={plainCard({ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start' })}>
+            <span style={chipSquare(d.color)} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 16, fontWeight: 600, color: C.textBright, overflowWrap: 'anywhere' }}>
+                {d.title}
+              </div>
+              <div style={{ fontSize: 13, color: C.muted, marginTop: 2 }}>
+                {d.byline}
+                {d.byline ? ' · ' : ''}
+                {DONE_LABELS[d.kind]}
+              </div>
+              <div style={{ fontFamily: MONO, fontSize: 12.5, color: C.faint, marginTop: 3 }}>
+                {fmtD(d.startedAt, now)} → {fmtD(d.finishedAt, now)}
+              </div>
+              {d.quote && (
+                <div
+                  style={{
+                    fontSize: 14.5,
+                    fontStyle: 'italic',
+                    color: C.textSoft,
+                    marginTop: 8,
+                    paddingLeft: 12,
+                    borderLeft: `2px solid ${d.color}88`,
+                    lineHeight: 1.5,
+                    overflowWrap: 'anywhere',
+                  }}
+                >
+                  «{d.quote}»
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
+  )
+}
 
 interface Row {
   label: string

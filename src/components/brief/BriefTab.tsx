@@ -33,7 +33,7 @@ export function BriefTab({ onGo }: { onGo: (tab: Tab) => void }) {
     () => ({
       priority: pickPriority(doc, minute * 60000),
       steps: nextSteps(doc, minute * 60000),
-      calc: financeCalc(doc.fin, minute * 60000),
+      calc: financeCalc(doc.fin, { currency: doc.currency, rates: doc.rates }, minute * 60000),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [doc, minute],
