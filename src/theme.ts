@@ -271,6 +271,18 @@ export function modalCard(width: number): CSSProperties {
 }
 
 /** Кнопка «Удалить …» — текстовая, пунктирное подчёркивание */
+/** Круглая кнопка ✎ — вызов формы правки на карточке */
+export const btnEdit: CSSProperties = {
+  fontFamily: 'inherit',
+  fontSize: 13,
+  color: C.muted,
+  background: 'none',
+  border: '1px solid rgba(148,163,184,.3)',
+  borderRadius: 9,
+  padding: '7px 10px',
+  cursor: 'pointer',
+}
+
 export const btnDeleteLink: CSSProperties = {
   background: 'none',
   border: 'none',

@@ -7,6 +7,7 @@ import {
   btnCancelSm,
   btnDeleteLink,
   btnDeleteConfirm,
+  btnEdit,
   C,
   chipSquare,
   fieldLabel,
@@ -14,7 +15,7 @@ import {
   MONO,
   plainCard,
 } from '../../theme'
-import { DualProgress, NotesBlock } from './LibraryParts'
+import { DualProgress, NotesBlock } from '../library/LibraryParts'
 import type { Book } from '../../types'
 
 interface Props {
@@ -23,14 +24,20 @@ interface Props {
   onToggle: () => void
   onSave: (book: Book) => void
   onNote: (text: string) => void
+  onEdit: () => void
+  onCopyLink: () => void
   onFinish: () => void
   onDelete: () => void
 }
 
-export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDelete }: Props) {
+export function BookCard({ book, open, onToggle, onSave, onNote, onEdit, onCopyLink, onFinish, onDelete }: Props) {
   const now = useNow()
+  // след аудиокниги — не только заданная общая длительность: если её не указали
+  // при создании, а книга приехала до появления ✎ (или вообще из идеи), позиция
+  // и ссылка должны оставаться достижимыми, а не запирать поле навсегда
+  const hasAudio = book.audioTotal > 0 || book.audioCur > 0 || !!book.audioLink
   const [page, setPage] = useState(String(book.pageCur || ''))
-  const [audio, setAudio] = useState(book.audioTotal > 0 ? fmtAudio(book.audioCur) : '')
+  const [audio, setAudio] = useState(book.audioCur > 0 ? fmtAudio(book.audioCur) : '')
   const [excerpt, setExcerpt] = useState(book.excerpt)
   const [targetDate, setTargetDate] = useState(book.targetDate)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -40,10 +47,11 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDel
 
   const savePosition = () => {
     const p = parseInt(page.replace(/\s/g, ''), 10)
+    const parsedAudio = parseAudio(audio)
     onSave({
       ...book,
       pageCur: Number.isFinite(p) ? Math.max(0, Math.min(book.pageTotal || p, p)) : book.pageCur,
-      audioCur: book.audioTotal > 0 ? Math.min(book.audioTotal, parseAudio(audio)) : book.audioCur,
+      audioCur: hasAudio ? (book.audioTotal > 0 ? Math.min(book.audioTotal, parsedAudio) : parsedAudio) : book.audioCur,
       excerpt: excerpt.slice(0, 400),
       targetDate,
     })
@@ -70,7 +78,12 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDel
       <DualProgress
         color={book.color}
         rows={[
-          { label: 'страницы', cur: book.pageCur, total: book.pageTotal, text: `${book.pageCur} из ${book.pageTotal}` },
+          {
+            label: 'страницы',
+            cur: book.pageCur,
+            total: book.pageTotal,
+            text: book.pageTotal > 0 ? `${book.pageCur} из ${book.pageTotal}` : `${book.pageCur} — объём не указан`,
+          },
           ...(book.audioTotal > 0
             ? [
                 {
@@ -83,6 +96,12 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDel
             : []),
         ]}
       />
+
+      {book.audioTotal === 0 && book.audioCur > 0 && (
+        <div style={{ fontFamily: MONO, fontSize: 12.5, color: C.faint, marginTop: 7 }}>
+          аудио: {fmtAudio(book.audioCur)} — общая длительность не указана
+        </div>
+      )}
 
       {plan.kind !== 'none' && (
         <div
@@ -113,7 +132,7 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDel
                 style={input}
               />
             </div>
-            {book.audioTotal > 0 && (
+            {hasAudio && (
               <div style={{ flex: '1 1 110px' }}>
                 <div style={fieldLabel}>Аудио</div>
                 <input
@@ -159,6 +178,26 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onFinish, onDel
             <button className="h-ghost-bright" style={btnCancelSm} onClick={onFinish}>
               Дочитал
             </button>
+            <button className="h-edit" onClick={onEdit} aria-label="Изменить книгу" style={btnEdit}>
+              ✎
+            </button>
+            {book.audioLink && (
+              <>
+                {/* копия ссылки нужнее перехода: внешний плеер откроет её со своим аккаунтом */}
+                <button className="h-ghost-bright" style={btnCancelSm} onClick={onCopyLink}>
+                  ⧉ Ссылка
+                </button>
+                <a
+                  href={book.audioLink}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-ghost-bright"
+                  style={{ ...btnCancelSm, textDecoration: 'none', display: 'inline-block' }}
+                >
+                  Слушать ↗
+                </a>
+              </>
+            )}
             <div style={{ flex: 1 }} />
             {confirmDelete ? (
               <>
