@@ -208,7 +208,14 @@ export const A = {
     id,
     now: Date.now(),
   }),
-  newBook: (title: string, author: string, color: string, pageTotal: number, audioTotal: number): Book => ({
+  newBook: (
+    title: string,
+    author: string,
+    color: string,
+    pageTotal: number,
+    audioTotal: number,
+    audioLink = '',
+  ): Book => ({
     id: uid('b'),
     title,
     author,
@@ -217,6 +224,7 @@ export const A = {
     pageTotal,
     audioCur: 0,
     audioTotal,
+    audioLink,
     excerpt: '',
     targetDate: '',
     notes: [],

@@ -194,6 +194,8 @@ export interface Book {
   /** минуты аудиокниги */
   audioCur: number
   audioTotal: number
+  /** где слушаю: ссылка на плеер аудиокниги; пусто — нет */
+  audioLink: string
   /** отрывок, на котором остановился */
   excerpt: string
   /** план по прочтению: дата, к которой хочешь дочитать; YYYY-MM-DD, пусто — без срока */

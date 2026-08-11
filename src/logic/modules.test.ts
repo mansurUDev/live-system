@@ -24,7 +24,7 @@ import { emptyFinance, emptyLibrary, normHabits } from './normalizeModules'
 import { defaultDoc } from './defaults'
 import { daysOverdue, daysSince, isOverdue, markDone } from './reminders'
 import { dayKeyAgo, localDateKey } from './time'
-import { cleanShareUrl } from './links'
+import { cleanShareUrl, isHttpUrl } from './links'
 import { youtubeId, youtubeThumbnail } from './video'
 import {
   CURRENCY_CODES,
@@ -454,6 +454,7 @@ describe('библиотека', () => {
     targetDate: '',
     audioCur: 0,
     audioTotal: 580,
+    audioLink: '',
     excerpt: '',
     notes: [],
     startedAt: new Date(NOW).toISOString(),
@@ -529,6 +530,28 @@ describe('библиотека', () => {
     )
     expect(d.lib.books[0]!.targetDate).toBe('')
     expect(d.lib.books[1]!.targetDate).toBe('2026-05-01')
+  })
+
+  it('нормализация: javascript: в ссылке на аудиокнигу отбрасывается', () => {
+    const d = normalize(
+      {
+        sectors: [],
+        lib: {
+          books: [
+            { title: 'X', audioLink: 'javascript:alert(1)' },
+            { title: 'Y', audioLink: 'https://example.com/audiobook' },
+          ],
+        },
+      },
+      NOW,
+    )
+    expect(d.lib.books[0]!.audioLink).toBe('')
+    expect(d.lib.books[1]!.audioLink).toBe('https://example.com/audiobook')
+  })
+
+  it('нормализация: книга без ссылки на аудио получает пустую строку', () => {
+    const d = normalize({ sectors: [], lib: { books: [{ title: 'X' }] } }, NOW)
+    expect(d.lib.books[0]!.audioLink).toBe('')
   })
 
   it('считает прогресс курса по разделам', () => {
@@ -919,6 +942,14 @@ describe('чистка ссылок от трекеров', () => {
   it('не-ссылка возвращается как есть (обрезанная)', () => {
     expect(cleanShareUrl('  просто текст  ')).toBe('просто текст')
     expect(cleanShareUrl('')).toBe('')
+  })
+
+  it('isHttpUrl: ссылка без схемы не считается ссылкой', () => {
+    expect(isHttpUrl('youtube.com/x')).toBe(false)
+    expect(isHttpUrl('https://youtube.com/x')).toBe(true)
+    expect(isHttpUrl('http://example.com')).toBe(true)
+    expect(isHttpUrl('javascript:alert(1)')).toBe(false)
+    expect(isHttpUrl('')).toBe(false)
   })
 })
 

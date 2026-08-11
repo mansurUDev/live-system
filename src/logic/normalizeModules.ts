@@ -290,6 +290,7 @@ export function normLibrary(x: unknown, nowIso: string): Library {
           pageTotal: count(b.pageTotal),
           audioCur: count(b.audioCur),
           audioTotal: count(b.audioTotal),
+          audioLink: safeUrl(b.audioLink, MAX_VIDEO_URL),
           excerpt: str(b.excerpt, MAX_EXCERPT),
           targetDate: dayKey(b.targetDate),
           notes: notes(b.notes, nowIso),

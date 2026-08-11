@@ -56,3 +56,17 @@ export function cleanShareUrl(raw: string): string {
   const query = kept.toString()
   return parsed.origin + parsed.pathname + (query ? '?' + query : '') + parsed.hash
 }
+
+/**
+ * Ссылка без схемы (`youtube.com/x` вместо `https://youtube.com/x`) сохраняется
+ * в памяти и рендерится как обычная, но `safeUrl` при следующей загрузке её
+ * молча срезает — лучше отбить в форме сразу, чем потерять после перезагрузки.
+ */
+export function isHttpUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw)
+    return parsed.protocol === 'http:' || parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
