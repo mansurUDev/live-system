@@ -301,12 +301,18 @@ function normRates(x: unknown): Record<CurrencyCode, number> {
  * Переход со старых версий бесшовный: документ первой версии просто не содержал
  * привычек, финансов и библиотеки — они добавляются пустыми, остальное
  * сохраняется как было. Функция идемпотентна.
+ *
+ * Единственное место, где normalize смотрит на входящую версию, — разовые
+ * починки: правило вида «до vN считаем поле мусором». Такие ветки пишутся с
+ * литеральным номером версии, а не с DOC_VERSION, иначе следующее же
+ * повышение версии повторит починку и затрёт осознанный выбор.
  */
 export function normalize(input: unknown, now: number = Date.now()): Doc {
   const d = obj(input)
   if (!Array.isArray(d.sectors)) return defaultDoc(now)
 
   const nowIso = new Date(now).toISOString()
+  const version = typeof d.v === 'number' && Number.isFinite(d.v) ? d.v : 0
   // валюта документа нужна раньше финансов: расходы без своей валюты наследуют её
   const currency = normCurrency(d.currency)
   return {
@@ -314,8 +320,11 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
     currency,
     rates: normRates(d.rates),
     // по умолчанию спрятана: полка с фильмами — не то, что показывают через плечо.
-    // Явное false ставится только из настроек, поэтому «показывать» переживает перезагрузку
-    hideWatch: d.hideWatch === undefined ? true : !!d.hideWatch,
+    // До v11 hideWatch:false мог быть записан без участия человека (сборка
+    // 64a8f43 сохраняла поле при первой же загрузке и рассылала по облаку) —
+    // отличить такой false от осознанного выбора нельзя, поэтому чиним разом:
+    // до v11 прячем всегда, начиная с v11 — уважаем сохранённое значение.
+    hideWatch: version < 11 ? true : d.hideWatch === undefined ? true : !!d.hideWatch,
     sectors: normSectors(d.sectors, nowIso),
     acts: normActs(d.acts, defaultDoc(now).acts),
     entries: normEntries(d.entries),

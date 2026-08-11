@@ -514,13 +514,24 @@ describe('библиотека', () => {
     expect(readingPlan(book({ pageTotal: 0, targetDate: '2026-03-24' }), NOW)).toEqual({ kind: 'none' })
   })
 
-  it('полка «Смотреть» спрятана, пока её не показали явно', () => {
+  it('полка «Смотреть»: hideWatch:false из старых версий чинится, свежий выбор уважается', () => {
     // старый документ без поля — прячем: это раздел для себя
     expect(normalize({ sectors: [] }, NOW).hideWatch).toBe(true)
     expect(defaultDoc(NOW).hideWatch).toBe(true)
-    // явный выбор «показывать» переживает нормализацию, а не откатывается к умолчанию
-    expect(normalize({ sectors: [], hideWatch: false }, NOW).hideWatch).toBe(false)
-    expect(normalize(normalize({ sectors: [], hideWatch: false }, NOW), NOW).hideWatch).toBe(false)
+    // сборка 64a8f43 сохраняла hideWatch:false без участия человека — до v11 не верим ему
+    expect(normalize({ sectors: [], v: 9, hideWatch: false }, NOW).hideWatch).toBe(true)
+    expect(normalize({ sectors: [], v: 10, hideWatch: false }, NOW).hideWatch).toBe(true)
+    expect(normalize({ sectors: [], hideWatch: false }, NOW).hideWatch).toBe(true)
+    // выбор «показывать», сделанный уже на новой версии, переживает нормализацию
+    expect(normalize({ sectors: [], v: DOC_VERSION, hideWatch: false }, NOW).hideWatch).toBe(false)
+  })
+
+  it('починка hideWatch идемпотентна: второй проход ничего не меняет', () => {
+    const fixed = normalize({ sectors: [], v: 9, hideWatch: false }, NOW)
+    expect(fixed.v).toBe(DOC_VERSION)
+    expect(normalize(fixed, NOW)).toEqual(fixed)
+    const shown = normalize({ sectors: [], v: DOC_VERSION, hideWatch: false }, NOW)
+    expect(normalize(shown, NOW)).toEqual(shown)
   })
 
   it('нормализация: битый срок прочтения обнуляется', () => {
