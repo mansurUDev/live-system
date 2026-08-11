@@ -11,6 +11,7 @@ import { useNow } from '../../state/NowProvider'
 import { A } from '../../state/actions'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { C, MONO, plainCard } from '../../theme'
+import { SleepCard } from './SleepCard'
 import type { Tab } from '../../types'
 
 const URGENCY_COLOR: Record<Urgency, string> = {
@@ -235,6 +236,9 @@ export function BriefTab({ onGo }: { onGo: (tab: Tab) => void }) {
           </div>
         </div>
       )}
+
+      {/* ── сон: сколько на ногах и когда вставать ── */}
+      <SleepCard entries={doc.entries} acts={doc.acts} now={now} />
 
       {/* ── куда дальше ── */}
       {steps.length > 0 && (

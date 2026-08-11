@@ -11,7 +11,8 @@ import { detectIos, detectSafari, installHint, type InstallEnv } from './install
 import { defaultDoc, makeSector } from './defaults'
 import { withTodaySnapshot } from './snapshot'
 import { donutSlice, fillRadius, labelPosition, sectorAngles, wedgePath, WHEEL } from './wheel'
-import { addDays, fmtHm, localDateKey, periodRange, startOfDay, weekdayIndex } from './time'
+import { addDays, fmtHm, hhmm, localDateKey, periodRange, startOfDay, weekdayIndex } from './time'
+import { AWAKE_STALE_MS, awakeState, bedOptions, nextClockTime, wakeOptions } from './sleep'
 import { DAY_MS, HOT_MAX, MAX_ACTS } from '../constants'
 import type { Activity, Sector, TimeEntry } from '../types'
 
@@ -864,5 +865,82 @@ describe('предложение установить приложение', () 
     expect(detectSafari('Mozilla/5.0 (iPhone) AppleWebKit/605.1.15 Version/17.0 Safari/604.1')).toBe(true)
     expect(detectSafari('Mozilla/5.0 (iPhone) CriOS/120.0 Mobile/15E148 Safari/604.1')).toBe(false)
     expect(detectSafari('Mozilla/5.0 (Linux; Android 14) Chrome/120.0 Safari/537.36')).toBe(false)
+  })
+})
+
+describe('сон — циклы и время на ногах', () => {
+  const act = (id: string, cat: Activity['cat']): Activity => ({ id, name: id, color: '#22d3ee', cat })
+  const entry = (id: string, actId: string, start: string, end: string | null): TimeEntry => ({ id, actId, start, end })
+
+  const ACTS: Activity[] = [act('sleep1', 'sleep'), act('work1', 'work')]
+
+  it('подъём считается от засыпания, а не от момента «лёг»', () => {
+    const bed = new Date('2026-03-15T23:00:00').getTime()
+    const opts = wakeOptions(bed, [6])
+    // 23:00 + 15 минут на засыпание + 9 часов = 8:15
+    expect(hhmm(opts[0]!.at)).toBe('08:15')
+    expect(opts[0]!.sleepMin).toBe(540)
+  })
+
+  it('обратный расчёт: во сколько лечь, чтобы встать вовремя', () => {
+    const wake = new Date('2026-03-16T06:20:00').getTime()
+    const opts = bedOptions(wake, [5, 6])
+    // 6:20 − 7:30 сна − 15 минут на засыпание = 22:35
+    expect(hhmm(opts[0]!.at)).toBe('22:35')
+    // на шесть циклов лечь надо на полтора часа раньше
+    expect(hhmm(opts[1]!.at)).toBe('21:05')
+  })
+
+  it('прямой и обратный расчёт сходятся друг с другом', () => {
+    const bed = new Date('2026-03-15T22:35:00').getTime()
+    const wake = wakeOptions(bed, [5])[0]!.at
+    expect(bedOptions(wake, [5])[0]!.at).toBe(bed)
+  })
+
+  it('время подъёма без даты берётся ближайшее в будущем', () => {
+    const noon = new Date('2026-03-15T12:00:00').getTime()
+    // 6:20 сегодня уже прошло — значит завтра
+    expect(new Date(nextClockTime(6 * 60 + 20, noon)).getDate()).toBe(16)
+    // 23:00 ещё впереди — сегодня
+    expect(new Date(nextClockTime(23 * 60, noon)).getDate()).toBe(15)
+  })
+
+  it('на ногах — от конца последней записи сна', () => {
+    const s = awakeState(
+      [
+        entry('e1', 'sleep1', '2026-03-14T23:00:00', '2026-03-15T06:00:00'),
+        entry('e2', 'work1', '2026-03-15T09:00:00', '2026-03-15T11:00:00'),
+      ],
+      ACTS,
+      NOW,
+    )
+    expect(s.kind).toBe('awake')
+    expect(s.kind === 'awake' && s.ms).toBe(6 * 3600_000)
+  })
+
+  it('идущая запись сна — это «сплю», а не бодрствование', () => {
+    const s = awakeState([entry('e1', 'sleep1', '2026-03-15T11:00:00', null)], ACTS, NOW)
+    expect(s.kind).toBe('sleeping')
+  })
+
+  it('сна в записях нет — считать не от чего', () => {
+    const s = awakeState([entry('e1', 'work1', '2026-03-15T09:00:00', '2026-03-15T11:00:00')], ACTS, NOW)
+    expect(s).toEqual({ kind: 'none' })
+  })
+
+  it('сон опознаётся по категории, а не по названию кнопки', () => {
+    const odd: Activity[] = [{ id: 'sleep1', name: 'Отрубился', color: '#818cf8', cat: 'sleep' }]
+    const s = awakeState([entry('e1', 'sleep1', '2026-03-14T23:00:00', '2026-03-15T06:00:00')], odd, NOW)
+    expect(s.kind).toBe('awake')
+  })
+
+  it('часы, уехавшие назад, не дают отрицательного бодрствования', () => {
+    const s = awakeState([entry('e1', 'sleep1', '2026-03-15T12:00:00', '2026-03-15T14:00:00')], ACTS, NOW)
+    expect(s.kind === 'awake' && s.ms).toBe(0)
+  })
+
+  it('давняя запись сна помечается как несвежая', () => {
+    const s = awakeState([entry('e1', 'sleep1', '2026-03-10T23:00:00', '2026-03-11T06:00:00')], ACTS, NOW)
+    expect(s.kind === 'awake' && s.ms > AWAKE_STALE_MS).toBe(true)
   })
 })
