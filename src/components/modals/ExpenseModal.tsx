@@ -28,20 +28,23 @@ export interface ExpenseDraft {
 interface Props {
   /** null — создаём новый */
   draft: ExpenseDraft | null
+  /** заготовка для нового: например название приходит из перенесённой идеи */
+  prefill?: Partial<ExpenseDraft>
   /** у запланированных спрашиваем дату, у обязательных её нет */
   withDate: boolean
   docCurrency: CurrencyCode
   rates: Rates
   onCancel: () => void
   onSave: (draft: ExpenseDraft) => void
-  onDelete: () => void
+  /** только у существующего расхода — новый удалять нечего */
+  onDelete?: () => void
 }
 
-export function ExpenseModal({ draft, withDate, docCurrency, rates, onCancel, onSave, onDelete }: Props) {
-  const [name, setName] = useState(draft?.name ?? '')
+export function ExpenseModal({ draft, prefill, withDate, docCurrency, rates, onCancel, onSave, onDelete }: Props) {
+  const [name, setName] = useState(draft?.name ?? prefill?.name ?? '')
   const [amountText, setAmountText] = useState(draft ? String(draft.amount) : '')
-  const [currency, setCurrency] = useState<CurrencyCode>(draft?.currency ?? docCurrency)
-  const [date, setDate] = useState(draft?.date ?? '')
+  const [currency, setCurrency] = useState<CurrencyCode>(draft?.currency ?? prefill?.currency ?? docCurrency)
+  const [date, setDate] = useState(draft?.date ?? prefill?.date ?? '')
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -68,6 +71,7 @@ export function ExpenseModal({ draft, withDate, docCurrency, rates, onCancel, on
       footer={
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 16, flexWrap: 'wrap' }}>
           {draft &&
+            onDelete &&
             (confirmDelete ? (
               <>
                 <button style={btnDeleteConfirm} onClick={onDelete}>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { MAX_BOOKS, MAX_IDEAS, PAL } from '../../constants'
+import { MAX_BOOKS, MAX_EXPENSE_NAME, MAX_IDEAS, MAX_NOTE_TEXT, MAX_ONETIME, PAL } from '../../constants'
 import { useAuth } from '../../state/AuthProvider'
 import { useData } from '../../state/DataProvider'
 import { useToast } from '../../state/ToastProvider'
@@ -7,11 +7,13 @@ import { deleteImage } from '../../state/media'
 import { A } from '../../state/actions'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { btnAccent, C, chipBtn, pageStyle, plainCard } from '../../theme'
+import { ExpenseModal } from '../modals/ExpenseModal'
 import { IdeaModal } from '../modals/IdeaModal'
 import { IdeaCard } from './IdeaCard'
 import type { Idea } from '../../types'
 
 type Editing = { idea: Idea | null } | null
+type ToExpense = { idea: Idea } | null
 
 export function IdeasTab() {
   const { state, dispatch } = useData()
@@ -22,6 +24,7 @@ export function IdeasTab() {
 
   const [filter, setFilter] = useState<string | null>(null)
   const [editing, setEditing] = useState<Editing>(null)
+  const [toExpense, setToExpense] = useState<ToExpense>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
   const categories = [...new Set(ideas.map((i) => i.category))].sort((a, b) => a.localeCompare(b, 'ru'))
@@ -36,24 +39,40 @@ export function IdeasTab() {
   }
 
   /**
-   * Идея, записанная про книгу, переезжает в «Библиотеку»: там позиция, план по
-   * прочтению и заметки. Текст идеи не теряется — становится первой заметкой
-   * книги, а число страниц проставляется потом в самой карточке.
+   * Идея, записанная про книгу, переезжает во вкладку «Книги»: там позиция,
+   * план по прочтению и заметки. Текст идеи и ссылки не теряются — становятся
+   * первой заметкой книги, а число страниц проставляется потом в самой карточке.
    */
   const toBook = (idea: Idea) => {
     if (state.doc.lib.books.length >= MAX_BOOKS) {
       toast('Слишком много книг — заверши или убери лишние')
       return
     }
-    const usedColors = state.doc.lib.books.map((b) => b.color)
+    const { books, courses, videos, shows } = state.doc.lib
+    const usedColors = [...books, ...courses, ...videos, ...shows].map((x) => x.color)
     const color = PAL.find((c) => !usedColors.includes(c)) ?? PAL[2]!
     const book = A.newBook(idea.title, '', color, 0, 0)
     dispatch(A.saveBook(book))
-    const text = idea.text.trim()
-    if (text) dispatch(A.addNote('book', book.id, text))
+    const lines = [idea.text.trim(), ...idea.links.map((l) => `${l.label}: ${l.url}`)].filter(Boolean)
+    if (lines.length) dispatch(A.addNote('book', book.id, lines.join('\n').slice(0, MAX_NOTE_TEXT)))
     idea.images.forEach((url) => void deleteImage(code, url))
     dispatch(A.deleteIdea(idea.id))
-    toast(`«${idea.title}» — теперь в «Библиотеке», укажи страницы`)
+    toast(`«${idea.title}» — теперь в «Книгах», укажи страницы`)
+  }
+
+  /**
+   * Покупка вроде подарка брату — не идея, ей место в «Финансах» запланированным
+   * расходом. Сумму приложение не выдумывает, её спрашивает та же форма, что и
+   * в самих «Финансах». Идея не удаляется — у расхода нет места под текст,
+   * ссылки и фото, поэтому карточка остаётся, только помечается воплощённой;
+   * отменяется снятием галочки.
+   */
+  const openToExpense = (idea: Idea) => {
+    if (state.doc.fin.oneTime.length >= MAX_ONETIME) {
+      toast('Слишком много запланированных расходов — убери лишние')
+      return
+    }
+    setToExpense({ idea })
   }
 
   return (
@@ -92,6 +111,7 @@ export function IdeasTab() {
               onToggleDone={() => dispatch(A.saveIdea({ ...idea, done: !idea.done }))}
               onEdit={() => setEditing({ idea })}
               onToBook={() => toBook(idea)}
+              onToExpense={() => openToExpense(idea)}
               onAskDelete={() => setDeleteId(idea.id)}
               onCancelDelete={() => setDeleteId(null)}
               onDelete={() => {
@@ -117,6 +137,23 @@ export function IdeasTab() {
           onCreate={(idea) => {
             dispatch(A.saveIdea(idea))
             setEditing(null)
+          }}
+        />
+      )}
+
+      {toExpense && (
+        <ExpenseModal
+          draft={null}
+          prefill={{ name: toExpense.idea.title.slice(0, MAX_EXPENSE_NAME) }}
+          withDate
+          docCurrency={state.doc.currency}
+          rates={state.doc.rates}
+          onCancel={() => setToExpense(null)}
+          onSave={(d) => {
+            dispatch(A.saveOneTime({ id: A.newExpenseId(), name: d.name, amount: d.amount, currency: d.currency, date: d.date }))
+            dispatch(A.saveIdea({ ...toExpense.idea, done: true }))
+            setToExpense(null)
+            toast(`«${toExpense.idea.title}» — расход запланирован`)
           }}
         />
       )}

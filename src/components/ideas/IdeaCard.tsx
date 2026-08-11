@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { btnCancelSm, btnDeleteConfirm, btnDeleteLink, C, chipDot, plainCard } from '../../theme'
+import { btnCancelSm, btnDeleteConfirm, btnDeleteLink, btnEdit, C, chipDot, plainCard } from '../../theme'
 import { Lightbox } from './Lightbox'
 import type { Idea } from '../../types'
 
@@ -9,6 +9,7 @@ interface Props {
   onToggleDone: () => void
   onEdit: () => void
   onToBook: () => void
+  onToExpense: () => void
   onAskDelete: () => void
   onCancelDelete: () => void
   onDelete: () => void
@@ -31,6 +32,7 @@ export function IdeaCard({
   onToggleDone,
   onEdit,
   onToBook,
+  onToExpense,
   onAskDelete,
   onCancelDelete,
   onDelete,
@@ -169,27 +171,17 @@ export function IdeaCard({
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 9, marginTop: 11, alignItems: 'center' }}>
-        <button
-          className="h-edit"
-          onClick={onEdit}
-          aria-label="Изменить идею"
-          style={{
-            fontFamily: 'inherit',
-            fontSize: 13,
-            color: C.muted,
-            background: 'none',
-            border: '1px solid rgba(148,163,184,.3)',
-            borderRadius: 9,
-            padding: '7px 10px',
-            cursor: 'pointer',
-          }}
-        >
+      <div style={{ display: 'flex', gap: 9, marginTop: 11, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="h-edit" onClick={onEdit} aria-label="Изменить идею" style={btnEdit}>
           ✎
         </button>
-        {/* книга — не идея: у неё есть позиция и срок, им место в «Библиотеке» */}
+        {/* книга — не идея: у неё есть позиция и срок, им место во вкладке «Книги» */}
         <button className="h-ghost-bright" style={btnCancelSm} onClick={onToBook}>
           В книги
+        </button>
+        {/* покупка — не идея: у неё есть цена и срок, им место в «Финансах» */}
+        <button className="h-ghost-bright" style={btnCancelSm} onClick={onToExpense}>
+          В расходы
         </button>
         <div style={{ flex: 1 }} />
         {confirmingDelete ? (
