@@ -4,6 +4,7 @@ import { slipsInDays } from '../../logic/habits'
 import { fmtD, plural } from '../../logic/time'
 import { useNow } from '../../state/NowProvider'
 import { btnCancelSm, btnDeleteConfirm, C, input, MONO, plainCard } from '../../theme'
+import { RichText } from '../RichText'
 import type { Habit } from '../../types'
 
 interface Props {
@@ -57,6 +58,12 @@ export function QuitHabitCard({ habit, days, best, confirming, onAsk, onCancel, 
       <div style={{ fontSize: 14.5, fontWeight: 600, color: '#e9f1ff', overflowWrap: 'anywhere', paddingRight: 30 }}>
         {habit.name}
       </div>
+
+      {habit.note && (
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
+          <RichText text={habit.note} color={c} />
+        </div>
+      )}
 
       {/* счётчик — главный элемент карточки: он и держит */}
       <div

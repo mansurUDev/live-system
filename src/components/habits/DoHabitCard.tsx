@@ -1,5 +1,6 @@
 import { plural } from '../../logic/time'
 import { C, MONO, plainCard } from '../../theme'
+import { RichText } from '../RichText'
 import type { Habit } from '../../types'
 
 interface Props {
@@ -62,6 +63,11 @@ export function DoHabitCard({ habit, done, streak, best, days, flash, onToggle, 
           <div style={{ fontSize: 12.5, color: C.faint, marginTop: 2 }}>
             рекорд {best} {plural(best, 'день', 'дня', 'дней')}
           </div>
+          {habit.note && (
+            <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
+              <RichText text={habit.note} color={c} />
+            </div>
+          )}
         </div>
 
         <div style={{ textAlign: 'center', flex: 'none' }}>

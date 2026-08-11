@@ -48,6 +48,7 @@ describe('reconcile', () => {
           slips: [],
           riskHour: null,
           logs: {},
+          note: '',
           createdAt: new Date(NOW).toISOString(),
         },
       ],

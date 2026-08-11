@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal } from './Modal'
-import { MAX_HABIT_NAME, PAL } from '../../constants'
+import { MAX_HABIT_NAME, MAX_HABIT_NOTE, PAL } from '../../constants'
+import { hasLink } from '../../logic/richText'
 import { A } from '../../state/actions'
 import {
   btnAccent,
@@ -40,6 +41,7 @@ export function HabitModal({ habit, usedColors, onCancel, onSave, onDelete }: Pr
   const [name, setName] = useState(habit?.name ?? '')
   const [color, setColor] = useState(habit?.color ?? PAL.find((c) => !usedColors.includes(c)) ?? PAL[1])
   const [riskHour, setRiskHour] = useState<number | null>(habit?.riskHour ?? null)
+  const [note, setNote] = useState(habit?.note ?? '')
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -50,7 +52,13 @@ export function HabitModal({ habit, usedColors, onCancel, onSave, onDelete }: Pr
     // тип у заведённой привычки не меняем: у «делаю» и «держусь без» разные
     // счётчики, и подмена обнулила бы накопленное
     const base = habit ?? A.newHabit(type, trimmed.slice(0, MAX_HABIT_NAME), color)
-    onSave({ ...base, name: trimmed.slice(0, MAX_HABIT_NAME), color, riskHour })
+    onSave({
+      ...base,
+      name: trimmed.slice(0, MAX_HABIT_NAME),
+      color,
+      riskHour,
+      note: note.trim().slice(0, MAX_HABIT_NOTE),
+    })
   }
 
   return (
@@ -158,6 +166,29 @@ export function HabitModal({ habit, usedColors, onCancel, onSave, onDelete }: Pr
           </div>
         </div>
       )}
+
+      <div style={{ marginTop: 13 }}>
+        <div style={fieldLabel}>
+          Заметка <span style={{ color: C.faint }}>— необязательно</span>
+        </div>
+        <textarea
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          rows={2}
+          maxLength={MAX_HABIT_NOTE}
+          placeholder="[Видео урок](https://youtu.be/…)"
+          style={{ ...input, resize: 'vertical' }}
+        />
+        <div style={{ fontSize: 12, color: C.faint, marginTop: 5, lineHeight: 1.45 }}>
+          Ссылка пишется как в телеграме: <span style={{ color: C.textSoft }}>[подпись](адрес)</span> — в карточке
+          останется только подпись, и она будет кликабельной. Обычный адрес в тексте тоже станет ссылкой.
+        </div>
+        {note.trim() && !hasLink(note) && note.includes('](') && (
+          <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 5, lineHeight: 1.45 }}>
+            Похоже на ссылку, но адрес не начинается с http:// или https:// — так она останется обычным текстом.
+          </div>
+        )}
+      </div>
 
       {error && <div style={errText}>{error}</div>}
     </Modal>

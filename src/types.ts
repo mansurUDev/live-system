@@ -138,6 +138,8 @@ export interface Habit {
   riskHour: number | null
   /** log: отметка по дням — минуты от полуночи (время отбоя и т.п.), ключ YYYY-MM-DD */
   logs: Record<string, number>
+  /** заметка со ссылками в разметке телеграма: `[подпись](адрес)`; пусто — нет */
+  note: string
   createdAt: string
 }
 
@@ -314,7 +316,7 @@ export interface Idea {
 }
 
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 11
+export const DOC_VERSION = 12
 
 export interface Doc {
   v: number

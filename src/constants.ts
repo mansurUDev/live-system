@@ -49,6 +49,8 @@ export const MAX_UNIT = 14
 
 export const MAX_HABITS = 30
 export const MAX_HABIT_NAME = 50
+/** заметка со ссылкой длиннее названия: один адрес уже съедает полсотни символов */
+export const MAX_HABIT_NOTE = 300
 /** сколько отметок хранит привычка — с запасом больше года */
 export const MAX_HABIT_DAYS = 500
 /** журнал срывов: хватает увидеть закономерность, не превращаясь в архив */

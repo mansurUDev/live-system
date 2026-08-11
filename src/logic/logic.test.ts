@@ -13,6 +13,7 @@ import { withTodaySnapshot } from './snapshot'
 import { donutSlice, fillRadius, labelPosition, sectorAngles, wedgePath, WHEEL } from './wheel'
 import { addDays, fmtHm, hhmm, localDateKey, periodRange, startOfDay, weekdayIndex } from './time'
 import { AWAKE_STALE_MS, awakeState, bedOptions, nextClockTime, wakeOptions } from './sleep'
+import { hasLink, parseRichText } from './richText'
 import { DAY_MS, HOT_MAX, MAX_ACTS } from '../constants'
 import type { Activity, Sector, TimeEntry } from '../types'
 
@@ -942,5 +943,77 @@ describe('сон — циклы и время на ногах', () => {
   it('давняя запись сна помечается как несвежая', () => {
     const s = awakeState([entry('e1', 'sleep1', '2026-03-10T23:00:00', '2026-03-11T06:00:00')], ACTS, NOW)
     expect(s.kind === 'awake' && s.ms > AWAKE_STALE_MS).toBe(true)
+  })
+})
+
+describe('текст со ссылками — разметка телеграма', () => {
+  const YT = 'https://www.youtube.com/watch?v=87-nZrkEqfM'
+
+  it('[подпись](адрес) превращается в ссылку с подписью', () => {
+    expect(parseRichText(`[Видео урок](${YT})`)).toEqual([{ kind: 'link', label: 'Видео урок', url: YT }])
+  })
+
+  it('текст вокруг ссылки сохраняется', () => {
+    const parts = parseRichText(`Смотреть [урок](${YT}) перед сном`)
+    expect(parts).toEqual([
+      { kind: 'text', text: 'Смотреть ' },
+      { kind: 'link', label: 'урок', url: YT },
+      { kind: 'text', text: ' перед сном' },
+    ])
+  })
+
+  it('несколько ссылок в одной заметке', () => {
+    const parts = parseRichText(`[раз](https://a.ru) и [два](https://b.ru)`)
+    expect(parts.filter((p) => p.kind === 'link')).toHaveLength(2)
+  })
+
+  it('javascript: ссылкой не становится и остаётся текстом', () => {
+    // иначе чужой импорт мог бы подсунуть скрипт в href
+    const parts = parseRichText('[жми](javascript:alert(1))')
+    expect(parts.every((p) => p.kind === 'text')).toBe(true)
+    expect(parts.map((p) => (p.kind === 'text' ? p.text : '')).join('')).toBe('[жми](javascript:alert(1))')
+  })
+
+  it('адрес без схемы ссылкой не становится', () => {
+    const parts = parseRichText('[тут](youtube.com/watch?v=1)')
+    expect(parts.every((p) => p.kind === 'text')).toBe(true)
+  })
+
+  it('голый адрес в тексте тоже становится ссылкой', () => {
+    const parts = parseRichText(`смотри ${YT} потом`)
+    expect(parts[1]).toEqual({ kind: 'link', label: YT, url: YT })
+  })
+
+  it('точка и запятая после голого адреса остаются текстом', () => {
+    const parts = parseRichText('открой https://a.ru, потом https://b.ru.')
+    const links = parts.filter((p) => p.kind === 'link')
+    expect(links).toEqual([
+      { kind: 'link', label: 'https://a.ru', url: 'https://a.ru' },
+      { kind: 'link', label: 'https://b.ru', url: 'https://b.ru' },
+    ])
+    expect(parts.map((p) => (p.kind === 'text' ? p.text : p.label)).join('')).toBe(
+      'открой https://a.ru, потом https://b.ru.',
+    )
+  })
+
+  it('пустая подпись заменяется адресом — невидимая ссылка бесполезна', () => {
+    expect(parseRichText(`[](${YT})`)).toEqual([{ kind: 'link', label: YT, url: YT }])
+  })
+
+  it('текст без ссылок отдаётся одним куском', () => {
+    expect(parseRichText('просто заметка')).toEqual([{ kind: 'text', text: 'просто заметка' }])
+    expect(parseRichText('')).toEqual([])
+  })
+
+  it('hasLink отличает настоящую ссылку от похожей на неё записи', () => {
+    expect(hasLink(`[урок](${YT})`)).toBe(true)
+    expect(hasLink('[урок](youtube.com/x)')).toBe(false)
+    expect(hasLink('просто текст')).toBe(false)
+  })
+
+  it('разбор не портит скобки, не являющиеся ссылкой', () => {
+    expect(parseRichText('привычка (важная) на утро')).toEqual([
+      { kind: 'text', text: 'привычка (важная) на утро' },
+    ])
   })
 })

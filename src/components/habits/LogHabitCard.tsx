@@ -3,6 +3,7 @@ import { avgLog, fmtClockMin, parseClock, recentLogs } from '../../logic/habits'
 import { localDateKey } from '../../logic/time'
 import { useNow } from '../../state/NowProvider'
 import { btnGhostSm, C, input, MONO, plainCard } from '../../theme'
+import { RichText } from '../RichText'
 import type { Habit } from '../../types'
 
 interface Props {
@@ -63,6 +64,12 @@ export function LogHabitCard({ habit, onLog, onEdit }: Props) {
       <div style={{ fontSize: 14.5, fontWeight: 600, color: '#e9f1ff', overflowWrap: 'anywhere', paddingRight: 30 }}>
         {habit.name}
       </div>
+
+      {habit.note && (
+        <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
+          <RichText text={habit.note} color={c} />
+        </div>
+      )}
 
       <div style={{ display: 'flex', alignItems: 'baseline', gap: 14, marginTop: 8, flexWrap: 'wrap' }}>
         <div>

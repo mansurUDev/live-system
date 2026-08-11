@@ -140,6 +140,7 @@ export const A = {
     best: 0,
     slips: [],
     riskHour: null,
+    note: '',
     logs: {},
     createdAt: new Date().toISOString(),
   }),

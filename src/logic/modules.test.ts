@@ -57,6 +57,7 @@ function habit(patch: Partial<Habit> = {}): Habit {
     slips: [],
     riskHour: null,
     logs: {},
+    note: '',
     createdAt: new Date(NOW).toISOString(),
     ...patch,
   }

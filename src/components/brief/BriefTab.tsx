@@ -11,6 +11,7 @@ import { useNow } from '../../state/NowProvider'
 import { A } from '../../state/actions'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { C, MONO, plainCard } from '../../theme'
+import { RichText } from '../RichText'
 import { SleepCard } from './SleepCard'
 import type { Tab } from '../../types'
 
@@ -226,6 +227,12 @@ export function BriefTab({ onGo }: { onGo: (tab: Tab) => void }) {
                     <div style={{ fontSize: 12, color: C.faint }}>
                       рекорд {best} {plural(best, 'день', 'дня', 'дней')}
                     </div>
+                    {/* ссылка на урок нужна там, где привычку отмечают, — то есть здесь */}
+                    {h.note && (
+                      <div style={{ fontSize: 12.5, color: C.muted, marginTop: 3, lineHeight: 1.4, overflowWrap: 'anywhere' }}>
+                        <RichText text={h.note} color={h.color} />
+                      </div>
+                    )}
                   </div>
                   <div style={{ fontFamily: MONO, fontSize: 15, color: h.color, flex: 'none' }}>
                     {s > 0 ? '🔥 ' + s : '—'}

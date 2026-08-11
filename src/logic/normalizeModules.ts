@@ -9,6 +9,7 @@ import {
   MAX_EXPENSE_NAME,
   MAX_HABIT_DAYS,
   MAX_HABIT_NAME,
+  MAX_HABIT_NOTE,
   MAX_HABITS,
   MAX_IDEA_CATEGORY,
   MAX_IDEA_IMAGES,
@@ -166,6 +167,7 @@ export function normHabits(x: unknown, nowIso: string): Habit[] {
       slips: normSlips(h.slips),
       riskHour: Number.isInteger(riskHour) && riskHour >= 0 && riskHour <= 23 ? riskHour : null,
       logs: normLogs(h.logs),
+      note: str(h.note, MAX_HABIT_NOTE),
       createdAt: iso(h.createdAt, nowIso),
     }
   })
