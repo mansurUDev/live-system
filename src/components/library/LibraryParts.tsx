@@ -3,7 +3,7 @@ import { fmtD } from '../../logic/time'
 import { btnAccent, btnGhostSm, C, chipSquare, input, MONO, plainCard } from '../../theme'
 import type { LibDone, LibNote } from '../../types'
 
-/** Заголовок полки с кнопкой добавления — общий для «Библиотеки» и «Смотреть» */
+/** Заголовок полки с кнопкой добавления — общий для «Книг», «Учёбы» и «Смотреть» */
 export function Shelf({ title, subtitle, onAdd }: { title: string; subtitle: string; onAdd: () => void }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
@@ -32,8 +32,8 @@ const DONE_LABELS: Record<LibDone['kind'], string> = {
 
 /**
  * Полка завершённого. Записи всех видов лежат в одном списке `lib.done`, но
- * вкладки показывают только свои: книги с курсами — в «Библиотеке», видео с
- * фильмами — в «Смотреть».
+ * каждая вкладка показывает только своё: книги — в «Книгах», курсы и видео —
+ * в «Учёбе», фильмы и сериалы — в «Смотреть».
  */
 export function DoneShelf({ items, title, now }: { items: LibDone[]; title: string; now: number }) {
   if (!items.length) return null

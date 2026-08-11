@@ -17,7 +17,7 @@ const BAR_ITEMS: { key: Tab; label: string; icon: ReactNode }[] = [
 const BAR_TABS: Tab[] = BAR_ITEMS.map((i) => i.key)
 
 /** Вкладки, спрятанные под бургером, — ровно те, что не влезли в панель */
-export const MORE_TABS: Tab[] = ['wheel', 'lib', 'watch', 'ideas', 'an', 'arch']
+export const MORE_TABS: Tab[] = ['wheel', 'books', 'lib', 'watch', 'ideas', 'an', 'arch']
 
 /** Подписи для бургер-меню; в панели у кнопок свои, покороче */
 export const TAB_LABELS: Record<Tab, string> = {
@@ -26,7 +26,8 @@ export const TAB_LABELS: Record<Tab, string> = {
   track: 'Трекер времени',
   habits: 'Привычки',
   fin: 'Финансы',
-  lib: 'Библиотека',
+  books: 'Книги',
+  lib: 'Учёба',
   watch: 'Смотреть',
   ideas: 'Идеи',
   an: 'Аналитика',

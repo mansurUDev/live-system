@@ -1,7 +1,18 @@
 export type Category = 'work' | 'health' | 'rest' | 'byt' | 'sleep'
 export type SectorKind = 'sphere' | 'number' | 'steps'
 export type Period = 'day' | 'week' | 'month'
-export type Tab = 'brief' | 'wheel' | 'track' | 'habits' | 'fin' | 'lib' | 'watch' | 'an' | 'arch' | 'ideas'
+export type Tab =
+  | 'brief'
+  | 'wheel'
+  | 'track'
+  | 'habits'
+  | 'fin'
+  | 'books'
+  | 'lib'
+  | 'watch'
+  | 'an'
+  | 'arch'
+  | 'ideas'
 
 export interface HistoryRec {
   id: string
