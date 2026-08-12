@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { pull, push } from './cloud'
 import { loadCloudVersion, saveCloudVersion } from './storage'
-import { reconcile } from './syncReconcile'
+import { reconcile, resolvePushConflict, shouldPullOnResume } from './syncReconcile'
 import type { Action } from './reducer'
 import type { Doc } from '../types'
 
@@ -34,10 +34,12 @@ function keepaliveFlush(code: string, doc: Doc, version: number): void {
  *
  * Если облако не настроено или недоступно, всё продолжает работать локально.
  *
- * `dirty` — ref от вызывающего кода: true, если пользователь что-то поправил
- * в этой сессии (см. AUTO_ACTIONS в reducer.ts). Нужен, чтобы pull, летящий в
- * фоне при каждой загрузке, не затирал правку, случившуюся уже после того
- * момента, на который отвечает облако.
+ * `dirty` — ref от вызывающего кода: есть ли правки человека, которых ещё нет в
+ * облаке (см. AUTO_ACTIONS в reducer.ts). Нужен, чтобы pull, летящий в фоне при
+ * каждой загрузке, не затирал правку, случившуюся уже после того момента, на
+ * который отвечает облако. Флаг снимается после удачной отправки: с этого
+ * момента спорить не о чем, и в конфликте устройство уступает облаку — иначе
+ * вкладка, провисевшая ночь в спящем ноутбуке, стирала бы чужой день.
  */
 export function useCloudSync(
   code: string,
@@ -66,12 +68,16 @@ export function useCloudSync(
       let payload = initialPayload
 
       // максимум одна повторная попытка после конфликта: пуш → конфликт →
-      // подтянуть версию (не документ) → пуш ещё раз тем, что актуально сейчас
+      // забрать чужое → либо принять его, либо дослать своё, если оно есть
       for (let attempt = 0; attempt < 2; attempt++) {
         const res = await push(code, payload, version.current)
         if (res.ok) {
           version.current = res.version
           saveCloudVersion(code, res.version)
+          // всё, что человек успел поправить, теперь в облаке — устройство
+          // больше не «активнее» остальных и в следующем споре уступит. Если за
+          // время запроса появилась ещё правка, документ уже другой и флаг стоит
+          if (latest.current === payload) dirty.current = false
           setStatus('idle')
           return
         }
@@ -81,7 +87,20 @@ export function useCloudSync(
         }
         if (attempt === 0) {
           const fresh = await pull(code)
-          if (fresh.ok) version.current = fresh.version
+          if (!fresh.ok) {
+            setStatus(fresh.denied ? 'denied' : 'off')
+            return
+          }
+          version.current = fresh.version
+          // Своих неотправленных правок нет — значит это устройство просто
+          // отстало (вкладка провисела в спящем ноутбуке). Дослать свою память
+          // означало бы стереть чужой день, поэтому принимаем облако.
+          if (resolvePushConflict(dirty.current) === 'take-cloud' && fresh.doc) {
+            saveCloudVersion(code, fresh.version)
+            dispatch({ type: 'replaceDoc', doc: fresh.doc, now: Date.now() })
+            setStatus('idle')
+            return
+          }
           // за время pull могла случиться ещё одна правка — берём самую свежую
           payload = latest.current
           continue
@@ -100,7 +119,7 @@ export function useCloudSync(
       }
       setStatus('idle')
     },
-    [code, dispatch],
+    [code, dispatch, dirty],
   )
 
   const sendNow = useCallback(
@@ -186,6 +205,9 @@ export function useCloudSync(
 
   // Уход со страницы (смена вкладки, закрытие) не должен ждать дебаунс —
   // иначе правка в последнюю секунду перед закрытием просто не уедет.
+  // Возврат на вкладку, наоборот, перечитывает облако: вкладку могут не
+  // закрывать сутками, и без этого ноутбук показывал бы вчерашний день, пока с
+  // телефона уже отметили ночь.
   useEffect(() => {
     const flush = () => {
       if (!timer.current || !enabled.current) return
@@ -193,16 +215,36 @@ export function useCloudSync(
       timer.current = null
       keepaliveFlush(code, latest.current, version.current)
     }
+
+    const resume = async () => {
+      if (!shouldPullOnResume({ enabled: enabled.current, busy: !!timer.current || sending.current, hasUnsentEdits: dirty.current })) {
+        return
+      }
+      const res = await pull(code)
+      // строго новее того, что мы сами писали или читали, — значит правил кто-то другой
+      if (!res.ok || !res.doc || res.version <= version.current) return
+      version.current = res.version
+      saveCloudVersion(code, res.version)
+      dispatch({ type: 'replaceDoc', doc: res.doc, now: Date.now() })
+    }
+
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') flush()
+      else void resume()
     }
+    // focus нужен вдобавок к visibilitychange: у macOS переключение между окнами
+    // не всегда меняет видимость вкладки, а вернуться к ней хочется со свежими данными
+    const onFocus = () => void resume()
+
     window.addEventListener('pagehide', flush)
+    window.addEventListener('focus', onFocus)
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
       window.removeEventListener('pagehide', flush)
+      window.removeEventListener('focus', onFocus)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [code])
+  }, [code, dispatch, dirty])
 
   return status
 }

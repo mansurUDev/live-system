@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defaultDoc } from '../logic/defaults'
-import { reconcile } from './syncReconcile'
+import { reconcile, resolvePushConflict, shouldPullOnResume } from './syncReconcile'
 
 const NOW = new Date('2026-03-15T14:00:00').getTime()
 
@@ -72,5 +72,72 @@ describe('reconcile', () => {
     const cloud = JSON.parse(JSON.stringify(local))
     const decision = reconcile({ doc: cloud, version: 5 }, 5, local, false)
     expect(decision).toEqual({ kind: 'keep-local', version: 5, push: false })
+  })
+})
+
+describe('конфликт отправки: кто уступает', () => {
+  it('без неотправленных правок устройство принимает облако', () => {
+    // вкладка провисела ночь в спящем ноутбуке, пока с телефона отмечали сон
+    expect(resolvePushConflict(false)).toBe('take-cloud')
+  })
+
+  it('с неотправленными правками устройство досылает своё', () => {
+    expect(resolvePushConflict(true)).toBe('retry-local')
+  })
+})
+
+describe('возврат на вкладку', () => {
+  const base = { enabled: true, busy: false, hasUnsentEdits: false }
+
+  it('спокойная вкладка перечитывает облако', () => {
+    expect(shouldPullOnResume(base)).toBe(true)
+  })
+
+  it('пока своё не отправлено, чужое не читаем', () => {
+    // иначе правка, не успевшая уехать, была бы затёрта чужой версией
+    expect(shouldPullOnResume({ ...base, busy: true })).toBe(false)
+    expect(shouldPullOnResume({ ...base, hasUnsentEdits: true })).toBe(false)
+  })
+
+  it('без облака читать нечего', () => {
+    expect(shouldPullOnResume({ ...base, enabled: false })).toBe(false)
+  })
+})
+
+describe('ночь на телефоне, утро на ноутбуке', () => {
+  it('отставшая вкладка забирает чужой день, а не навязывает свою память', () => {
+    // ноутбук уснул на версии 7 — в его памяти всё ещё вчерашний «Дом и быт»
+    const stale = { ...defaultDoc(NOW), entries: [{ id: 'e1', actId: 'a-home', start: '2026-03-14T18:00:00.000Z', end: null }] }
+    // за ночь с телефона уехали сон и утренняя гигиена — облако на версии 9
+    const cloud = {
+      ...defaultDoc(NOW),
+      entries: [
+        { id: 'e1', actId: 'a-home', start: '2026-03-14T18:00:00.000Z', end: '2026-03-14T20:20:00.000Z' },
+        { id: 'e2', actId: 'a-sleep', start: '2026-03-14T20:20:00.000Z', end: '2026-03-15T04:34:00.000Z' },
+        { id: 'e3', actId: 'a-care', start: '2026-03-15T04:34:00.000Z', end: null },
+      ],
+    }
+
+    // ноутбук ничего не правил после своей последней удачной отправки
+    const hasUnsentEdits = false
+    expect(resolvePushConflict(hasUnsentEdits)).toBe('take-cloud')
+
+    // и при обычной сверке он тоже принимает облако, а не спорит
+    expect(reconcile({ doc: cloud, version: 9 }, 7, stale, hasUnsentEdits)).toEqual({
+      kind: 'apply-cloud',
+      version: 9,
+    })
+  })
+
+  it('но правка, сделанная на ноутбуке и не уехавшая, не теряется', () => {
+    const local = defaultDoc(NOW)
+    const cloud = { ...defaultDoc(NOW), habits: [] }
+    // dirty=true — человек отметил что-то, пока pull летел
+    expect(reconcile({ doc: cloud, version: 9 }, 7, local, true)).toEqual({
+      kind: 'keep-local',
+      version: 9,
+      push: true,
+    })
+    expect(resolvePushConflict(true)).toBe('retry-local')
   })
 })

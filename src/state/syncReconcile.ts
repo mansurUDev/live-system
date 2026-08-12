@@ -47,3 +47,34 @@ export function reconcile(
   const same = JSON.stringify(pulled.doc) === JSON.stringify(localDoc)
   return { kind: 'keep-local', version: pulled.version, push: !same }
 }
+
+/**
+ * Что делать, когда сервер отклонил отправку: за время простоя документ в
+ * облаке ушёл вперёд.
+ *
+ * Спорить имеет смысл только тому, у кого есть неотправленные правки. Устройство
+ * без них просто отстало — вкладка провисела ночь в спящем макбуке, пока с
+ * телефона отмечали сон, — и повторная отправка его памяти стёрла бы чужую
+ * ночь. Раньше конфликт всегда решался в пользу локального документа: забирался
+ * только номер версии, а тело оставалось своим, и вторая попытка проходила.
+ */
+export function resolvePushConflict(hasUnsentEdits: boolean): 'retry-local' | 'take-cloud' {
+  return hasUnsentEdits ? 'retry-local' : 'take-cloud'
+}
+
+/**
+ * Стоит ли перечитать облако при возврате на вкладку.
+ *
+ * Pull делается при загрузке страницы, но вкладку могут не закрывать сутками:
+ * без этой проверки макбук показывал бы вчерашнее состояние до перезагрузки.
+ * Пока своё не отправлено, читать чужое рано — сперва уедет наша правка и сама
+ * разберётся с конфликтом.
+ */
+export function shouldPullOnResume(opts: {
+  enabled: boolean
+  /** отправка запланирована или уже летит */
+  busy: boolean
+  hasUnsentEdits: boolean
+}): boolean {
+  return opts.enabled && !opts.busy && !opts.hasUnsentEdits
+}
