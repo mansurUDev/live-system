@@ -19,6 +19,7 @@ import { financeCalc, goalHistory, goalProgress, rollMonth, type Conv } from './
 import { bookProgress, courseProgress, fmtAudio, parseAudio, readingPlan } from './library'
 import { nextSteps, pickPriority } from './briefing'
 import { convert, money } from './currency'
+import { agenda } from './agenda'
 import { normalize } from './normalize'
 import { emptyFinance, emptyLibrary, normHabits } from './normalizeModules'
 import { defaultDoc } from './defaults'
@@ -1056,5 +1057,75 @@ describe('полка «Смотреть»', () => {
       NOW,
     )
     expect(d.lib.done[0]!.kind).toBe('show')
+  })
+})
+
+describe('сводка на 30 дней', () => {
+  const doc = (patch: Partial<Doc> = {}): Doc => ({ ...defaultDoc(NOW), ...patch })
+
+  it('расход со сроком попадает в сводку с числом дней', () => {
+    const items = agenda(doc({ fin: fin({ oneTime: [{ id: 'o1', name: 'Микрозайм', amount: 2625000, currency: 'UZS', date: '2026-03-18' }] }) }), NOW)
+    expect(items).toHaveLength(1)
+    expect(items[0]!.title).toBe('Микрозайм')
+    expect(items[0]!.days).toBe(3)
+    expect(items[0]!.sub).toBe(money(2625000, 'UZS'))
+  })
+
+  it('просроченное показывается первым, а не выбрасывается', () => {
+    const items = agenda(
+      doc({
+        fin: fin({
+          oneTime: [
+            { id: 'o1', name: 'Позже', amount: 10, currency: 'UZS', date: '2026-03-20' },
+            { id: 'o2', name: 'Просрочен', amount: 10, currency: 'UZS', date: '2026-03-10' },
+          ],
+        }),
+      }),
+      NOW,
+    )
+    expect(items.map((i) => i.title)).toEqual(['Просрочен', 'Позже'])
+    expect(items[0]!.days).toBe(-5)
+  })
+
+  it('за горизонтом в 30 дней ничего не показываем', () => {
+    const items = agenda(doc({ fin: fin({ oneTime: [{ id: 'o1', name: 'Далеко', amount: 10, currency: 'UZS', date: '2026-09-27' }] }) }), NOW)
+    expect(items).toHaveLength(0)
+  })
+
+  it('расход без даты в сводку не попадает — у него нет срока', () => {
+    const items = agenda(doc({ fin: fin({ oneTime: [{ id: 'o1', name: 'Когда-нибудь', amount: 10, currency: 'UZS', date: '' }] }) }), NOW)
+    expect(items).toHaveLength(0)
+  })
+
+  it('книга со сроком «дочитать к» попадает вместе с дневной нормой', () => {
+    const books = [{ ...defaultDoc(NOW).lib.books[0]! }]
+    const d = doc()
+    d.lib = { ...d.lib, books: [{
+      id: 'b1', title: 'Атомные привычки', author: '', color: '#2dd4bf',
+      pageCur: 100, pageTotal: 300, audioCur: 0, audioTotal: 0, audioLink: '',
+      excerpt: '', targetDate: '2026-03-25', notes: [], startedAt: new Date(NOW).toISOString(),
+    }] }
+    void books
+    const items = agenda(d, NOW)
+    expect(items).toHaveLength(1)
+    expect(items[0]!.title).toBe('Атомные привычки')
+    expect(items[0]!.sub).toContain('осталось 200')
+  })
+
+  it('всё сортируется по дате, независимо от вида', () => {
+    const d = doc({
+      fin: fin({ oneTime: [{ id: 'o1', name: 'Расход', amount: 10, currency: 'UZS', date: '2026-03-22' }] }),
+      reminders: [{ id: 'r1', name: 'Профиль', intervalDays: 30, lastDone: '2026-03-14T00:00:00.000Z', createdAt: '2026-03-14T00:00:00.000Z' }],
+    })
+    d.lib = { ...d.lib, books: [{
+      id: 'b1', title: 'Книга', author: '', color: '#2dd4bf',
+      pageCur: 0, pageTotal: 100, audioCur: 0, audioTotal: 0, audioLink: '',
+      excerpt: '', targetDate: '2026-03-17', notes: [], startedAt: new Date(NOW).toISOString(),
+    }] }
+    const items = agenda(d, NOW)
+    // книга 17-го, расход 22-го, напоминание — через 29 дней от последней отметки
+    expect(items.map((i) => i.title)).toEqual(['Книга', 'Расход', 'Профиль'])
+    expect(items.map((i) => i.days)).toEqual([2, 7, 29])
+    expect(items.every((i) => i.days <= 30)).toBe(true)
   })
 })

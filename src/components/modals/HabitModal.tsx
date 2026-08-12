@@ -180,8 +180,8 @@ export function HabitModal({ habit, usedColors, onCancel, onSave, onDelete }: Pr
           style={{ ...input, resize: 'vertical' }}
         />
         <div style={{ fontSize: 12, color: C.faint, marginTop: 5, lineHeight: 1.45 }}>
-          Ссылка пишется как в телеграме: <span style={{ color: C.textSoft }}>[подпись](адрес)</span> — в карточке
-          останется только подпись, и она будет кликабельной. Обычный адрес в тексте тоже станет ссылкой.
+          Ссылка пишется как в телеграме: <span style={{ color: C.textSoft }}>[Ссылка](https://…)</span> — в карточке
+          видно только слово «Ссылка», а нажатие на него копирует адрес в буфер. Сам адрес нигде не мозолит глаза.
         </div>
         {note.trim() && !hasLink(note) && note.includes('](') && (
           <div style={{ fontSize: 12, color: '#fbbf24', marginTop: 5, lineHeight: 1.45 }}>

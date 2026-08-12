@@ -12,6 +12,18 @@ export type TextPart =
  */
 const PART_SOURCE = String.raw`\[([^\]\n]*)\]\(([^)\s]+)\)|(https?:\/\/[^\s<>]+)`
 
+/**
+ * Короткая подпись для голого адреса: домен вместо полного URL. Длинный адрес
+ * посреди заметки читать мешает, а сам адрес всё равно доступен по нажатию.
+ */
+function shortLabel(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '')
+  } catch {
+    return url
+  }
+}
+
 /** Знаки, прилипшие к концу голого адреса: «смотри https://x.ru, потом» */
 const TRAILING = /[.,;:!?)\]»"'’]+$/
 
@@ -53,7 +65,7 @@ export function parseRichText(text: string): TextPart[] {
       const url = trail ? bare.slice(0, bare.length - trail[0].length) : bare
       if (!url || !isHttpUrl(url)) continue
       pushText(text.slice(last, m.index))
-      out.push({ kind: 'link', label: url, url })
+      out.push({ kind: 'link', label: shortLabel(url), url })
       // хвостовая пунктуация остаётся текстом — её подберёт следующий кусок
       last = m.index + url.length
     }

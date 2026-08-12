@@ -979,25 +979,33 @@ describe('текст со ссылками — разметка телеграм
     expect(parts.every((p) => p.kind === 'text')).toBe(true)
   })
 
-  it('голый адрес в тексте тоже становится ссылкой', () => {
+  it('голый адрес становится ссылкой с коротким доменом вместо простыни', () => {
     const parts = parseRichText(`смотри ${YT} потом`)
-    expect(parts[1]).toEqual({ kind: 'link', label: YT, url: YT })
+    expect(parts[1]).toEqual({ kind: 'link', label: 'youtube.com', url: YT })
   })
 
   it('точка и запятая после голого адреса остаются текстом', () => {
     const parts = parseRichText('открой https://a.ru, потом https://b.ru.')
     const links = parts.filter((p) => p.kind === 'link')
     expect(links).toEqual([
-      { kind: 'link', label: 'https://a.ru', url: 'https://a.ru' },
-      { kind: 'link', label: 'https://b.ru', url: 'https://b.ru' },
+      { kind: 'link', label: 'a.ru', url: 'https://a.ru' },
+      { kind: 'link', label: 'b.ru', url: 'https://b.ru' },
     ])
-    expect(parts.map((p) => (p.kind === 'text' ? p.text : p.label)).join('')).toBe(
+    // хвостовая пунктуация осталась текстом, а не уехала в адрес
+    expect(parts.map((p) => (p.kind === 'text' ? p.text : p.url)).join('')).toBe(
       'открой https://a.ru, потом https://b.ru.',
     )
   })
 
   it('пустая подпись заменяется адресом — невидимая ссылка бесполезна', () => {
     expect(parseRichText(`[](${YT})`)).toEqual([{ kind: 'link', label: YT, url: YT }])
+  })
+
+  it('подпись из разметки показывается вместо адреса, адрес остаётся спрятан', () => {
+    const parts = parseRichText(`[Ссылка](${YT})`)
+    expect(parts).toEqual([{ kind: 'link', label: 'Ссылка', url: YT }])
+    // в видимом тексте адреса нет
+    expect(parts.map((p) => (p.kind === 'text' ? p.text : p.label)).join('')).toBe('Ссылка')
   })
 
   it('текст без ссылок отдаётся одним куском', () => {

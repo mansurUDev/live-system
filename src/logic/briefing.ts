@@ -126,9 +126,18 @@ function calmPriority(doc: Doc, fc: FinanceCalc): Priority {
   }
 }
 
-/** Привычки, которые показываются прямо в брифинге */
-export function todayHabits(doc: Doc, limit = 5): Habit[] {
-  return doc.habits.filter((h) => h.type === 'do').slice(0, limit)
+/**
+ * Привычки, которые показываются прямо в брифинге.
+ *
+ * Неотмеченные идут первыми: именно они требуют действия, а отмеченные лишь
+ * подтверждают уже сделанное. Без этого шестая по списку привычка не попадала
+ * на главный экран вовсе, даже если была единственной несделанной.
+ */
+export function todayHabits(doc: Doc, limit = 8, now: number = Date.now()): Habit[] {
+  const dos = doc.habits.filter((h) => h.type === 'do')
+  const undone = dos.filter((h) => !isDoneToday(h, now))
+  const done = dos.filter((h) => isDoneToday(h, now))
+  return [...undone, ...done].slice(0, limit)
 }
 
 /**

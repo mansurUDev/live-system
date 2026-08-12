@@ -12,6 +12,7 @@ import { A } from '../../state/actions'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { C, MONO, plainCard } from '../../theme'
 import { RichText } from '../RichText'
+import { AgendaCard } from './AgendaCard'
 import { SleepCard } from './SleepCard'
 import type { Tab } from '../../types'
 
@@ -180,7 +181,7 @@ export function BriefTab({ onGo }: { onGo: (tab: Tab) => void }) {
         <div style={plainCard({ padding: '14px 16px' })}>
           <div style={{ fontSize: 11, letterSpacing: '2.5px', color: C.dim, textTransform: 'uppercase' }}>Сегодня</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 11 }}>
-            {todayHabits(doc).map((h) => {
+            {todayHabits(doc, 8, now).map((h) => {
               const done = isDoneToday(h, now)
               const s = streak(h, now)
               const best = bestStreak(h, now)
@@ -243,6 +244,9 @@ export function BriefTab({ onGo }: { onGo: (tab: Tab) => void }) {
           </div>
         </div>
       )}
+
+      {/* ── что ждёт в ближайший месяц ── */}
+      <AgendaCard doc={doc} now={minute * 60000} onGo={onGo} />
 
       {/* ── сон: сколько на ногах и когда вставать ── */}
       <SleepCard entries={doc.entries} acts={doc.acts} now={now} />
