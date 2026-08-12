@@ -542,6 +542,47 @@ describe('снимок дня', () => {
   })
 })
 
+describe('оплата запланированного расхода', () => {
+  const withExpense = (patch: Partial<Doc['fin']['oneTime'][number]> = {}) =>
+    initialState({
+      ...defaultDoc(NOW),
+      currency: 'UZS',
+      rates: { UZS: 1, USD: 12500, EUR: 1, RUB: 1 },
+      fin: {
+        ...defaultDoc(NOW).fin,
+        onHand: 5_000_000,
+        oneTime: [{ id: 'o1', name: 'Микрозайм', amount: 2_625_000, currency: 'UZS', date: '2026-03-20', ...patch }],
+      },
+    })
+
+  it('уходит из списка и списывается с «на руках»', () => {
+    const s = reducer(withExpense(), { type: 'payOneTime', id: 'o1', now: NOW })
+    expect(s.doc.fin.oneTime).toEqual([])
+    expect(s.doc.fin.onHand).toBe(5_000_000 - 2_625_000)
+  })
+
+  it('расход в чужой валюте списывается в пересчёте, а не один к одному', () => {
+    const s = reducer(withExpense({ amount: 100, currency: 'USD' }), { type: 'payOneTime', id: 'o1', now: NOW })
+    // 100 $ по курсу 12500 — это 1 250 000 сум, а не 100 сум
+    expect(s.doc.fin.onHand).toBe(5_000_000 - 1_250_000)
+  })
+
+  it('«на руках» не уходит в минус, даже если расход больше остатка', () => {
+    const state = initialState({
+      ...defaultDoc(NOW),
+      fin: { ...defaultDoc(NOW).fin, onHand: 100, oneTime: [{ id: 'o1', name: 'X', amount: 5000, currency: 'UZS', date: '' }] },
+    })
+    const s = reducer(state, { type: 'payOneTime', id: 'o1', now: NOW })
+    expect(s.doc.fin.onHand).toBe(0)
+  })
+
+  it('неизвестный id — без изменений', () => {
+    const before = withExpense()
+    const s = reducer(before, { type: 'payOneTime', id: 'ghost', now: NOW })
+    expect(s.doc.fin).toBe(before.doc.fin)
+  })
+})
+
 describe('AUTO_ACTIONS', () => {
   it('содержит ровно действия, диспатчащиеся без участия пользователя', () => {
     // Список закрыт намеренно: новое авто-действие обязано попасть сюда явно,

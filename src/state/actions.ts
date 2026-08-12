@@ -176,6 +176,7 @@ export const A = {
   deleteMandatory: (id: string): Action => ({ type: 'deleteMandatory', id, now: Date.now() }),
   saveOneTime: (item: OneTimeExpense): Action => ({ type: 'saveOneTime', item, now: Date.now() }),
   deleteOneTime: (id: string): Action => ({ type: 'deleteOneTime', id, now: Date.now() }),
+  payOneTime: (id: string): Action => ({ type: 'payOneTime', id, now: Date.now() }),
   newExpenseId: () => uid('x'),
 
   saveBook: (book: Book): Action => ({ type: 'saveBook', book, now: Date.now() }),

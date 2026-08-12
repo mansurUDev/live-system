@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { approx, money } from '../../logic/currency'
+import { approx, convert, money, roundMoney } from '../../logic/currency'
 import { financeCalc, goalHistory, goalProgress } from '../../logic/finance'
 import { fmtD, plural } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
+import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import {
@@ -25,6 +26,7 @@ type ExpenseForm = { kind: 'mandatory' | 'oneTime'; id: string | null; draft: Ex
 
 export function FinanceTab() {
   const { state, dispatch } = useData()
+  const toast = useToast()
   const now = useNow()
   const isMobile = useIsMobile()
   const fin = state.doc.fin
@@ -54,6 +56,18 @@ export function FinanceTab() {
     if (expenseForm.kind === 'mandatory') dispatch(A.deleteMandatory(expenseForm.id))
     else dispatch(A.deleteOneTime(expenseForm.id))
     setExpenseForm(null)
+  }
+
+  /**
+   * Оплачено: расход уходит из запланированных, а сумма — с «На руках» разом,
+   * одним действием вместо двух ручных правок. Без вычета из onHand после
+   * оплаты дневной лимит на мгновение вырос бы — резерв под расход исчез, а
+   * деньги в кармане на самом деле уже нет.
+   */
+  const payExpense = (o: OneTimeExpense) => {
+    const deducted = roundMoney(convert(o.amount, o.currency, currency, rates))
+    dispatch(A.payOneTime(o.id))
+    toast(`«${o.name}» оплачено — вычтено ${money(deducted, currency)} с «На руках»`)
   }
 
   return (
@@ -276,6 +290,7 @@ export function FinanceTab() {
               highlight={i === 0}
               reserved={new Date(o.date + 'T00:00:00').getTime() < calc.reserveCutoff}
               onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
+              onPay={() => payExpense(o)}
             />
           ))}
           {calc.past.map((o) => (
@@ -287,6 +302,7 @@ export function FinanceTab() {
               rates={rates}
               past
               onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
+              onPay={() => payExpense(o)}
             />
           ))}
           {!fin.oneTime.length && (
@@ -363,6 +379,7 @@ function ExpenseRow({
   past,
   reserved,
   onEdit,
+  onPay,
 }: {
   item: OneTimeExpense
   now: number
@@ -373,40 +390,70 @@ function ExpenseRow({
   /** попадает ли расход в резерв текущего дневного лимита */
   reserved?: boolean
   onEdit: () => void
+  onPay: () => void
 }) {
   return (
-    <button
-      onClick={onEdit}
+    <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: 10,
+        gap: 9,
         padding: '9px 11px',
         borderRadius: 10,
-        width: '100%',
-        textAlign: 'left',
-        fontFamily: 'inherit',
-        cursor: 'pointer',
         background: highlight ? 'rgba(251,191,36,.08)' : 'rgba(148,163,184,.05)',
         border: `1px solid ${highlight ? 'rgba(251,191,36,.35)' : 'rgba(148,163,184,.14)'}`,
         opacity: past ? 0.5 : 1,
       }}
     >
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>{item.name}</div>
-        <div style={{ fontSize: 12.5, color: C.faint, marginTop: 1 }}>
-          {item.date ? fmtD(item.date + 'T00:00:00', now) : 'без даты'}
-          {past ? ' · прошло' : !item.date ? ' · лимит не трогает' : !reserved ? ' · после зарплаты, лимит не трогает' : ''}
-        </div>
-      </div>
-      <Amount
-        amount={item.amount}
-        from={item.currency}
-        to={currency}
-        rates={rates}
-        big
-        color={highlight ? '#fbbf24' : undefined}
+      {/* сосед кнопки-строки, а не потомок — иначе кнопка внутри кнопки */}
+      <button
+        onClick={onPay}
+        aria-label="Оплачено"
+        title="Оплачено — уйдёт из списка и спишется с «На руках»"
+        style={{
+          width: 21,
+          height: 21,
+          flex: 'none',
+          borderRadius: 6,
+          border: '1.5px solid rgba(52,211,153,.45)',
+          background: 'rgba(52,211,153,.08)',
+          color: 'transparent',
+          cursor: 'pointer',
+          padding: 0,
+        }}
       />
-    </button>
+      <button
+        onClick={onEdit}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 10,
+          flex: 1,
+          minWidth: 0,
+          textAlign: 'left',
+          fontFamily: 'inherit',
+          cursor: 'pointer',
+          background: 'none',
+          border: 'none',
+          padding: 0,
+        }}
+      >
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>{item.name}</div>
+          <div style={{ fontSize: 12.5, color: C.faint, marginTop: 1 }}>
+            {item.date ? fmtD(item.date + 'T00:00:00', now) : 'без даты'}
+            {past ? ' · прошло' : !item.date ? ' · лимит не трогает' : !reserved ? ' · после зарплаты, лимит не трогает' : ''}
+          </div>
+        </div>
+        <Amount
+          amount={item.amount}
+          from={item.currency}
+          to={currency}
+          rates={rates}
+          big
+          color={highlight ? '#fbbf24' : undefined}
+        />
+      </button>
+    </div>
   )
 }

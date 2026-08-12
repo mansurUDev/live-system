@@ -17,7 +17,7 @@ import {
   SHOW_KIND_LABELS,
 } from '../constants'
 import { moveActTo, type MoveTarget } from '../logic/actLayout'
-import { money } from '../logic/currency'
+import { convert, money } from '../logic/currency'
 import { rollMonth } from '../logic/finance'
 import { resetQuit, toggleToday } from '../logic/habits'
 import { kindLabel, pct, summary } from '../logic/pct'
@@ -101,6 +101,7 @@ export type Action =
   | { type: 'deleteMandatory'; id: string; now: number }
   | { type: 'saveOneTime'; item: OneTimeExpense; now: number }
   | { type: 'deleteOneTime'; id: string; now: number }
+  | { type: 'payOneTime'; id: string; now: number }
   // библиотека
   | { type: 'saveBook'; book: Book; now: number }
   | { type: 'saveCourse'; course: Course; now: number }
@@ -445,6 +446,24 @@ function coreReducer(doc: Doc, action: Action): Doc {
         ...doc,
         fin: { ...doc.fin, oneTime: doc.fin.oneTime.filter((x) => x.id !== action.id) },
       }
+
+    case 'payOneTime': {
+      const item = doc.fin.oneTime.find((x) => x.id === action.id)
+      if (!item) return doc
+      // расход в своей валюте, «на руках» — в валюте отображения; вычитаем приведённую сумму,
+      // иначе оплаченный доллар вычелся бы из сумовой планки один в один
+      const deduct = convert(item.amount, item.currency, doc.currency, doc.rates)
+      return {
+        ...doc,
+        fin: {
+          ...doc.fin,
+          // «на руках» не бывает отрицательным нигде в приложении (MoneyField запрещает
+          // отрицательный ввод) — держим это и здесь, а не тихо роняем ниже нуля
+          onHand: Math.max(0, doc.fin.onHand - deduct),
+          oneTime: doc.fin.oneTime.filter((x) => x.id !== action.id),
+        },
+      }
+    }
 
     case 'saveBook': {
       const exists = doc.lib.books.some((b) => b.id === action.book.id)
