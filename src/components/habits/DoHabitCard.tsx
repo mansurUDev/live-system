@@ -1,6 +1,7 @@
 import { plural } from '../../logic/time'
 import { C, MONO, plainCard } from '../../theme'
 import { RichText } from '../RichText'
+import { LinkPosition } from './LinkPosition'
 import type { Habit } from '../../types'
 
 interface Props {
@@ -13,9 +14,11 @@ interface Props {
   flash: boolean
   onToggle: () => void
   onEdit: () => void
+  /** правка позиции видео переписывает заметку — ссылка обновляется прямо в ней */
+  onUpdateNote: (note: string) => void
 }
 
-export function DoHabitCard({ habit, done, streak, best, days, flash, onToggle, onEdit }: Props) {
+export function DoHabitCard({ habit, done, streak, best, days, flash, onToggle, onEdit, onUpdateNote }: Props) {
   const c = habit.color
 
   return (
@@ -66,6 +69,7 @@ export function DoHabitCard({ habit, done, streak, best, days, flash, onToggle, 
           {habit.note && (
             <div style={{ fontSize: 12.5, color: C.muted, marginTop: 4, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
               <RichText text={habit.note} color={c} />
+              <LinkPosition habit={habit} onUpdateNote={onUpdateNote} />
             </div>
           )}
         </div>

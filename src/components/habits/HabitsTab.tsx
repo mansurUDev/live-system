@@ -44,6 +44,9 @@ export function HabitsTab() {
     }
   }
 
+  // правка позиции видео из карточки: заметка пересобирается с новой ссылкой
+  const updateNote = (h: Habit, note: string) => dispatch(A.saveHabit({ ...h, note }))
+
   const breakQuit = (h: Habit, why: string) => {
     const record = bestWithout(h, now)
     dispatch(A.breakQuit(h.id, why))
@@ -93,6 +96,7 @@ export function HabitsTab() {
               flash={flashId === h.id}
               onToggle={() => toggle(h)}
               onEdit={() => setForm({ habit: h })}
+              onUpdateNote={(note) => updateNote(h, note)}
             />
           ))}
         </div>
@@ -126,6 +130,7 @@ export function HabitsTab() {
               onCancel={() => setConfirmId(null)}
               onBreak={(why) => breakQuit(h, why)}
               onEdit={() => setForm({ habit: h })}
+              onUpdateNote={(note) => updateNote(h, note)}
             />
           ))}
         </div>
@@ -150,6 +155,7 @@ export function HabitsTab() {
                 habit={h}
                 onLog={(minutes) => dispatch(A.logHabit(h.id, minutes))}
                 onEdit={() => setForm({ habit: h })}
+                onUpdateNote={(note) => updateNote(h, note)}
               />
             ))}
           </div>

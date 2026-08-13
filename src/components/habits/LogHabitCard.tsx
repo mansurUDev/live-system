@@ -4,12 +4,15 @@ import { localDateKey } from '../../logic/time'
 import { useNow } from '../../state/NowProvider'
 import { btnGhostSm, C, input, MONO, plainCard } from '../../theme'
 import { RichText } from '../RichText'
+import { LinkPosition } from './LinkPosition'
 import type { Habit } from '../../types'
 
 interface Props {
   habit: Habit
   onLog: (minutes: number) => void
   onEdit: () => void
+  /** правка позиции видео переписывает заметку — ссылка обновляется прямо в ней */
+  onUpdateNote: (note: string) => void
 }
 
 /**
@@ -17,7 +20,7 @@ interface Props {
  * отбоя в чужом доме нельзя «выполнить», но можно честно записать и через
  * месяц увидеть картину, с которой уже можно что-то решать.
  */
-export function LogHabitCard({ habit, onLog, onEdit }: Props) {
+export function LogHabitCard({ habit, onLog, onEdit, onUpdateNote }: Props) {
   const now = useNow()
   const c = habit.color
   const today = habit.logs[localDateKey(now)]
@@ -68,6 +71,7 @@ export function LogHabitCard({ habit, onLog, onEdit }: Props) {
       {habit.note && (
         <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
           <RichText text={habit.note} color={c} />
+          <LinkPosition habit={habit} onUpdateNote={onUpdateNote} />
         </div>
       )}
 

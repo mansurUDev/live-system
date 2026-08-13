@@ -14,6 +14,8 @@ import { donutSlice, fillRadius, labelPosition, sectorAngles, wedgePath, WHEEL }
 import { addDays, fmtHm, hhmm, localDateKey, periodRange, startOfDay, weekdayIndex } from './time'
 import { AWAKE_STALE_MS, awakeState, bedOptions, nextClockTime, wakeOptions } from './sleep'
 import { hasLink, parseRichText } from './richText'
+import { firstYoutubeLink, getVideoPosition, parseT, setVideoPosition, updateNoteLink } from './videoPosition'
+import { cleanShareUrl } from './links'
 import { DAY_MS, HOT_MAX, MAX_ACTS } from '../constants'
 import type { Activity, Sector, TimeEntry } from '../types'
 
@@ -1023,5 +1025,59 @@ describe('текст со ссылками — разметка телеграм
     expect(parseRichText('привычка (важная) на утро')).toEqual([
       { kind: 'text', text: 'привычка (важная) на утро' },
     ])
+  })
+})
+
+describe('позиция в видео — внутри ссылки', () => {
+  const PL = 'https://www.youtube.com/watch?v=p5B_FKjghOM&list=PLabc'
+
+  it('минута и номер урока записываются в параметры youtube', () => {
+    const url = setVideoPosition(PL, { seconds: 35 * 60, index: 7 })
+    const pos = getVideoPosition(url)
+    expect(pos).toEqual({ seconds: 2100, index: 7 })
+    expect(url).toContain('t=2100')
+    expect(url).toContain('index=7')
+  })
+
+  it('сброс позиции убирает параметры совсем, а не пишет ноль', () => {
+    const url = setVideoPosition(setVideoPosition(PL, { seconds: 2100, index: 7 }), { seconds: null, index: null })
+    // проверяем сами параметры: подстрока «t=» ложно срабатывала бы на «list=»
+    const params = new URL(url).searchParams
+    expect(params.has('t')).toBe(false)
+    expect(params.has('index')).toBe(false)
+    expect(params.get('list')).toBe('PLabc')
+  })
+
+  it('номер урока без плейлиста не пишется — он бессмысленен', () => {
+    const url = setVideoPosition('https://youtu.be/p5B_FKjghOM', { index: 7 })
+    expect(url).not.toContain('index=')
+  })
+
+  it('t разбирается во всех форматах youtube', () => {
+    expect(parseT('2100')).toBe(2100)
+    expect(parseT('2100s')).toBe(2100)
+    expect(parseT('35m')).toBe(2100)
+    expect(parseT('1h5m30s')).toBe(3930)
+    expect(parseT('мусор')).toBeNull()
+  })
+
+  it('первая youtube-ссылка находится в заметке, чужие хосты пропускаются', () => {
+    expect(firstYoutubeLink('[урок](https://youtu.be/abc) и [док](https://example.com/x)')).toBe('https://youtu.be/abc')
+    expect(firstYoutubeLink('[док](https://example.com/x)')).toBeNull()
+    expect(firstYoutubeLink('')).toBeNull()
+  })
+
+  it('замена ссылки в заметке сохраняет подпись и текст вокруг', () => {
+    const note = 'смотрю [Урок](https://youtu.be/abc) по утрам'
+    const updated = updateNoteLink(note, 'https://youtu.be/abc', 'https://youtu.be/abc?t=600')
+    expect(updated).toBe('смотрю [Урок](https://youtu.be/abc?t=600) по утрам')
+  })
+
+  it('cleanShareUrl больше не срезает номер видео плейлиста', () => {
+    const url = 'https://www.youtube.com/watch?v=x&list=PL1&index=7&t=2100&si=tracker'
+    const cleaned = cleanShareUrl(url)
+    expect(cleaned).toContain('index=7')
+    expect(cleaned).toContain('t=2100')
+    expect(cleaned).not.toContain('si=')
   })
 })

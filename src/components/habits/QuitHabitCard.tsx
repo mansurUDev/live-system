@@ -5,6 +5,7 @@ import { fmtD, plural } from '../../logic/time'
 import { useNow } from '../../state/NowProvider'
 import { btnCancelSm, btnDeleteConfirm, C, input, MONO, plainCard } from '../../theme'
 import { RichText } from '../RichText'
+import { LinkPosition } from './LinkPosition'
 import type { Habit } from '../../types'
 
 interface Props {
@@ -16,9 +17,11 @@ interface Props {
   onCancel: () => void
   onBreak: (why: string) => void
   onEdit: () => void
+  /** правка позиции видео переписывает заметку — ссылка обновляется прямо в ней */
+  onUpdateNote: (note: string) => void
 }
 
-export function QuitHabitCard({ habit, days, best, confirming, onAsk, onCancel, onBreak, onEdit }: Props) {
+export function QuitHabitCard({ habit, days, best, confirming, onAsk, onCancel, onBreak, onEdit, onUpdateNote }: Props) {
   const now = useNow()
   const c = habit.color
   const [why, setWhy] = useState('')
@@ -62,6 +65,7 @@ export function QuitHabitCard({ habit, days, best, confirming, onAsk, onCancel, 
       {habit.note && (
         <div style={{ fontSize: 12.5, color: C.muted, marginTop: 6, lineHeight: 1.45, overflowWrap: 'anywhere' }}>
           <RichText text={habit.note} color={c} />
+          <LinkPosition habit={habit} onUpdateNote={onUpdateNote} />
         </div>
       )}
 

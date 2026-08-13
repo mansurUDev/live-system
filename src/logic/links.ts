@@ -1,4 +1,5 @@
-const YOUTUBE_PARAM_ALLOWLIST = new Set(['v', 't', 'list'])
+// index — номер видео в плейлисте: без него ссылка «на седьмой урок» открывала бы первый
+const YOUTUBE_PARAM_ALLOWLIST = new Set(['v', 't', 'list', 'index'])
 const TRACKING_PARAM_DENYLIST = new Set(['fbclid', 'gclid', 'igsh', 'si', 'ref', 'ref_src'])
 
 function hostMatches(host: string, base: string): boolean {
