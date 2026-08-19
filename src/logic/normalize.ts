@@ -330,7 +330,7 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
     entries: normEntries(d.entries),
     archive: normArchive(d.archive, nowIso),
     snapshots: normSnapshots(d.snapshots, nowIso),
-    habits: normHabits(d.habits, nowIso),
+    habits: normHabits(d.habits, nowIso, version),
     reminders: normReminders(d.reminders, nowIso),
     ideas: normIdeas(d.ideas, nowIso),
     fin: normFinance(d.fin, now, currency),

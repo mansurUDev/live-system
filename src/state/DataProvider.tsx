@@ -1,9 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useReducer, useRef } from 'react'
+import { createContext, useContext, useEffect, useReducer, useRef } from 'react'
 import type { ReactNode } from 'react'
 import { normalize } from '../logic/normalize'
 import { localDateKey } from '../logic/time'
 import { useAuth } from './AuthProvider'
-import { AUTO_ACTIONS, initialState, reducer, type Action, type AppState } from './reducer'
+import { initialState, reducer, type Action, type AppState } from './reducer'
 import { docKey, loadDoc, saveDoc, storageAvailable } from './storage'
 import { useCloudSync, type SyncState } from './useCloudSync'
 import { useToast } from './ToastProvider'
@@ -20,20 +20,7 @@ const DataContext = createContext<DataContextValue | null>(null)
 export function DataProvider({ children }: { children: ReactNode }) {
   const toast = useToast()
   const { code } = useAuth()
-  const [state, rawDispatch] = useReducer(reducer, undefined, () => initialState(loadDoc(code)))
-
-  // Правда ли пользователь что-то поправил в этой сессии — нужно синхронизации,
-  // чтобы pull, летящий в фоне при загрузке, не затёр правку, случившуюся уже
-  // после того момента, на который отвечает облако. AUTO_ACTIONS — действия
-  // без участия человека (см. reducer.ts) — флаг не трогают.
-  const userEdited = useRef(false)
-  const dispatch = useCallback(
-    (action: Action) => {
-      if (!AUTO_ACTIONS.has(action.type)) userEdited.current = true
-      rawDispatch(action)
-    },
-    [rawDispatch],
-  )
+  const [state, dispatch] = useReducer(reducer, undefined, () => initialState(loadDoc(code)))
 
   // Отдельный флаг, чтобы не показывать одно и то же предупреждение на каждое действие.
   const warned = useRef(false)
@@ -94,7 +81,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [code])
 
-  const sync = useCloudSync(code, state.doc, dispatch, userEdited)
+  const sync = useCloudSync(code, state.doc, dispatch, toast)
 
   return <DataContext.Provider value={{ state, dispatch, sync }}>{children}</DataContext.Provider>
 }

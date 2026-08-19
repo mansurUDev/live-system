@@ -1,143 +1,102 @@
 import { describe, expect, it } from 'vitest'
 import { defaultDoc } from '../logic/defaults'
-import { reconcile, resolvePushConflict, shouldPullOnResume } from './syncReconcile'
+import { normalize } from '../logic/normalize'
+import { planSync, shouldPullOnResume } from './syncReconcile'
+import type { Doc } from '../types'
 
 const NOW = new Date('2026-03-15T14:00:00').getTime()
 
-describe('reconcile', () => {
-  it('облако пусто — просим залить локальные данные', () => {
-    const local = defaultDoc(NOW)
-    expect(reconcile({ doc: null, version: 0 }, 0, local, false)).toEqual({ kind: 'push-initial' })
+// один экземпляр на все проверки: defaultDoc заводит историю со случайными id,
+// поэтому два вызова подряд дают разные документы
+const SEED = normalize(defaultDoc(NOW), NOW)
+const clone = <T,>(x: T): T => JSON.parse(JSON.stringify(x)) as T
+
+const base = (): Doc => clone(SEED)
+const withShow = (): Doc => {
+  const d = clone(SEED)
+  d.lib.shows.push({
+    id: 'sh1',
+    title: 'Дорама',
+    kind: 'dorama',
+    color: '#22d3ee',
+    season: 1,
+    episode: 1,
+    minute: 0,
+    link: 'https://doramy.club/x',
+    startedAt: '2026-03-14T10:00:00.000Z',
+  })
+  return normalize(d, NOW)
+}
+
+describe('planSync — что делать с ответом облака', () => {
+  it('облако пусто — заливаем локальные данные', () => {
+    expect(planSync({ doc: null, version: 0 }, 0, null, base())).toEqual({ kind: 'push-initial' })
   })
 
-  it('версия в облаке новее известной, локально ничего не менялось — берём облако', () => {
-    const local = defaultDoc(NOW)
-    const cloud = { ...defaultDoc(NOW), habits: [] }
-    expect(reconcile({ doc: cloud, version: 6 }, 5, local, false)).toEqual({ kind: 'apply-cloud', version: 6 })
-  })
-
-  it('gonka: правка случилась, пока летел pull, облако новее — побеждает активное устройство', () => {
-    const local = defaultDoc(NOW)
-    const cloud = { ...defaultDoc(NOW), habits: [] }
-    const decision = reconcile({ doc: cloud, version: 6 }, 5, local, true)
-    expect(decision).toEqual({ kind: 'keep-local', version: 6, push: true })
-  })
-
-  it('гейт known=0: свежее устройство с одной случайной правкой не перевешивает реальный аккаунт', () => {
-    const local = defaultDoc(NOW)
-    const cloud = { ...defaultDoc(NOW), habits: [] }
-    // known=0 — устройство ни разу не сверялось с облаком (первый вход)
-    const decision = reconcile({ doc: cloud, version: 3 }, 0, local, true)
-    expect(decision).toEqual({ kind: 'apply-cloud', version: 3 })
-  })
-
-  it('баг из отчёта: правка не успела уйти в облако до перезагрузки — локальные данные не стираются', () => {
-    // локально «Спорт» уже отмечен сегодня, но push ещё не улетел (вкладку перезагрузили раньше debounce)
-    const local: ReturnType<typeof defaultDoc> = {
-      ...defaultDoc(NOW),
-      habits: [
-        {
-          id: 'h1',
-          type: 'do',
-          name: 'Спорт',
-          color: '#34d399',
-          done: ['2026-03-15'],
-          record: 1,
-          start: new Date(NOW).toISOString(),
-          best: 0,
-          slips: [],
-          riskHour: null,
-          logs: {},
-          note: '',
-          createdAt: new Date(NOW).toISOString(),
-        },
-      ],
-    }
-    // в облаке всё ещё старая версия — без отметки, но это ТА ЖЕ версия, что устройство уже видело
-    const staleCloud: ReturnType<typeof defaultDoc> = { ...local, habits: [] }
-    const known = 5
-
-    const decision = reconcile({ doc: staleCloud, version: known }, known, local, false)
-
-    // ключевая проверка: локальные данные НЕ заменяются устаревшими из облака
-    expect(decision.kind).toBe('keep-local')
-    if (decision.kind === 'keep-local') {
-      expect(decision.push).toBe(true) // расхождение есть — досылаем локальное состояние
-    }
-  })
-
-  it('облако на нашей версии и содержимое совпадает — досылать нечего', () => {
-    const local = defaultDoc(NOW)
-    // тот же документ, а не новый defaultDoc() — иначе разойдутся случайные id истории
-    const cloud = JSON.parse(JSON.stringify(local))
-    const decision = reconcile({ doc: cloud, version: 5 }, 5, local, false)
-    expect(decision).toEqual({ kind: 'keep-local', version: 5, push: false })
-  })
-})
-
-describe('конфликт отправки: кто уступает', () => {
-  it('без неотправленных правок устройство принимает облако', () => {
-    // вкладка провисела ночь в спящем ноутбуке, пока с телефона отмечали сон
-    expect(resolvePushConflict(false)).toBe('take-cloud')
-  })
-
-  it('с неотправленными правками устройство досылает своё', () => {
-    expect(resolvePushConflict(true)).toBe('retry-local')
-  })
-})
-
-describe('возврат на вкладку', () => {
-  const base = { enabled: true, busy: false, hasUnsentEdits: false }
-
-  it('спокойная вкладка перечитывает облако', () => {
-    expect(shouldPullOnResume(base)).toBe(true)
-  })
-
-  it('пока своё не отправлено, чужое не читаем', () => {
-    // иначе правка, не успевшая уехать, была бы затёрта чужой версией
-    expect(shouldPullOnResume({ ...base, busy: true })).toBe(false)
-    expect(shouldPullOnResume({ ...base, hasUnsentEdits: true })).toBe(false)
-  })
-
-  it('без облака читать нечего', () => {
-    expect(shouldPullOnResume({ ...base, enabled: false })).toBe(false)
-  })
-})
-
-describe('ночь на телефоне, утро на ноутбуке', () => {
-  it('отставшая вкладка забирает чужой день, а не навязывает свою память', () => {
-    // ноутбук уснул на версии 7 — в его памяти всё ещё вчерашний «Дом и быт»
-    const stale = { ...defaultDoc(NOW), entries: [{ id: 'e1', actId: 'a-home', start: '2026-03-14T18:00:00.000Z', end: null }] }
-    // за ночь с телефона уехали сон и утренняя гигиена — облако на версии 9
-    const cloud = {
-      ...defaultDoc(NOW),
-      entries: [
-        { id: 'e1', actId: 'a-home', start: '2026-03-14T18:00:00.000Z', end: '2026-03-14T20:20:00.000Z' },
-        { id: 'e2', actId: 'a-sleep', start: '2026-03-14T20:20:00.000Z', end: '2026-03-15T04:34:00.000Z' },
-        { id: 'e3', actId: 'a-care', start: '2026-03-15T04:34:00.000Z', end: null },
-      ],
-    }
-
-    // ноутбук ничего не правил после своей последней удачной отправки
-    const hasUnsentEdits = false
-    expect(resolvePushConflict(hasUnsentEdits)).toBe('take-cloud')
-
-    // и при обычной сверке он тоже принимает облако, а не спорит
-    expect(reconcile({ doc: cloud, version: 9 }, 7, stale, hasUnsentEdits)).toEqual({
+  it('гейт первого входа: свежее устройство не заливает стартовый документ в живой аккаунт', () => {
+    // known = 0 — с облаком ещё не сверялись, что бы ни лежало локально
+    expect(planSync({ doc: base(), version: 3 }, 0, null, withShow())).toEqual({
       kind: 'apply-cloud',
-      version: 9,
+      version: 3,
     })
   })
 
-  it('но правка, сделанная на ноутбуке и не уехавшая, не теряется', () => {
-    const local = defaultDoc(NOW)
-    const cloud = { ...defaultDoc(NOW), habits: [] }
-    // dirty=true — человек отметил что-то, пока pull летел
-    expect(reconcile({ doc: cloud, version: 9 }, 7, local, true)).toEqual({
-      kind: 'keep-local',
-      version: 9,
-      push: true,
+  it('облако ушло вперёд, база есть — объединяем, а не выбираем сторону', () => {
+    expect(planSync({ doc: base(), version: 6 }, 5, base(), withShow())).toEqual({ kind: 'merge', version: 6 })
+  })
+
+  it('облако ушло вперёд, базы нет — уступаем облаку: объединять нечем', () => {
+    expect(planSync({ doc: base(), version: 6 }, 5, null, withShow())).toEqual({
+      kind: 'apply-cloud',
+      version: 6,
     })
-    expect(resolvePushConflict(true)).toBe('retry-local')
+  })
+
+  it('облако на нашей версии и содержимое совпало — только освежаем точку согласования', () => {
+    expect(planSync({ doc: base(), version: 5 }, 5, base(), base())).toEqual({ kind: 'in-sync', version: 5 })
+  })
+
+  it('облако на нашей версии, но документы разошлись — уезжает наше', () => {
+    expect(planSync({ doc: base(), version: 5 }, 5, base(), withShow())).toEqual({
+      kind: 'push-local',
+      version: 5,
+    })
+  })
+
+  it('облако отстало от нашей версии — тоже отправляем своё', () => {
+    expect(planSync({ doc: base(), version: 4 }, 5, base(), withShow())).toEqual({
+      kind: 'push-local',
+      version: 4,
+    })
+  })
+})
+
+describe('planSync — ночь на телефоне, утро на ноутбуке', () => {
+  it('вкладка провисела ночь, вечерняя правка не уехала — она не теряется, а сливается', () => {
+    // именно этот случай раньше решался в пользу облака и стирал сериал:
+    // флаг «есть неотправленное» жил в памяти вкладки и не переживал закрытие
+    const plan = planSync({ doc: base(), version: 42 }, 41, base(), withShow())
+    expect(plan.kind).toBe('merge')
+  })
+
+  it('отстали и своего нет — слияние всё равно безопасно и вернёт облако', () => {
+    expect(planSync({ doc: withShow(), version: 42 }, 41, base(), base())).toEqual({
+      kind: 'merge',
+      version: 42,
+    })
+  })
+})
+
+describe('shouldPullOnResume', () => {
+  it('облако выключено — не читаем', () => {
+    expect(shouldPullOnResume({ enabled: false, busy: false })).toBe(false)
+  })
+
+  it('своя отправка в пути — сперва она', () => {
+    expect(shouldPullOnResume({ enabled: true, busy: true })).toBe(false)
+  })
+
+  it('вернулись на вкладку, ничего не летит — перечитываем', () => {
+    expect(shouldPullOnResume({ enabled: true, busy: false })).toBe(true)
   })
 })

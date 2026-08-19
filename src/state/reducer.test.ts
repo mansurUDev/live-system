@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { AUTO_ACTIONS, initialState, reducer, type Action, type AppState } from './reducer'
+import { initialState, reducer, type Action, type AppState } from './reducer'
 import { defaultDoc, makeSector } from '../logic/defaults'
+import { normalize } from '../logic/normalize'
 import { runningEntry } from '../logic/segs'
 import { localDateKey } from '../logic/time'
 import { pct } from '../logic/pct'
@@ -583,13 +584,27 @@ describe('оплата запланированного расхода', () => {
   })
 })
 
-describe('AUTO_ACTIONS', () => {
-  it('содержит ровно действия, диспатчащиеся без участия пользователя', () => {
-    // Список закрыт намеренно: новое авто-действие обязано попасть сюда явно,
-    // иначе синхронизация посчитает его правкой пользователя (DataProvider.tsx)
-    // и наоборот — гонка при загрузке (см. syncReconcile.test.ts) вернётся.
-    expect(new Set(AUTO_ACTIONS)).toEqual(
-      new Set(['replaceDoc', 'ensureSnapshot', 'rollFinanceMonth', 'dismissCelebration']),
+describe('mergeCloud', () => {
+  it('сливает с тем, что на экране сейчас, а не с тем, что было при запросе', () => {
+    // база снята, пока летел запрос — человек успел нажать ещё раз; эта правка
+    // обязана попасть в результат, иначе слияние само становится потерей данных
+    const base = normalize(defaultDoc(NOW), NOW)
+    const cloud = normalize({ ...base, fin: { ...base.fin, cushion: 500 } }, NOW)
+
+    let state: AppState = { doc: base, celebratingId: null }
+    state = reducer(state, { type: 'patchFinance', patch: { onHand: 700 }, now: NOW })
+    state = reducer(state, { type: 'mergeCloud', base, cloud, now: NOW })
+
+    expect(state.doc.fin.onHand).toBe(700)
+    expect(state.doc.fin.cushion).toBe(500)
+  })
+
+  it('закрывает поздравление, как и полная замена документа', () => {
+    const base = normalize(defaultDoc(NOW), NOW)
+    const state = reducer(
+      { doc: base, celebratingId: 's1' } as AppState,
+      { type: 'mergeCloud', base, cloud: base, now: NOW },
     )
+    expect(state.celebratingId).toBeNull()
   })
 })

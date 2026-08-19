@@ -1129,3 +1129,26 @@ describe('сводка на 30 дней', () => {
     expect(items.every((i) => i.days <= 30)).toBe(true)
   })
 })
+
+describe('час риска — «не задан» не становится полночью', () => {
+  it('null остаётся null, а не превращается в 0', () => {
+    const [h] = normHabits([{ id: 'h1', name: 'Спорт', riskHour: null }], new Date(NOW).toISOString(), 13)
+    expect(h!.riskHour).toBeNull()
+  })
+
+  it('осознанно выбранный час сохраняется', () => {
+    const [h] = normHabits([{ id: 'h1', name: 'Спорт', riskHour: 15 }], new Date(NOW).toISOString(), 13)
+    expect(h!.riskHour).toBe(15)
+  })
+
+  it('полночь из старых документов считается следом бага и снимается', () => {
+    // до v13 Number(null) записывал 0 всем привычкам без часа риска
+    const [h] = normHabits([{ id: 'h1', name: 'Спорт', riskHour: 0 }], new Date(NOW).toISOString(), 12)
+    expect(h!.riskHour).toBeNull()
+  })
+
+  it('в новых документах полночь — обычное значение', () => {
+    const [h] = normHabits([{ id: 'h1', name: 'Сон', riskHour: 0 }], new Date(NOW).toISOString(), 13)
+    expect(h!.riskHour).toBe(0)
+  })
+})

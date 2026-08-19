@@ -147,11 +147,15 @@ function normLogs(x: unknown): Record<string, number> {
   return Object.fromEntries(entries.sort().slice(-MAX_HABIT_DAYS))
 }
 
-export function normHabits(x: unknown, nowIso: string): Habit[] {
+export function normHabits(x: unknown, nowIso: string, version = 0): Habit[] {
   if (!Array.isArray(x)) return []
   return x.slice(0, MAX_HABITS).map((raw, i) => {
     const h = obj(raw)
-    const riskHour = Number(h.riskHour)
+    // Number(null) === 0, а ноль — валидный час: без явной проверки «час риска
+    // не задан» превращался в полночь при первой же загрузке, и брифинг каждый
+    // вечер объявлял опасное время у всех привычек разом.
+    const raw0 = h.riskHour
+    const riskHour = raw0 === null || raw0 === undefined || raw0 === '' ? NaN : Number(raw0)
     return {
       id: str(h.id, 60, 'h' + i),
       type: h.type === 'quit' ? 'quit' : h.type === 'log' ? 'log' : 'do',
@@ -165,7 +169,12 @@ export function normHabits(x: unknown, nowIso: string): Habit[] {
       start: iso(h.start, nowIso),
       best: count(h.best),
       slips: normSlips(h.slips),
-      riskHour: Number.isInteger(riskHour) && riskHour >= 0 && riskHour <= 23 ? riskHour : null,
+      // до v13 ноль почти наверняка означал «не задан» — см. выше; осознанную
+      // полночь придётся выбрать заново, это одно нажатие
+      riskHour:
+        Number.isInteger(riskHour) && riskHour >= 0 && riskHour <= 23 && !(version < 13 && riskHour === 0)
+          ? riskHour
+          : null,
       logs: normLogs(h.logs),
       note: str(h.note, MAX_HABIT_NOTE),
       createdAt: iso(h.createdAt, nowIso),

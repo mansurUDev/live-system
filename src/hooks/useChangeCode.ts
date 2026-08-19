@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { pull, push, remove } from '../state/cloud'
 import { useAuth } from '../state/AuthProvider'
 import { useData } from '../state/DataProvider'
-import { dropDoc, saveCloudVersion, saveDoc } from '../state/storage'
+import { dropDoc, saveDoc, saveSyncPoint } from '../state/storage'
 
 export type ChangeResult =
   | { ok: true; cloud: boolean }
@@ -37,7 +37,8 @@ export function useChangeCode(): (nextCode: string) => Promise<ChangeResult> {
       if (existing.ok) {
         const sent = await push(next, doc, 0)
         if (!sent.ok) return { ok: false, error: 'Облако не приняло данные — код не сменён' }
-        saveCloudVersion(next, sent.version)
+        // под новым кодом облако содержит ровно этот документ — это и есть база
+        saveSyncPoint(next, sent.version, doc)
         cloud = true
       }
 

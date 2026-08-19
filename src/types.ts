@@ -316,7 +316,7 @@ export interface Idea {
 }
 
 /** Текущая версия схемы документа */
-export const DOC_VERSION = 12
+export const DOC_VERSION = 13
 
 export interface Doc {
   v: number

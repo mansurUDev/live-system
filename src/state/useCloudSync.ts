@@ -1,22 +1,31 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { emptyBase, sameDoc } from '../logic/merge'
 import { pull, push } from './cloud'
-import { loadCloudVersion, saveCloudVersion } from './storage'
-import { reconcile, resolvePushConflict, shouldPullOnResume } from './syncReconcile'
+import { loadBase, loadCloudVersion, saveSyncPoint, versionKey } from './storage'
+import { planSync, shouldPullOnResume } from './syncReconcile'
 import type { Action } from './reducer'
 import type { Doc } from '../types'
 
 /** Пауза перед отправкой: серия правок уезжает одним запросом */
 const PUSH_DELAY_MS = 1500
 
+/** Сколько раз подряд уступаем чужой записи, прежде чем перестать спорить */
+const MAX_CONFLICTS = 3
+
+/** Больше браузер в keepalive-запрос всё равно не пустит */
+const KEEPALIVE_LIMIT = 60_000
+
 export type SyncState = 'off' | 'denied' | 'idle' | 'saving' | 'error'
 
 /** Лучшее из возможного при закрытии вкладки — обычный fetch тело > ~64КБ не потянет */
 function keepaliveFlush(code: string, doc: Doc, version: number): void {
   try {
+    const body = JSON.stringify({ doc, version })
+    if (body.length > KEEPALIVE_LIMIT) return
     fetch('/api/doc', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'x-access-code': code },
-      body: JSON.stringify({ doc, version }),
+      body,
       keepalive: true,
     }).catch(() => {})
   } catch {
@@ -27,25 +36,25 @@ function keepaliveFlush(code: string, doc: Doc, version: number): void {
 /**
  * Синхронизация с облаком.
  *
- * При входе документ забирается с сервера и заменяет локальный. Если в облаке
- * пусто — наоборот, туда сразу уезжает то, что есть на устройстве: иначе первый
- * вход со второго устройства показал бы чистый экран, потому что отправка
- * ждала бы правки, которой могло и не случиться.
+ * Облако хранит документ целиком, поэтому расхождение раньше решалось выбором
+ * стороны — и любой выбор что-то стирал. Теперь у устройства есть база (тело
+ * документа на версии, с которой оно согласовано), и расхождение объединяется:
+ * см. `mergeDoc`. Отсюда три следствия, на которых всё держится.
  *
- * Если облако не настроено или недоступно, всё продолжает работать локально.
- *
- * `dirty` — ref от вызывающего кода: есть ли правки человека, которых ещё нет в
- * облаке (см. AUTO_ACTIONS в reducer.ts). Нужен, чтобы pull, летящий в фоне при
- * каждой загрузке, не затирал правку, случившуюся уже после того момента, на
- * который отвечает облако. Флаг снимается после удачной отправки: с этого
- * момента спорить не о чем, и в конфликте устройство уступает облаку — иначе
- * вкладка, провисевшая ночь в спящем ноутбуке, стирала бы чужой день.
+ * 1. «Есть неотправленные правки» — не флаг в памяти, а факт: документ отличается
+ *    от базы. Флаг умирал вместе с вкладкой, и правка, не успевшая уехать до
+ *    закрытия, на следующей загрузке выглядела как «своего нет».
+ * 2. Слияние уезжает в редьюсер действием `mergeCloud`, а не считается здесь:
+ *    пока летел запрос, человек мог что-то нажать, и это обязано попасть внутрь.
+ * 3. Перед отправкой стоит эхо-стоп: тело, равное базе, не отправляется. Иначе
+ *    каждое принятие облака поднимало бы версию, ничего не меняя, и превращало
+ *    все остальные устройства в «отставшие» на ровном месте.
  */
 export function useCloudSync(
   code: string,
   doc: Doc,
   dispatch: (a: Action) => void,
-  dirty: { current: boolean },
+  notify?: (text: string) => void,
 ): SyncState {
   const [status, setStatus] = useState<SyncState>('off')
   const version = useRef(0)
@@ -61,65 +70,136 @@ export function useCloudSync(
   // помечает, что по завершении нужно отправить ещё раз («хвостовая» отправка)
   const sending = useRef(false)
   const resendPending = useRef(false)
+  const baseCache = useRef<{ version: number; doc: Doc } | null>(null)
+  // последнее отправленное тело: по нему узнаём в облаке свою же запись,
+  // ответ на которую не дошёл (keepalive при закрытии вкладки ответа не читает)
+  const lastSent = useRef<Doc | null>(null)
+  const conflicts = useRef(0)
+  const warnedNoBase = useRef(false)
+  const pendingPoint = useRef<{ version: number; doc: Doc } | null>(null)
+
+  const getBase = useCallback((): Doc | null => {
+    const cached = baseCache.current
+    if (cached && cached.version === version.current) return cached.doc
+    const stored = loadBase(code)
+    if (stored) baseCache.current = { version: version.current, doc: stored }
+    return stored
+  }, [code])
+
+  /**
+   * Облако на версии v содержит ровно doc — точка согласования.
+   *
+   * Годится там, где отправленное тело уже лежит в хранилище: перед отправкой
+   * документ прошёл через рендер, а DataProvider пишет его на каждое изменение.
+   */
+  const commit = useCallback(
+    (v: number, next: Doc) => {
+      version.current = v
+      baseCache.current = { version: v, doc: next }
+      saveSyncPoint(code, v, next)
+    },
+    [code],
+  )
+
+  /**
+   * То же, но когда чужой документ ещё только предстоит применить.
+   *
+   * На диск точка уезжает не сразу, а когда результат уже сохранён: эффекты
+   * этого хука отрабатывают после эффекта DataProvider, который пишет документ.
+   * Иначе вкладка, погибшая между записью базы и сохранением слитого документа,
+   * оставила бы базу «впереди» содержимого — и следующая загрузка сочла бы
+   * чужие правки своими и отправила бы старое тело поверх них. С отложенной
+   * записью в худшем случае останется прежняя точка, и слияние повторится.
+   */
+  const commitOnApply = useCallback((v: number, next: Doc) => {
+    version.current = v
+    baseCache.current = { version: v, doc: next }
+    pendingPoint.current = { version: v, doc: next }
+  }, [])
+
+  /** Слить нечем: сообщаем и уступаем облаку — прежнее поведение, но не молча */
+  const surrender = useCallback(
+    (v: number, cloud: Doc) => {
+      commitOnApply(v, cloud)
+      dispatch({ type: 'replaceDoc', doc: cloud, now: Date.now() })
+      if (!warnedNoBase.current) {
+        warnedNoBase.current = true
+        notify?.('Не хватило места для копии — данные взяты из облака. Выгрузи JSON, если что-то пропало')
+      }
+    },
+    [commitOnApply, dispatch, notify],
+  )
 
   const attemptSend = useCallback(
-    async (initialPayload: Doc) => {
+    async (payload: Doc) => {
+      const base = getBase()
+      // отправлять нечего: в облаке ровно это и лежит
+      if (base && sameDoc(payload, base)) {
+        setStatus('idle')
+        return
+      }
+
       setStatus('saving')
-      let payload = initialPayload
+      // первая вставка в пустое облако — единственный случай, где базы нет
+      // законно и где объединять от пустоты безопасно: удалять ещё нечего
+      const wasInitial = version.current === 0
+      lastSent.current = payload
 
-      // максимум одна повторная попытка после конфликта: пуш → конфликт →
-      // забрать чужое → либо принять его, либо дослать своё, если оно есть
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const res = await push(code, payload, version.current)
-        if (res.ok) {
-          version.current = res.version
-          saveCloudVersion(code, res.version)
-          // всё, что человек успел поправить, теперь в облаке — устройство
-          // больше не «активнее» остальных и в следующем споре уступит. Если за
-          // время запроса появилась ещё правка, документ уже другой и флаг стоит
-          if (latest.current === payload) dirty.current = false
-          setStatus('idle')
-          return
-        }
-        if (!res.conflict) {
-          setStatus(res.error === 'offline' ? 'off' : 'error')
-          return
-        }
-        if (attempt === 0) {
-          const fresh = await pull(code)
-          if (!fresh.ok) {
-            setStatus(fresh.denied ? 'denied' : 'off')
-            return
-          }
-          version.current = fresh.version
-          // Своих неотправленных правок нет — значит это устройство просто
-          // отстало (вкладка провисела в спящем ноутбуке). Дослать свою память
-          // означало бы стереть чужой день, поэтому принимаем облако.
-          if (resolvePushConflict(dirty.current) === 'take-cloud' && fresh.doc) {
-            saveCloudVersion(code, fresh.version)
-            dispatch({ type: 'replaceDoc', doc: fresh.doc, now: Date.now() })
-            setStatus('idle')
-            return
-          }
-          // за время pull могла случиться ещё одна правка — берём самую свежую
-          payload = latest.current
-          continue
-        }
+      const res = await push(code, payload, version.current)
+      if (res.ok) {
+        commit(res.version, payload)
+        conflicts.current = 0
+        setStatus('idle')
+        return
+      }
+      if (!res.conflict) {
+        // правка целиком остаётся локально, база не сдвинута — уедет позже
+        setStatus(res.error === 'offline' ? 'off' : 'error')
+        return
       }
 
-      // конфликт повторился — на этот раз действительно забираем чужое и
-      // останавливаемся: спорить дальше означало бы слать запросы по кругу.
-      // Версия обновляется ДО replaceDoc, иначе push-эффект тут же уйдёт в
-      // новый конфликт на том же самом ответе.
       const fresh = await pull(code)
-      if (fresh.ok && fresh.doc) {
-        version.current = fresh.version
-        saveCloudVersion(code, fresh.version)
-        dispatch({ type: 'replaceDoc', doc: fresh.doc, now: Date.now() })
+      if (!fresh.ok) {
+        setStatus(fresh.denied ? 'denied' : 'off')
+        return
       }
+      if (!fresh.doc) {
+        // документ из облака убрали — следующая отправка вставит заново
+        version.current = fresh.version
+        resendPending.current = true
+        setStatus('idle')
+        return
+      }
+
+      // В облаке наше же тело: keepalive при закрытии вкладки долетел, а ответ
+      // прочитать было уже некому. Это успех, а не чужая правка.
+      if (lastSent.current && sameDoc(fresh.doc, lastSent.current)) {
+        commit(fresh.version, fresh.doc)
+        conflicts.current = 0
+        resendPending.current = true
+        setStatus('idle')
+        return
+      }
+
+      conflicts.current += 1
+      if (conflicts.current > MAX_CONFLICTS) {
+        // кто-то пишет непрерывно; ничего не отбрасываем — документ остаётся
+        // «база + свои правки», следующая правка или возврат на вкладку повторят
+        conflicts.current = 0
+        setStatus('error')
+        return
+      }
+
+      const prev = getBase() ?? (wasInitial ? emptyBase(Date.now()) : null)
+      if (!prev) {
+        surrender(fresh.version, fresh.doc)
+        return
+      }
+      commitOnApply(fresh.version, fresh.doc)
+      dispatch({ type: 'mergeCloud', base: prev, cloud: fresh.doc, now: Date.now() })
       setStatus('idle')
     },
-    [code, dispatch, dirty],
+    [code, commit, commitOnApply, dispatch, getBase, surrender],
   )
 
   const sendNow = useCallback(
@@ -145,6 +225,8 @@ export function useCloudSync(
   useEffect(() => {
     let alive = true
     enabled.current = false
+    baseCache.current = null
+    conflicts.current = 0
     // версия, с которой точно согласованы данные этого устройства — известна
     // только по прошлой сверке с облаком, не всегда «0»
     const known = loadCloudVersion(code)
@@ -163,22 +245,33 @@ export function useCloudSync(
       enabled.current = true
       setStatus('idle')
 
-      const pulledDoc = res.doc
-      const decision = reconcile({ doc: pulledDoc, version: res.version }, known, latest.current, dirty.current)
-      switch (decision.kind) {
+      const base = getBase()
+      const plan = planSync({ doc: res.doc, version: res.version }, known, base, latest.current)
+      const now = Date.now()
+
+      switch (plan.kind) {
         case 'push-initial':
           void sendNow(latest.current)
           break
         case 'apply-cloud':
-          if (pulledDoc) {
-            version.current = decision.version
-            saveCloudVersion(code, decision.version)
-            dispatch({ type: 'replaceDoc', doc: pulledDoc, now: Date.now() })
+          if (res.doc) {
+            commitOnApply(plan.version, res.doc)
+            dispatch({ type: 'replaceDoc', doc: res.doc, now })
           }
           break
-        case 'keep-local':
-          version.current = decision.version
-          if (decision.push) void sendNow(latest.current)
+        case 'in-sync':
+          // содержимое совпало — остаётся завести базу, если её ещё не было
+          if (res.doc) commit(plan.version, res.doc)
+          break
+        case 'push-local':
+          if (res.doc) commit(plan.version, res.doc)
+          void sendNow(latest.current)
+          break
+        case 'merge':
+          if (res.doc && base) {
+            commitOnApply(plan.version, res.doc)
+            dispatch({ type: 'mergeCloud', base, cloud: res.doc, now })
+          }
           break
       }
     })
@@ -188,7 +281,16 @@ export function useCloudSync(
       enabled.current = false
       if (timer.current) clearTimeout(timer.current)
     }
-  }, [code, dispatch, dirty, sendNow])
+  }, [code, commit, commitOnApply, dispatch, getBase, sendNow])
+
+  // Отложенная точка согласования уезжает на диск здесь: этот эффект следует за
+  // эффектом DataProvider, который уже записал новый документ.
+  useEffect(() => {
+    const point = pendingPoint.current
+    if (!point) return
+    pendingPoint.current = null
+    saveSyncPoint(code, point.version, point.doc)
+  }, [code, doc])
 
   // Отправка идёт только на изменение документа. Серия правок схлопывается в
   // один запрос, а без правок в облако не уходит ничего.
@@ -211,21 +313,29 @@ export function useCloudSync(
   useEffect(() => {
     const flush = () => {
       if (!timer.current || !enabled.current) return
-      clearTimeout(timer.current)
-      timer.current = null
-      keepaliveFlush(code, latest.current, version.current)
+      const payload = latest.current
+      const base = getBase()
+      if (base && sameDoc(payload, base)) return
+      // Таймер намеренно не снимаем: если вкладка выживет, обычный запрос с
+      // чтением ответа доедет сам, а повтор безвреден — своё же тело в облаке
+      // узнаётся по lastSent и засчитывается как успех.
+      lastSent.current = payload
+      keepaliveFlush(code, payload, version.current)
     }
 
     const resume = async () => {
-      if (!shouldPullOnResume({ enabled: enabled.current, busy: !!timer.current || sending.current, hasUnsentEdits: dirty.current })) {
-        return
-      }
+      if (!shouldPullOnResume({ enabled: enabled.current, busy: !!timer.current || sending.current })) return
       const res = await pull(code)
       // строго новее того, что мы сами писали или читали, — значит правил кто-то другой
       if (!res.ok || !res.doc || res.version <= version.current) return
-      version.current = res.version
-      saveCloudVersion(code, res.version)
-      dispatch({ type: 'replaceDoc', doc: res.doc, now: Date.now() })
+      const base = getBase()
+      const now = Date.now()
+      if (!base) {
+        surrender(res.version, res.doc)
+        return
+      }
+      commitOnApply(res.version, res.doc)
+      dispatch({ type: 'mergeCloud', base, cloud: res.doc, now })
     }
 
     const onVisibility = () => {
@@ -236,15 +346,26 @@ export function useCloudSync(
     // не всегда меняет видимость вкладки, а вернуться к ней хочется со свежими данными
     const onFocus = () => void resume()
 
+    // соседняя вкладка договорилась с облаком — её версия и база теперь общие
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== versionKey(code)) return
+      const v = Number(e.newValue) || 0
+      if (v <= version.current) return
+      version.current = v
+      baseCache.current = null
+    }
+
     window.addEventListener('pagehide', flush)
     window.addEventListener('focus', onFocus)
+    window.addEventListener('storage', onStorage)
     document.addEventListener('visibilitychange', onVisibility)
     return () => {
       window.removeEventListener('pagehide', flush)
       window.removeEventListener('focus', onFocus)
+      window.removeEventListener('storage', onStorage)
       document.removeEventListener('visibilitychange', onVisibility)
     }
-  }, [code, dispatch, dirty])
+  }, [code, commitOnApply, dispatch, getBase, surrender])
 
   return status
 }

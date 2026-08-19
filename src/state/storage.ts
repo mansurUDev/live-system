@@ -31,8 +31,12 @@ export function docKey(code: string): string {
   return `${LS_KEY}:${code}`
 }
 
-function versionKey(code: string): string {
+export function versionKey(code: string): string {
   return `${LS_KEY}:${code}:cv`
+}
+
+function baseKey(code: string): string {
+  return `${LS_KEY}:${code}:base`
 }
 
 /**
@@ -54,6 +58,55 @@ export function saveCloudVersion(code: string, version: number): void {
     storage()?.setItem(versionKey(code), String(version))
   } catch {
     /* не критично — в худшем случае следующая загрузка спросит у облака заново */
+  }
+}
+
+/**
+ * База — тело документа, которое облако содержало на версии `:cv`.
+ *
+ * Зная её, расхождение с облаком можно объединить, а не решать выбором стороны:
+ * что появилось после базы у нас — наша правка, что появилось у облака — чужая,
+ * и обе должны уцелеть. Номер версии лежит внутри и сверяется с `:cv`: база,
+ * отставшая от номера, опаснее отсутствующей — она выдала бы чужие правки за
+ * наши и воскресила бы удалённое, поэтому такая база считается отсутствующей.
+ */
+export function loadBase(code: string, now: number = Date.now()): Doc | null {
+  try {
+    const raw = storage()?.getItem(baseKey(code))
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { v?: unknown; doc?: unknown }
+    if (parsed?.v !== loadCloudVersion(code) || !parsed.doc) return null
+    return normalize(parsed.doc, now)
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Точка согласования: облако на версии `version` содержит ровно `doc`.
+ *
+ * Сначала база, потом номер — при обрыве между ними база окажется «впереди»
+ * номера и будет отброшена при чтении. Обратный порядок оставил бы базу позади,
+ * и она молча стала бы источником фантомных правок. Если места не хватило,
+ * база удаляется совсем: синхронизация умеет работать без неё, а с устаревшей —
+ * нет.
+ */
+export function saveSyncPoint(code: string, version: number, doc: Doc): void {
+  const s = storage()
+  if (!s) return
+  try {
+    s.setItem(baseKey(code), JSON.stringify({ v: version, doc }))
+  } catch {
+    try {
+      s.removeItem(baseKey(code))
+    } catch {
+      /* хранилище недоступно целиком — дальше всё равно работаем локально */
+    }
+  }
+  try {
+    s.setItem(versionKey(code), String(version))
+  } catch {
+    /* см. saveCloudVersion */
   }
 }
 
@@ -144,6 +197,7 @@ export function dropDoc(code: string): void {
   try {
     storage()?.removeItem(docKey(code))
     storage()?.removeItem(versionKey(code))
+    storage()?.removeItem(baseKey(code))
   } catch {
     /* нечего чистить */
   }

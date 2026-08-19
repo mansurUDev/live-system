@@ -20,6 +20,7 @@ import { moveActTo, type MoveTarget } from '../logic/actLayout'
 import { convert, money } from '../logic/currency'
 import { rollMonth } from '../logic/finance'
 import { resetQuit, toggleToday } from '../logic/habits'
+import { mergeDoc } from '../logic/merge'
 import { kindLabel, pct, summary } from '../logic/pct'
 import { markDone } from '../logic/reminders'
 import { runningEntry } from '../logic/segs'
@@ -57,6 +58,13 @@ export interface AppState {
 
 export type Action =
   | { type: 'replaceDoc'; doc: Doc; now: number }
+  /**
+   * Объединение с облаком. Слияние идёт действием, а не готовым документом из
+   * хука: правка, сделанная человеком пока летел запрос, обязана попасть в
+   * результат, а редьюсер — единственное место, где видно по-настоящему
+   * актуальное состояние.
+   */
+  | { type: 'mergeCloud'; base: Doc; cloud: Doc; now: number }
   | { type: 'ensureSnapshot'; now: number }
   /** живое перетаскивание ползунка — без записи в историю */
   | { type: 'setSphere'; id: string; value: number; now: number }
@@ -119,21 +127,6 @@ export type Action =
     }
   | { type: 'deleteLibItem'; kind: 'book' | 'course' | 'video' | 'show'; id: string; now: number }
 
-/**
- * Действия, которые диспатчатся сами — при загрузке страницы или из ответа
- * облака, без прямого участия пользователя. Используется синхронизацией,
- * чтобы отличить «человек что-то поправил, пока шёл первый pull» от
- * «страница просто открылась» — иначе от pull, пришедшего чуть позже
- * действия человека, эта правка была бы затёрта. Новое авто-действие обязано
- * попасть сюда, иначе гонка при загрузке вернётся.
- */
-export const AUTO_ACTIONS: ReadonlySet<Action['type']> = new Set([
-  'replaceDoc',
-  'ensureSnapshot',
-  'rollFinanceMonth',
-  'dismissCelebration',
-])
-
 function isoAtLeast(now: number, notBefore: string): string {
   const start = new Date(notBefore).getTime()
   const t = Number.isFinite(start) ? Math.max(now, start) : now
@@ -165,6 +158,9 @@ function coreReducer(doc: Doc, action: Action): Doc {
   switch (action.type) {
     case 'replaceDoc':
       return action.doc
+
+    case 'mergeCloud':
+      return mergeDoc(action.base, doc, action.cloud, action.now)
 
     case 'ensureSnapshot':
       return doc
@@ -667,7 +663,7 @@ export function reducer(state: AppState, action: Action): AppState {
   // Поздравление держится открытым, пока пользователь его не закроет, но исчезает
   // вместе с самим сектором и при замене всего документа.
   let celebratingId = finalized.celebratingId ?? state.celebratingId
-  if (action.type === 'replaceDoc') celebratingId = null
+  if (action.type === 'replaceDoc' || action.type === 'mergeCloud') celebratingId = null
   if (
     (action.type === 'archiveSector' || action.type === 'removeSector') &&
     celebratingId === action.id
