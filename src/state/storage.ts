@@ -69,13 +69,16 @@ export function saveCloudVersion(code: string, version: number): void {
  * и обе должны уцелеть. Номер версии лежит внутри и сверяется с `:cv`: база,
  * отставшая от номера, опаснее отсутствующей — она выдала бы чужие правки за
  * наши и воскресила бы удалённое, поэтому такая база считается отсутствующей.
+ * Версию передаёт вызывающий, а не берём из `:cv`: в памяти номер может быть уже
+ * новее, чем на диске, и молчаливая сверка с диском вернула бы базу не от той
+ * версии.
  */
-export function loadBase(code: string, now: number = Date.now()): Doc | null {
+export function loadBase(code: string, version: number, now: number = Date.now()): Doc | null {
   try {
     const raw = storage()?.getItem(baseKey(code))
     if (!raw) return null
     const parsed = JSON.parse(raw) as { v?: unknown; doc?: unknown }
-    if (parsed?.v !== loadCloudVersion(code) || !parsed.doc) return null
+    if (parsed?.v !== version || !parsed.doc) return null
     return normalize(parsed.doc, now)
   } catch {
     return null

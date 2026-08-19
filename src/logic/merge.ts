@@ -49,6 +49,13 @@ import type {
  * не складываются дельты: правило `pick3` при совпадении сторон возвращает их
  * значение как есть, а объединение по id не создаёт дубля. Проверяется
  * свойством `merge(base, m, m) === m` в тестах.
+ *
+ * Известный предел: пределы длины списков (MAX_SECTORS и прочие) применяет
+ * normalize уже после слияния. Если список у самого предела и обе стороны
+ * добавили по записи, лишняя молча отбрасывается — и отбрасывается та, что
+ * пришла из облака. Учить слияние всем пределам и направлениям обрезки значит
+ * продублировать их вместе с семантикой «голова или хвост», поэтому пока так;
+ * до предела здесь десятки записей, а не единицы.
  */
 
 /* ── сравнение ────────────────────────────────────────────────────────── */
@@ -187,6 +194,29 @@ function orderOf(list: Ided[], ids: Set<string>): string[] {
   return list.filter((x) => ids.has(x.id)).map((x) => x.id)
 }
 
+/**
+ * Пустая заготовка элемента: списки — пустые, словари — пустые, остальное не
+ * задано.
+ *
+ * Нужна там, где один и тот же id есть у обеих сторон, но нет в базе. Так бывает
+ * не только при эхе: отправка при закрытии вкладки могла долететь, телефон её
+ * забрать и дополнить — тогда в облаке лежит наша запись с чужими правками, а
+ * общего предка у нас нет. Подставить облачный элемент как базу означало бы
+ * «у облака ничего не менялось» и выбросить всё, что телефон дописал внутрь:
+ * этапы, заметки, отметки. С пустой заготовкой вложенные списки объединяются, а
+ * спор за одно значение решается общим правилом — за локальной стороной.
+ */
+function neutralBase<T extends object>(local: T, cloud: T): T {
+  const l = local as Record<string, unknown>
+  const c = cloud as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const k of new Set([...definedKeys(l), ...definedKeys(c)])) {
+    const v = l[k] !== undefined ? l[k] : c[k]
+    out[k] = Array.isArray(v) ? [] : v && typeof v === 'object' ? {} : undefined
+  }
+  return out as T
+}
+
 function mergeById<T extends Ided>(
   base: T[],
   local: T[],
@@ -218,9 +248,10 @@ function mergeById<T extends Ided>(
       if (deepEqual(c, b)) return l
       return item ? item(b, l, c) : l
     }
-    // одного id нет в базе, но он есть у обеих сторон — это эхо нашей же
-    // отправки либо запись бота, дошедшая обоими путями; дубля быть не должно
-    if (l && c) return item ? item(c, l, c) : l
+    // одного id нет в базе, но он есть у обеих сторон: наша отправка долетела и
+    // вернулась — возможно, уже с чужими дополнениями. Дубля быть не должно, а
+    // содержимое сливается от пустой заготовки (см. neutralBase)
+    if (l && c) return item ? item(neutralBase(l, c), l, c) : l
     return l ?? c ?? null
   }
 
@@ -296,7 +327,10 @@ function mergeEntries(base: TimeEntry[], local: TimeEntry[], cloud: TimeEntry[])
     }),
   )
 
-  const out = [...list].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : a.id < b.id ? -1 : 1))
+  // Сортировка ровно как в normalize — по началу и стабильно. Тайбрейк по id
+  // выглядел безобиднее, но переставлял бы записи одной минуты и создавал
+  // расхождение там, где содержимое совпадает: эхо превращалось бы в правку.
+  const out = [...list].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))
 
   const running = out.filter((e) => e.end === null)
   if (running.length > 1) {
@@ -310,16 +344,22 @@ function mergeEntries(base: TimeEntry[], local: TimeEntry[], cloud: TimeEntry[])
     }
   }
 
-  // Пересечения подрезаются только там, где слияние что-то меняло: иначе оно
-  // правило бы давние записи «из ниоткуда» и документ переставал бы быть
-  // неподвижной точкой — каждая загрузка порождала бы новую отправку.
+  // Подрезаются только пересечения, которых раньше не было: давние записи, уже
+  // лежавшие внахлёст (ручная правка границ), слияние трогать не должно — иначе
+  // оно правило бы их «из ниоткуда» при любой правке соседа.
+  const before = new Map(base.map((e) => [e.id, e]))
   for (let i = 0; i < out.length - 1; i++) {
     const cur = out[i]!
     const next = out[i + 1]!
     if (cur.end === null || next.start >= cur.end) continue
     if (next.end !== null && next.end <= next.start) continue
-    if (!changed.has(cur.id) && !changed.has(next.id)) continue
-    out[i] = { ...cur, end: next.start > cur.start ? next.start : cur.start }
+    // одинаковое начало обрезать нечем: получился бы отрезок нулевой длины, то
+    // есть потерянный час вместо разрешённого спора — пусть лучше остаётся нахлёст
+    if (next.start <= cur.start) continue
+    const wasCur = before.get(cur.id)
+    const wasNext = before.get(next.id)
+    if (wasCur && wasNext && wasCur.end !== null && wasNext.start < wasCur.end) continue
+    out[i] = { ...cur, end: next.start }
   }
 
   return out

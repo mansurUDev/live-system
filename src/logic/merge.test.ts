@@ -362,3 +362,86 @@ describe('слияние — настройки и служебное', () => {
     expect(merged.acts[0]!.name).toBe('Работа+')
   })
 })
+
+describe('слияние — общего предка нет, но запись есть у обеих сторон', () => {
+  // так бывает, когда отправка при закрытии вкладки долетела, телефон её забрал
+  // и дополнил: в облаке наша запись с чужими правками, а базы под неё нет
+  it('чужие вложенные списки не выбрасываются', () => {
+    const base = docH()
+    const local = docH((d) => {
+      d.habits.push(habit({ id: 'h2', name: 'Английский', done: ['2026-08-18'] }))
+    })
+    const cloud = docH((d) => {
+      d.habits.push(habit({ id: 'h2', name: 'Английский', done: ['2026-08-18', '2026-08-19'], record: 2 }))
+    })
+    const merged = mergeDoc(base, local, cloud, NOW)
+    const h = merged.habits.find((x) => x.id === 'h2')!
+    expect(h.done).toEqual(['2026-08-18', '2026-08-19'])
+    expect(h.record).toBe(2)
+  })
+
+  it('закрепление, пришедшее только из облака, не теряется', () => {
+    const base = doc((d) => {
+      d.acts = []
+    })
+    const local = doc()
+    const id = local.acts[2]!.id
+    const cloud = doc((d) => {
+      d.acts[2]!.pinned = true
+    })
+    expect(mergeDoc(base, local, cloud, NOW).acts.find((a) => a.id === id)!.pinned).toBe(true)
+  })
+})
+
+describe('слияние — трекер не теряет длительность', () => {
+  const mins = (e: { start: string; end: string | null }) =>
+    e.end === null ? null : (Date.parse(e.end) - Date.parse(e.start)) / 60000
+
+  it('две записи с одинаковым началом на разных устройствах остаются целыми', () => {
+    // обрезать тут нечем: подрезка первой дала бы отрезок нулевой длины, то есть
+    // потерянный час вместо честного нахлёста
+    const base = doc()
+    const local = doc((d) => d.entries.push(entry('a_lap', '2026-08-19T09:00:00.000Z', '2026-08-19T10:00:00.000Z')))
+    const cloud = doc((d) => d.entries.push(entry('b_phone', '2026-08-19T09:00:00.000Z', '2026-08-19T09:30:00.000Z')))
+    const merged = mergeDoc(base, local, cloud, NOW)
+    expect(merged.entries.map(mins).sort((x, y) => Number(y) - Number(x))).toEqual([60, 30])
+  })
+
+  it('давний нахлёст не подрезается из-за правки соседа', () => {
+    const overlapping = (d: Doc) => {
+      d.entries.push(entry('old1', '2026-08-10T09:00:00.000Z', '2026-08-10T11:00:00.000Z'))
+      d.entries.push(entry('old2', '2026-08-10T10:00:00.000Z', '2026-08-10T12:00:00.000Z'))
+    }
+    const base = doc(overlapping)
+    const local = doc((d) => {
+      overlapping(d)
+      d.entries[0] = { ...d.entries[0]!, actId: 'a2' }
+    })
+    const cloud = doc(overlapping)
+    const merged = mergeDoc(base, local, cloud, NOW)
+    expect(merged.entries.map(mins)).toEqual([120, 120])
+  })
+
+  it('новый нахлёст, созданный слиянием, подрезается по началу следующей', () => {
+    const base = doc()
+    const local = doc((d) => d.entries.push(entry('e1', '2026-08-19T09:00:00.000Z', '2026-08-19T11:00:00.000Z')))
+    const cloud = doc((d) => d.entries.push(entry('e2', '2026-08-19T10:00:00.000Z', '2026-08-19T12:00:00.000Z')))
+    const merged = mergeDoc(base, local, cloud, NOW)
+    expect(merged.entries.map(mins)).toEqual([60, 120])
+  })
+})
+
+describe('слияние — эхо не превращается в правку', () => {
+  it('две записи, начатые в одну минуту, не переставляются', () => {
+    // трекер округляет начало до минуты, а id случайны: сортировка с тайбрейком
+    // по id меняла бы их местами и делала из эха расхождение
+    const base = doc()
+    const m = doc((d) => {
+      d.entries.push(entry('zz', '2026-08-19T04:00:00.000Z', '2026-08-19T04:00:00.000Z'))
+      d.entries.push(entry('aa', '2026-08-19T04:00:00.000Z', '2026-08-19T05:00:00.000Z'))
+    })
+    const merged = mergeDoc(base, m, clone(m), NOW)
+    expect(merged.entries.map((e) => e.id)).toEqual(m.entries.map((e) => e.id))
+    expect(sameDoc(merged, m)).toBe(true)
+  })
+})

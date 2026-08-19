@@ -7,6 +7,7 @@ import { canPin, DOCK, hotDockHeight, mergeAct, moveActTo, splitActs } from './a
 import { numberForecast, stepsForecast } from './forecast'
 import { buildHints } from './hints'
 import { normalize } from './normalize'
+import { MAX_ARCHIVE } from '../constants'
 import { detectIos, detectSafari, installHint, type InstallEnv } from './install'
 import { defaultDoc, makeSector } from './defaults'
 import { withTodaySnapshot } from './snapshot'
@@ -343,6 +344,24 @@ describe('hints', () => {
 })
 
 describe('normalize', () => {
+  it('переполненный архив теряет самые давние достижения, а не свежие', () => {
+    // редьюсер кладёт новые записи в начало — значит и резать надо голову
+    const rec = (id: string, day: number) => ({
+      id,
+      name: id,
+      color: '#fbbf24',
+      kindLabel: 'цель',
+      startedAt: '2020-01-01T00:00:00.000Z',
+      completedAt: new Date(Date.UTC(2026, 0, 1) - day * 86400000).toISOString(),
+      summary: '',
+    })
+    const archive = Array.from({ length: MAX_ARCHIVE + 2 }, (_, i) => rec('a' + i, i))
+    const d = normalize({ ...defaultDoc(NOW), archive }, NOW)
+    expect(d.archive).toHaveLength(MAX_ARCHIVE)
+    expect(d.archive[0]!.id).toBe('a0')
+    expect(d.archive.some((a) => a.id === 'a' + (MAX_ARCHIVE + 1))).toBe(false)
+  })
+
   it('подставляет дефолт на мусорный вход', () => {
     const seeded = defaultDoc(NOW).sectors.length
     expect(normalize(null, NOW).sectors).toHaveLength(seeded)

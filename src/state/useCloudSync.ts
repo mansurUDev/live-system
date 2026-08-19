@@ -55,6 +55,8 @@ export function useCloudSync(
   doc: Doc,
   dispatch: (a: Action) => void,
   notify?: (text: string) => void,
+  /** удалось ли записать документ на диск — см. DataProvider */
+  savedOk?: { current: boolean },
 ): SyncState {
   const [status, setStatus] = useState<SyncState>('off')
   const version = useRef(0)
@@ -81,7 +83,7 @@ export function useCloudSync(
   const getBase = useCallback((): Doc | null => {
     const cached = baseCache.current
     if (cached && cached.version === version.current) return cached.doc
-    const stored = loadBase(code)
+    const stored = loadBase(code, version.current)
     if (stored) baseCache.current = { version: version.current, doc: stored }
     return stored
   }, [code])
@@ -251,6 +253,12 @@ export function useCloudSync(
 
       switch (plan.kind) {
         case 'push-initial':
+          // Облако пусто, а на диске могла остаться точка согласования от
+          // прежней жизни документа. С ней эхо-стоп счёл бы, что отправлять
+          // нечего, и заливка молча не состоялась бы.
+          version.current = 0
+          baseCache.current = null
+          pendingPoint.current = null
           void sendNow(latest.current)
           break
         case 'apply-cloud':
@@ -288,9 +296,13 @@ export function useCloudSync(
   useEffect(() => {
     const point = pendingPoint.current
     if (!point) return
+    // Документ не записался (кончилось место) — точку не двигаем: пусть на диске
+    // останется прежняя, тогда следующая загрузка просто сольёт заново. База,
+    // ушедшая вперёд содержимого, стоила бы чужих правок.
+    if (savedOk && !savedOk.current) return
     pendingPoint.current = null
     saveSyncPoint(code, point.version, point.doc)
-  }, [code, doc])
+  }, [code, doc, savedOk])
 
   // Отправка идёт только на изменение документа. Серия правок схлопывается в
   // один запрос, а без правок в облако не уходит ничего.
@@ -298,10 +310,20 @@ export function useCloudSync(
     if (!enabled.current) return
     if (timer.current) clearTimeout(timer.current)
 
-    timer.current = setTimeout(() => void sendNow(doc), PUSH_DELAY_MS)
+    // Ссылку на таймер обязательно обнулять: по ней определяется «отправка
+    // запланирована». Если её оставить, вкладка навсегда считается занятой и
+    // перестаёт перечитывать облако при возврате — ровно та свежесть, ради
+    // которой всё и затевалось, тихо выключается после первой же правки.
+    timer.current = setTimeout(() => {
+      timer.current = null
+      void sendNow(doc)
+    }, PUSH_DELAY_MS)
 
     return () => {
-      if (timer.current) clearTimeout(timer.current)
+      if (timer.current) {
+        clearTimeout(timer.current)
+        timer.current = null
+      }
     }
   }, [doc, sendNow])
 

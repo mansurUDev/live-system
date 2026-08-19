@@ -228,7 +228,10 @@ function normEntries(x: unknown): TimeEntry[] {
 
 function normArchive(x: unknown, nowIso: string): ArchiveRec[] {
   if (!Array.isArray(x)) return []
-  return x.slice(-MAX_ARCHIVE).map((raw, i) => {
+  // Новые записи редьюсер кладёт в начало ([rec, ...archive]) и режет голову —
+  // здесь тоже голова, иначе при переполнении выбрасывались бы самые свежие
+  // достижения, а не самые давние.
+  return x.slice(0, MAX_ARCHIVE).map((raw, i) => {
     const a = obj(raw)
     return {
       id: str(a.id, 60, 'ar' + i),

@@ -47,9 +47,15 @@ export function DataProvider({ children }: { children: ReactNode }) {
   // его же, и её событие `storage` не должно приниматься за чужую правку.
   const lastWritten = useRef('')
 
+  // Записался ли документ на самом деле. Синхронизация опирается на это: пока
+  // на диске лежит дослияние, двигать точку согласования нельзя — иначе на
+  // следующей загрузке старое тело уедет поверх чужих правок.
+  const savedOk = useRef(true)
+
   useEffect(() => {
     const { result, json } = saveDoc(code, state.doc)
     lastWritten.current = json
+    savedOk.current = result === 'ok'
     if (result === 'ok' || warned.current) return
     warned.current = true
     toast(
@@ -81,7 +87,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('storage', onStorage)
   }, [code])
 
-  const sync = useCloudSync(code, state.doc, dispatch, toast)
+  const sync = useCloudSync(code, state.doc, dispatch, toast, savedOk)
 
   return <DataContext.Provider value={{ state, dispatch, sync }}>{children}</DataContext.Provider>
 }
