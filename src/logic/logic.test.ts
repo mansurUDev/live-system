@@ -9,6 +9,7 @@ import { buildHints } from './hints'
 import { normalize } from './normalize'
 import { nextChargeAt, ratesMissing } from './finance'
 import { agenda } from './agenda'
+import { daysUntil, untilLabel } from './time'
 import { MAX_ARCHIVE } from '../constants'
 import { detectIos, detectSafari, installHint, type InstallEnv } from './install'
 import { defaultDoc, makeSector } from './defaults'
@@ -1186,5 +1187,37 @@ describe('курсы не заданы', () => {
   it('все расходы в валюте отображения — пересчитывать нечего', () => {
     const f = fin([{ id: 'm1', name: 'Аренда', amount: 500, currency: 'USD', day: 1 }])
     expect(ratesMissing(f, { currency: 'USD', rates: one })).toBe(false)
+  })
+})
+
+describe('сколько осталось до срока', () => {
+  it('ближние сроки называются днями', () => {
+    expect(untilLabel(0)).toBe('сегодня')
+    expect(untilLabel(1)).toBe('завтра')
+    expect(untilLabel(2)).toBe('послезавтра')
+    expect(untilLabel(3)).toBe('через 3 дня')
+    expect(untilLabel(5)).toBe('через 5 дней')
+    expect(untilLabel(11)).toBe('через 11 дней')
+  })
+
+  it('дальние — неделями и месяцами: точность в днях там ничего не решает', () => {
+    expect(untilLabel(14)).toBe('через 2 недели')
+    expect(untilLabel(21)).toBe('через 3 недели')
+    expect(untilLabel(39)).toBe('через 6 недель')
+    expect(untilLabel(60)).toBe('через 2 месяца')
+    expect(untilLabel(150)).toBe('через 5 месяцев')
+  })
+
+  it('просроченное называется прямо', () => {
+    expect(untilLabel(-1)).toBe('просрочено на 1 день')
+    expect(untilLabel(-3)).toBe('просрочено на 3 дня')
+    expect(untilLabel(-11)).toBe('просрочено на 11 дней')
+  })
+
+  it('daysUntil считает от начала суток, поэтому «сегодня» — это ноль', () => {
+    const today = localDateKey(NOW)
+    expect(daysUntil(today, NOW)).toBe(0)
+    expect(daysUntil('', NOW)).toBeNull()
+    expect(daysUntil('не дата', NOW)).toBeNull()
   })
 })

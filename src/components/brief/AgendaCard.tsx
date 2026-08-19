@@ -1,15 +1,7 @@
 import { AGENDA_DAYS, agenda } from '../../logic/agenda'
-import { fmtDayMonth, localDateKey, plural } from '../../logic/time'
+import { fmtDayMonth, localDateKey, plural, untilLabel } from '../../logic/time'
 import { C, MONO, plainCard } from '../../theme'
 import type { Doc, Tab } from '../../types'
-
-/** Подпись срока: «сегодня» и «завтра» читаются быстрее, чем «через 0 дней» */
-function whenLabel(days: number): string {
-  if (days < 0) return `просрочено на ${-days} ${plural(-days, 'день', 'дня', 'дней')}`
-  if (days === 0) return 'сегодня'
-  if (days === 1) return 'завтра'
-  return `через ${days} ${plural(days, 'день', 'дня', 'дней')}`
-}
 
 /**
  * Что ждёт в ближайший месяц — одним списком по датам.
@@ -86,7 +78,7 @@ export function AgendaCard({ doc, now, onGo }: { doc: Doc; now: number; onGo: (t
                     color: late ? C.dangerText : soon ? '#fbbf24' : C.muted,
                   }}
                 >
-                  {whenLabel(it.days)}
+                  {untilLabel(it.days)}
                 </span>
                 <span style={{ display: 'block', fontFamily: MONO, fontSize: 11.5, color: C.faint, marginTop: 1 }}>
                   {fmtDayMonth(localDateKey(it.at))}

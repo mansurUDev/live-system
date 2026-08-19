@@ -130,3 +130,37 @@ export function plural(n: number, one: string, few: string, many: string): strin
 }
 
 export { DAY_MS }
+
+/**
+ * Сколько осталось до срока, словами.
+ *
+ * Дата сама по себе требует счёта в уме: «27 сентября» — это скоро или нет?
+ * Ближние сроки называются днями, дальние — неделями и месяцами: точность в
+ * днях за горизонтом пары недель всё равно ничего не решает.
+ */
+export function untilLabel(days: number): string {
+  if (days === 0) return 'сегодня'
+  if (days === 1) return 'завтра'
+  if (days === 2) return 'послезавтра'
+
+  if (days < 0) {
+    const late = -days
+    return `просрочено на ${late} ${plural(late, 'день', 'дня', 'дней')}`
+  }
+
+  if (days < 14) return `через ${days} ${plural(days, 'день', 'дня', 'дней')}`
+  if (days < 60) {
+    const weeks = Math.round(days / 7)
+    return `через ${weeks} ${plural(weeks, 'неделю', 'недели', 'недель')}`
+  }
+  const months = Math.round(days / 30)
+  return `через ${months} ${plural(months, 'месяц', 'месяца', 'месяцев')}`
+}
+
+/** Дней от сегодня до даты вида ГГГГ-ММ-ДД; null — даты нет или она битая */
+export function daysUntil(dayKey: string, now: number = Date.now()): number | null {
+  if (!dayKey) return null
+  const t = new Date(dayKey + 'T00:00:00').getTime()
+  if (!Number.isFinite(t)) return null
+  return Math.round((startOfDay(t) - startOfDay(now)) / DAY_MS)
+}

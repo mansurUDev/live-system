@@ -1,7 +1,8 @@
 import { useState } from 'react'
+import { CURRENCIES } from '../../constants'
 import { approx, convert, money, roundMoney } from '../../logic/currency'
-import { financeCalc, goalHistory, goalProgress, ratesMissing } from '../../logic/finance'
-import { fmtD, plural } from '../../logic/time'
+import { financeCalc, goalHistory, goalProgress, nextChargeAt, ratesMissing } from '../../logic/finance'
+import { DAY_MS, daysUntil, fmtD, plural, startOfDay, untilLabel } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
@@ -39,9 +40,17 @@ export function FinanceTab() {
   const [expenseForm, setExpenseForm] = useState<ExpenseForm>(null)
   const [incomeText, setIncomeText] = useState('')
   const [incomeOpen, setIncomeOpen] = useState(false)
+  const [incomeCurrency, setIncomeCurrency] = useState<CurrencyCode>(currency)
 
   // пробелы как разделитель тысяч — «1 200 000» иначе прочиталось бы как 1
   const income = parseFloat(incomeText.replace(/\s/g, '').replace(',', '.'))
+  const incomeOk = Number.isFinite(income) && income > 0
+  // деньги приходят в разной валюте, а хранится всё в валюте отображения
+  const incomeStored = incomeOk
+    ? incomeCurrency === currency
+      ? income
+      : roundMoney(convert(income, incomeCurrency, currency, rates))
+    : 0
 
   /**
    * Поступление одним действием: и в счёт планки месяца, и в карман. Двумя
@@ -49,9 +58,9 @@ export function FinanceTab() {
    * дневной лимит считался от суммы, которой давно нет.
    */
   const addIncome = () => {
-    if (!(Number.isFinite(income) && income > 0)) return
-    dispatch(A.addIncome(income))
-    toast(`+${money(roundMoney(income), currency)} — записано в планку и на руки`)
+    if (!incomeOk) return
+    dispatch(A.addIncome(incomeStored))
+    toast(`+${money(incomeStored, currency)} — записано в планку и на руки`)
     setIncomeText('')
     setIncomeOpen(false)
   }
@@ -161,6 +170,26 @@ export function FinanceTab() {
               aria-label="Сумма поступления"
               style={{ ...input, width: 160 }}
             />
+            {CURRENCIES.map((c) => (
+              <button
+                key={c.code}
+                onClick={() => setIncomeCurrency(c.code)}
+                aria-label={'Пришло в ' + c.code}
+                style={{
+                  fontFamily: 'inherit',
+                  fontSize: 12,
+                  lineHeight: 1,
+                  padding: '6px 9px',
+                  borderRadius: 7,
+                  cursor: 'pointer',
+                  color: incomeCurrency === c.code ? '#eaf6ff' : C.faint,
+                  border: `1px solid ${incomeCurrency === c.code ? 'rgba(251,191,36,.55)' : 'rgba(148,163,184,.22)'}`,
+                  background: incomeCurrency === c.code ? 'rgba(251,191,36,.14)' : 'rgba(148,163,184,.05)',
+                }}
+              >
+                {c.symbol}
+              </button>
+            ))}
             <button className="h-accent" style={{ ...btnAccent, fontSize: 13.5, padding: '8px 14px' }} onClick={addIncome}>
               Записать
             </button>
@@ -178,12 +207,21 @@ export function FinanceTab() {
             >
               отмена
             </button>
+            {incomeOk && incomeCurrency !== currency && (
+              <div style={{ fontSize: 12, color: C.faint, flexBasis: '100%' }}>
+                запишется {money(incomeStored, currency)}
+              </div>
+            )}
           </div>
         ) : (
           <button
             className="h-accent"
             style={{ ...btnAccent, fontSize: 13.5, padding: '8px 14px', marginTop: 12 }}
-            onClick={() => setIncomeOpen(true)}
+            onClick={() => {
+              // валюта не залипает между открытиями и не отстаёт от настроек
+              setIncomeCurrency(currency)
+              setIncomeOpen(true)
+            }}
           >
             + Пришли деньги
           </button>
@@ -191,10 +229,24 @@ export function FinanceTab() {
 
         <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 130 }}>
-            <MoneyField label="Планка" value={fin.goal} onChange={(v) => patch({ goal: v })} placeholder="2000" />
+            <MoneyField
+              label="Планка"
+              value={fin.goal}
+              onChange={(v) => patch({ goal: v })}
+              placeholder="2000"
+              currency={currency}
+              rates={rates}
+            />
           </div>
           <div style={{ flex: 1, minWidth: 130 }}>
-            <MoneyField label="Получено" value={fin.got} onChange={(v) => patch({ got: v })} placeholder="0" />
+            <MoneyField
+              label="Получено"
+              value={fin.got}
+              onChange={(v) => patch({ got: v })}
+              placeholder="0"
+              currency={currency}
+              rates={rates}
+            />
           </div>
         </div>
       </div>
@@ -211,6 +263,8 @@ export function FinanceTab() {
               onChange={(v) => patch({ onHand: v })}
               placeholder="0"
               hint="обнови, когда проверяешь баланс"
+              currency={currency}
+              rates={rates}
               big
             />
           </div>
@@ -300,6 +354,8 @@ export function FinanceTab() {
             onChange={(v) => patch({ cushion: v })}
             placeholder="0"
             hint="на непредвиденное — в лимит не попадёт"
+            currency={currency}
+            rates={rates}
           />
         </div>
       </div>
@@ -339,7 +395,9 @@ export function FinanceTab() {
               <span style={{ flex: 1, fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>
                 {m.name}
                 {m.day > 0 && (
-                  <span style={{ fontFamily: MONO, fontSize: 12, color: C.faint, marginLeft: 7 }}>{m.day}-го</span>
+                  <span style={{ fontFamily: MONO, fontSize: 12, color: C.faint, marginLeft: 7 }}>
+                    {m.day}-го · {chargeIn(m.day, now)}
+                  </span>
                 )}
               </span>
               <Amount amount={m.amount} from={m.currency} to={currency} rates={rates} />
@@ -422,6 +480,12 @@ export function FinanceTab() {
   )
 }
 
+/** Сколько осталось до ближайшего списания обязательного расхода */
+function chargeIn(day: number, now: number): string {
+  const at = nextChargeAt(day, now)
+  return at === null ? '' : untilLabel(Math.round((at - startOfDay(now)) / DAY_MS))
+}
+
 function toDraft(o: OneTimeExpense): ExpenseDraft {
   return { name: o.name, amount: o.amount, currency: o.currency, date: o.date, day: 0 }
 }
@@ -482,6 +546,8 @@ function ExpenseRow({
   // является: срок ему просто не назначен. Приглушать его и подписывать
   // «прошло» значит выдавать невыплаченный долг за историю.
   const overdue = !!past && !!item.date
+  // дата сама по себе требует счёта в уме: «27 сентября» — это скоро или нет
+  const left = daysUntil(item.date, now)
 
   return (
     <div
@@ -533,13 +599,10 @@ function ExpenseRow({
           <div style={{ fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>{item.name}</div>
           <div style={{ fontSize: 12.5, color: C.faint, marginTop: 1 }}>
             {item.date ? fmtD(item.date + 'T00:00:00', now) : 'без даты'}
-            {!item.date
-              ? ' · срок не назначен, лимит не трогает'
-              : overdue
-                ? ' · прошло'
-                : !reserved
-                  ? ' · после зарплаты, лимит не трогает'
-                  : ''}
+            {left !== null && ' · ' + untilLabel(left)}
+            {/* просроченный и бессрочный из лимита тоже не вычитаются: financeCalc
+                резервирует только предстоящие. Почему — объяснено в карточке лимита */}
+            {reserved ? '' : ' · в лимит не входит'}
           </div>
         </div>
         <Amount

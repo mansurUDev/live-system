@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { bookProgress, fmtAudio, parseAudio, readingPlan } from '../../logic/library'
-import { fmtD, plural } from '../../logic/time'
+import { fmtD, plural, untilLabel } from '../../logic/time'
 import { useNow } from '../../state/NowProvider'
 import {
   btnAccent,
@@ -115,7 +115,7 @@ export function BookCard({ book, open, onToggle, onSave, onNote, onEdit, onCopyL
             ? '✓ прочитана — план закрыт'
             : plan.kind === 'overdue'
               ? `срок прошёл ${plan.daysLate} ${plural(plan.daysLate, 'день', 'дня', 'дней')} назад — осталось ${plan.pagesLeft} с.`
-              : `по ${plan.perDay} ${plural(plan.perDay, 'странице', 'страницы', 'страниц')} в день — успеть к ${fmtD(book.targetDate + 'T00:00:00', now)}`}
+              : `по ${plan.perDay} ${plural(plan.perDay, 'странице', 'страницы', 'страниц')} в день — успеть к ${fmtD(book.targetDate + 'T00:00:00', now)}, ${untilLabel(plan.daysLeft - 1)}`}
         </div>
       )}
 
