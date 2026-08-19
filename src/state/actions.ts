@@ -171,6 +171,8 @@ export const A = {
   newIdeaLink: (url: string, label: string): IdeaLink => ({ id: uid('il'), url, label }),
 
   patchFinance: (patch: Partial<Finance>): Action => ({ type: 'patchFinance', patch, now: Date.now() }),
+
+  addIncome: (amount: number): Action => ({ type: 'addIncome', amount, now: Date.now() }),
   rollFinanceMonth: (): Action => ({ type: 'rollFinanceMonth', now: Date.now() }),
   saveMandatory: (item: MandatoryExpense): Action => ({ type: 'saveMandatory', item, now: Date.now() }),
   deleteMandatory: (id: string): Action => ({ type: 'deleteMandatory', id, now: Date.now() }),

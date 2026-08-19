@@ -7,6 +7,8 @@ import { canPin, DOCK, hotDockHeight, mergeAct, moveActTo, splitActs } from './a
 import { numberForecast, stepsForecast } from './forecast'
 import { buildHints } from './hints'
 import { normalize } from './normalize'
+import { nextChargeAt, ratesMissing } from './finance'
+import { agenda } from './agenda'
 import { MAX_ARCHIVE } from '../constants'
 import { detectIos, detectSafari, installHint, type InstallEnv } from './install'
 import { defaultDoc, makeSector } from './defaults'
@@ -1098,5 +1100,91 @@ describe('позиция в видео — внутри ссылки', () => {
     expect(cleaned).toContain('index=7')
     expect(cleaned).toContain('t=2100')
     expect(cleaned).not.toContain('si=')
+  })
+})
+
+describe('день списания обязательного расхода', () => {
+  const at = (y: number, m: number, d: number) => new Date(y, m, d).getTime()
+
+  it('число ещё не прошло — списание в этом месяце', () => {
+    expect(nextChargeAt(20, at(2026, 7, 5))).toBe(at(2026, 7, 20))
+  })
+
+  it('сегодня и есть день списания — считается сегодняшним, а не следующим месяцем', () => {
+    expect(nextChargeAt(14, at(2026, 7, 14))).toBe(at(2026, 7, 14))
+  })
+
+  it('число прошло — переносится на следующий месяц', () => {
+    expect(nextChargeAt(5, at(2026, 7, 19))).toBe(at(2026, 8, 5))
+  })
+
+  it('31-е в коротком месяце — последний день, а не перескок через месяц', () => {
+    expect(nextChargeAt(31, at(2026, 1, 10))).toBe(at(2026, 1, 28))
+  })
+
+  it('не задано или мусор — срока нет', () => {
+    expect(nextChargeAt(0, at(2026, 7, 5))).toBeNull()
+    expect(nextChargeAt(32, at(2026, 7, 5))).toBeNull()
+    expect(nextChargeAt(NaN, at(2026, 7, 5))).toBeNull()
+  })
+})
+
+describe('горизонт сводки', () => {
+  const withExpense = (dayOffset: number) => {
+    const d = normalize(defaultDoc(NOW), NOW)
+    const at = new Date(NOW)
+    at.setDate(at.getDate() + dayOffset)
+    const date = localDateKey(at.getTime())
+    return {
+      ...d,
+      fin: {
+        ...d.fin,
+        oneTime: [{ id: 'o1', name: 'Платёж', amount: 10, currency: 'USD' as const, date }],
+      },
+    }
+  }
+
+  it('срок ровно на тридцатый день остаётся в сводке', () => {
+    // горизонт меряется днями, а не миллисекундами: в поясах с переводом часов
+    // сутки бывают длиной 23 и 25 часов, и граница уезжала на час
+    const items = agenda(withExpense(30), NOW)
+    expect(items.map((i) => i.id)).toContain('exp-o1')
+    expect(items.find((i) => i.id === 'exp-o1')!.days).toBe(30)
+  })
+
+  it('на тридцать первый — уже нет', () => {
+    expect(agenda(withExpense(31), NOW).map((i) => i.id)).not.toContain('exp-o1')
+  })
+})
+
+describe('курсы не заданы', () => {
+  const fin = (mandatory: Parameters<typeof ratesMissing>[0]['mandatory']) => ({
+    ...defaultDoc(NOW).fin,
+    mandatory,
+  })
+  const one = { UZS: 1, USD: 1, EUR: 1, RUB: 1 }
+
+  it('расход в чужой валюте при курсе один к одному — предупреждаем', () => {
+    const f = fin([{ id: 'm1', name: 'Аренда', amount: 500, currency: 'UZS', day: 1 }])
+    expect(ratesMissing(f, { currency: 'USD', rates: one })).toBe(true)
+  })
+
+  it('курс задан частично — всё равно предупреждаем', () => {
+    // один верно пересчитанный расход ничего не говорит про остальные валюты
+    const f = fin([
+      { id: 'm1', name: 'Аренда', amount: 500, currency: 'UZS', day: 1 },
+      { id: 'm2', name: 'Курс', amount: 30, currency: 'EUR', day: 5 },
+    ])
+    expect(ratesMissing(f, { currency: 'UZS', rates: { ...one, USD: 12600 } })).toBe(true)
+  })
+
+  it('курс задан — молчим', () => {
+    const f = fin([{ id: 'm1', name: 'Аренда', amount: 500, currency: 'UZS', day: 1 }])
+    expect(ratesMissing(f, { currency: 'USD', rates: { ...one, UZS: 1 / 12600 } })).toBe(false)
+  })
+
+  it('все расходы в валюте отображения — пересчитывать нечего', () => {
+    const f = fin([{ id: 'm1', name: 'Аренда', amount: 500, currency: 'USD', day: 1 }])
+    expect(ratesMissing(f, { currency: 'USD', rates: one })).toBe(false)
   })
 })

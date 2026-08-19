@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { approx, convert, money, roundMoney } from '../../logic/currency'
-import { financeCalc, goalHistory, goalProgress } from '../../logic/finance'
+import { financeCalc, goalHistory, goalProgress, ratesMissing } from '../../logic/finance'
 import { fmtD, plural } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
@@ -37,6 +37,24 @@ export function FinanceTab() {
   const months = goalHistory(fin, isMobile ? 8 : 12, now)
 
   const [expenseForm, setExpenseForm] = useState<ExpenseForm>(null)
+  const [incomeText, setIncomeText] = useState('')
+  const [incomeOpen, setIncomeOpen] = useState(false)
+
+  // пробелы как разделитель тысяч — «1 200 000» иначе прочиталось бы как 1
+  const income = parseFloat(incomeText.replace(/\s/g, '').replace(',', '.'))
+
+  /**
+   * Поступление одним действием: и в счёт планки месяца, и в карман. Двумя
+   * полями это делалось руками, и «на руках» регулярно оставалось старым —
+   * дневной лимит считался от суммы, которой давно нет.
+   */
+  const addIncome = () => {
+    if (!(Number.isFinite(income) && income > 0)) return
+    dispatch(A.addIncome(income))
+    toast(`+${money(roundMoney(income), currency)} — записано в планку и на руки`)
+    setIncomeText('')
+    setIncomeOpen(false)
+  }
 
   const patch = (p: Parameters<typeof A.patchFinance>[0]) => dispatch(A.patchFinance(p))
 
@@ -44,7 +62,7 @@ export function FinanceTab() {
     if (!expenseForm) return
     const id = expenseForm.id ?? A.newExpenseId()
     if (expenseForm.kind === 'mandatory') {
-      dispatch(A.saveMandatory({ id, name: d.name, amount: d.amount, currency: d.currency }))
+      dispatch(A.saveMandatory({ id, name: d.name, amount: d.amount, currency: d.currency, day: d.day }))
     } else {
       dispatch(A.saveOneTime({ id, name: d.name, amount: d.amount, currency: d.currency, date: d.date }))
     }
@@ -127,6 +145,49 @@ export function FinanceTab() {
             />
           ))}
         </div>
+
+        {incomeOpen ? (
+          <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input
+              value={incomeText}
+              onChange={(e) => setIncomeText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') addIncome()
+                if (e.key === 'Escape') setIncomeOpen(false)
+              }}
+              inputMode="decimal"
+              autoFocus
+              placeholder="сколько пришло"
+              aria-label="Сумма поступления"
+              style={{ ...input, width: 160 }}
+            />
+            <button className="h-accent" style={{ ...btnAccent, fontSize: 13.5, padding: '8px 14px' }} onClick={addIncome}>
+              Записать
+            </button>
+            <button
+              onClick={() => setIncomeOpen(false)}
+              style={{
+                fontFamily: 'inherit',
+                fontSize: 13,
+                color: C.muted,
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                padding: '6px 4px',
+              }}
+            >
+              отмена
+            </button>
+          </div>
+        ) : (
+          <button
+            className="h-accent"
+            style={{ ...btnAccent, fontSize: 13.5, padding: '8px 14px', marginTop: 12 }}
+            onClick={() => setIncomeOpen(true)}
+          >
+            + Пришли деньги
+          </button>
+        )}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 12, flexWrap: 'wrap' }}>
           <div style={{ flex: 1, minWidth: 130 }}>
@@ -214,6 +275,24 @@ export function FinanceTab() {
           )}
         </div>
 
+        {ratesMissing(fin, { currency, rates }) && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '9px 12px',
+              borderRadius: 10,
+              background: 'rgba(251,191,36,.08)',
+              border: '1px solid rgba(251,191,36,.28)',
+              fontSize: 12.5,
+              color: C.textSoft,
+              lineHeight: 1.5,
+            }}
+          >
+            Есть расход в валюте, курс которой не задан — он складывается с остальными один к одному, и
+            лимит выше сверху получается неверным. Курсы задаются в «Настройках».
+          </div>
+        )}
+
         <div style={{ marginTop: 12, maxWidth: 220 }}>
           <MoneyField
             label="Неприкосновенный запас"
@@ -229,6 +308,8 @@ export function FinanceTab() {
       <div style={plainCard({ padding: '16px 18px' })}>
         <div style={sectionLabel}>Обязательные в месяц · {money(calc.mandatory, currency)}</div>
 
+
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
           {fin.mandatory.map((m) => (
             <button
@@ -238,7 +319,7 @@ export function FinanceTab() {
                 setExpenseForm({
                   kind: 'mandatory',
                   id: m.id,
-                  draft: { name: m.name, amount: m.amount, currency: m.currency, date: '' },
+                  draft: { name: m.name, amount: m.amount, currency: m.currency, date: '', day: m.day },
                 })
               }
               style={{
@@ -255,7 +336,12 @@ export function FinanceTab() {
                 cursor: 'pointer',
               }}
             >
-              <span style={{ flex: 1, fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>{m.name}</span>
+              <span style={{ flex: 1, fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>
+                {m.name}
+                {m.day > 0 && (
+                  <span style={{ fontFamily: MONO, fontSize: 12, color: C.faint, marginLeft: 7 }}>{m.day}-го</span>
+                )}
+              </span>
               <Amount amount={m.amount} from={m.currency} to={currency} rates={rates} />
             </button>
           ))}
@@ -337,7 +423,7 @@ export function FinanceTab() {
 }
 
 function toDraft(o: OneTimeExpense): ExpenseDraft {
-  return { name: o.name, amount: o.amount, currency: o.currency, date: o.date }
+  return { name: o.name, amount: o.amount, currency: o.currency, date: o.date, day: 0 }
 }
 
 /** Сумма в своей валюте, а под ней — та же сумма в валюте отображения */
@@ -392,6 +478,11 @@ function ExpenseRow({
   onEdit: () => void
   onPay: () => void
 }) {
+  // Расход без даты лежит в том же списке, что и просроченные, но прошедшим не
+  // является: срок ему просто не назначен. Приглушать его и подписывать
+  // «прошло» значит выдавать невыплаченный долг за историю.
+  const overdue = !!past && !!item.date
+
   return (
     <div
       style={{
@@ -402,7 +493,7 @@ function ExpenseRow({
         borderRadius: 10,
         background: highlight ? 'rgba(251,191,36,.08)' : 'rgba(148,163,184,.05)',
         border: `1px solid ${highlight ? 'rgba(251,191,36,.35)' : 'rgba(148,163,184,.14)'}`,
-        opacity: past ? 0.5 : 1,
+        opacity: overdue ? 0.5 : 1,
       }}
     >
       {/* сосед кнопки-строки, а не потомок — иначе кнопка внутри кнопки */}
@@ -442,7 +533,13 @@ function ExpenseRow({
           <div style={{ fontSize: 14.5, color: C.text, overflowWrap: 'anywhere' }}>{item.name}</div>
           <div style={{ fontSize: 12.5, color: C.faint, marginTop: 1 }}>
             {item.date ? fmtD(item.date + 'T00:00:00', now) : 'без даты'}
-            {past ? ' · прошло' : !item.date ? ' · лимит не трогает' : !reserved ? ' · после зарплаты, лимит не трогает' : ''}
+            {!item.date
+              ? ' · срок не назначен, лимит не трогает'
+              : overdue
+                ? ' · прошло'
+                : !reserved
+                  ? ' · после зарплаты, лимит не трогает'
+                  : ''}
           </div>
         </div>
         <Amount

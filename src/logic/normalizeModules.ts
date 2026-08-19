@@ -81,6 +81,14 @@ function money(x: unknown): number {
   return Math.max(0, Math.min(n, 1e12))
 }
 
+/** Число месяца, когда списывается обязательный расход: 1–31, ноль — не задано */
+function monthDay(x: unknown): number {
+  const n = Number(x)
+  if (!Number.isFinite(n)) return 0
+  const d = Math.round(n)
+  return d >= 1 && d <= 31 ? d : 0
+}
+
 function count(x: unknown): number {
   const n = Number(x)
   if (!Number.isFinite(n)) return 0
@@ -248,6 +256,7 @@ export function normFinance(x: unknown, now: number, currency: CurrencyCode): Fi
           name: str(m.name, MAX_EXPENSE_NAME, '—'),
           amount: money(m.amount),
           currency: expenseCurrency(m.currency, currency),
+          day: monthDay(m.day),
         }
       })
     : []

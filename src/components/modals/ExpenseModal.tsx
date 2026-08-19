@@ -16,13 +16,15 @@ import {
 } from '../../theme'
 import type { CurrencyCode, Rates } from '../../types'
 
-/** Общая форма обоих видов расхода: у запланированного есть ещё дата */
+/** Общая форма обоих видов расхода: у запланированного дата, у обязательного день месяца */
 export interface ExpenseDraft {
   name: string
   amount: number
   currency: CurrencyCode
   /** YYYY-MM-DD; у обязательных всегда пустая */
   date: string
+  /** число месяца списания у обязательного: 1–31, 0 — не задано; у разовых всегда 0 */
+  day: number
 }
 
 interface Props {
@@ -45,21 +47,29 @@ export function ExpenseModal({ draft, prefill, withDate, docCurrency, rates, onC
   const [amountText, setAmountText] = useState(draft ? String(draft.amount) : '')
   const [currency, setCurrency] = useState<CurrencyCode>(draft?.currency ?? prefill?.currency ?? docCurrency)
   const [date, setDate] = useState(draft?.date ?? prefill?.date ?? '')
+  const [dayText, setDayText] = useState(draft?.day ? String(draft.day) : '')
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
-  const amount = parseFloat(amountText.replace(',', '.'))
+  const amount = parseFloat(amountText.replace(/\s/g, '').replace(',', '.'))
   const amountOk = Number.isFinite(amount) && amount > 0
+
+  // строго цифры: parseInt проглатывал бы «14 числа» и «3.9», молча сохраняя не то
+  const dayRaw = dayText.trim()
+  const day = /^\d{1,2}$/.test(dayRaw) ? Number(dayRaw) : NaN
+  const dayOk = !dayRaw || (day >= 1 && day <= 31)
 
   const submit = () => {
     const trimmed = name.trim()
     if (!trimmed) return setError('Напиши название')
     if (!amountOk) return setError('Сумма должна быть больше нуля')
+    if (!dayOk) return setError('День месяца — число от 1 до 31')
     onSave({
       name: trimmed.slice(0, MAX_EXPENSE_NAME),
       amount,
       currency,
       date: withDate ? date : '',
+      day: !withDate && day >= 1 && day <= 31 ? day : 0,
     })
   }
 
@@ -154,6 +164,28 @@ export function ExpenseModal({ draft, prefill, withDate, docCurrency, rates, onC
           />
           <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>
             без даты расход не попадёт в дневной лимит
+          </div>
+        </div>
+      )}
+
+      {!withDate && (
+        <div style={{ marginTop: 13 }}>
+          <div style={fieldLabel}>
+            Списывается <span style={{ color: C.faint }}>— число месяца, необязательно</span>
+          </div>
+          <input
+            value={dayText}
+            onChange={(e) => {
+              setDayText(e.target.value)
+              setError('')
+            }}
+            inputMode="numeric"
+            placeholder="14"
+            aria-label="Число месяца, когда списывается"
+            style={{ ...input, width: 90 }}
+          />
+          <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>
+            попадёт в сводку на 30 дней — увидишь заранее, а не по факту списания
           </div>
         </div>
       )}

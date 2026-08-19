@@ -1,5 +1,6 @@
 import { DAY_MS } from '../constants'
 import { money } from './currency'
+import { nextChargeAt } from './finance'
 import { numberForecast } from './forecast'
 import { readingPlan } from './library'
 import { daysOverdue } from './reminders'
@@ -33,11 +34,13 @@ export interface AgendaItem {
  */
 export function agenda(doc: Doc, now: number = Date.now(), horizonDays = AGENDA_DAYS): AgendaItem[] {
   const today = startOfDay(now)
-  const until = today + horizonDays * DAY_MS
   const out: AgendaItem[] = []
 
+  // Горизонт считается днями, а не миллисекундами: в поясах с переводом часов
+  // сутки бывают длиной 23 или 25 часов, и срок ровно на границе выпадал из
+  // сводки, хотя до него честные тридцать дней.
   const add = (item: AgendaItem) => {
-    if (item.at > until) return
+    if (item.days > horizonDays) return
     out.push(item)
   }
 
@@ -58,6 +61,21 @@ export function agenda(doc: Doc, now: number = Date.now(), horizonDays = AGENDA_
       sub: money(o.amount, o.currency),
       tab: 'fin',
       color: d < 0 ? '#f87171' : '#fbbf24',
+    })
+  }
+
+  // ── обязательные с числом месяца: подписка 14-го, аренда 1-го
+  for (const m of doc.fin.mandatory) {
+    const at = nextChargeAt(m.day, now)
+    if (at === null) continue
+    add({
+      id: 'mand-' + m.id,
+      at,
+      days: daysTo(at),
+      title: m.name,
+      sub: money(m.amount, m.currency) + ' · каждый месяц',
+      tab: 'fin',
+      color: '#fbbf24',
     })
   }
 

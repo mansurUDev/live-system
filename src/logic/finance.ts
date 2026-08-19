@@ -121,6 +121,44 @@ export function financeCalc(fin: Finance, conv: Conv, now: number = Date.now()):
 }
 
 /**
+ * Ближайшее списание обязательного расхода: сегодня или дальше.
+ *
+ * Число месяца может не существовать в этом месяце — подписка «31-го» в феврале
+ * списывается последним днём, так это и считаем, а не переносим на март.
+ * Возвращается начало суток, чтобы «сегодня» везде значило ноль дней.
+ */
+export function nextChargeAt(day: number, now: number = Date.now()): number | null {
+  if (!Number.isInteger(day) || day < 1 || day > 31) return null
+
+  const today = startOfDay(now)
+  const d = new Date(today)
+
+  const inMonth = (year: number, month: number): number => {
+    const last = new Date(year, month + 1, 0).getDate()
+    return new Date(year, month, Math.min(day, last)).getTime()
+  }
+
+  const thisMonth = inMonth(d.getFullYear(), d.getMonth())
+  if (thisMonth >= today) return thisMonth
+  return inMonth(d.getFullYear(), d.getMonth() + 1)
+}
+
+/**
+ * Заданы ли курсы там, где они нужны.
+ *
+ * Расход в чужой валюте при курсе один к одному складывается с остальными как
+ * есть — итог выглядит правдоподобно и молча врёт. Это стоит показать: сам по
+ * себе нулевой пересчёт ничем не отличается от «ещё не дошли руки».
+ */
+export function ratesMissing(fin: Finance, conv: Conv): boolean {
+  // достаточно одной валюты без курса: остальные, пересчитанные верно, о ней
+  // ничего не говорят, а её сумма всё равно ложится в итог как есть
+  return [...fin.mandatory, ...fin.oneTime].some(
+    (x) => x.currency !== conv.currency && conv.rates[x.currency] === conv.rates[conv.currency],
+  )
+}
+
+/**
  * Перевод планки дохода на новый месяц.
  *
  * Полученное за месяц обнуляется, а результат — дотянул или нет — уходит в

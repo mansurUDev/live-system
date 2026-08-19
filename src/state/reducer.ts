@@ -105,6 +105,8 @@ export type Action =
   // финансы
   | { type: 'patchFinance'; patch: Partial<Finance>; now: number }
   | { type: 'rollFinanceMonth'; now: number }
+  /** пришли деньги: и в счёт планки месяца, и в карман */
+  | { type: 'addIncome'; amount: number; now: number }
   | { type: 'saveMandatory'; item: MandatoryExpense; now: number }
   | { type: 'deleteMandatory'; id: string; now: number }
   | { type: 'saveOneTime'; item: OneTimeExpense; now: number }
@@ -402,6 +404,28 @@ function coreReducer(doc: Doc, action: Action): Doc {
 
     case 'rollFinanceMonth':
       return { ...doc, fin: rollMonth(doc.fin, action.now) }
+
+    /**
+     * Поступление: сумма идёт и в «получено за месяц», и в «на руках».
+     * Раньше это были два ручных поля, и второе про них забывалось — планка
+     * росла, а дневной лимит считался от старого остатка.
+     *
+     * Месяц переводится прямо здесь, а не только при загрузке: вкладку держат
+     * открытой сутками, и деньги, записанные после полуночи первого числа,
+     * иначе засчитались бы прошлому месяцу — а тот потом закрылся бы как
+     * «планка взята». Такую отметку уже не отменить: в облаке она сливается
+     * по «хотя бы у одной стороны» и расходится по всем устройствам.
+     *
+     * Сумма прибавляется как есть. roundMoney — правило показа (сотни до целых),
+     * и округлять им сам баланс значит менять его на величину, которую никто не
+     * вводил: 99,6 + 1 давало 101.
+     */
+    case 'addIncome': {
+      const add = action.amount
+      if (!Number.isFinite(add) || add <= 0) return doc
+      const fin = rollMonth(doc.fin, action.now)
+      return { ...doc, fin: { ...fin, got: fin.got + add, onHand: fin.onHand + add } }
+    }
 
     case 'saveMandatory': {
       const list = doc.fin.mandatory

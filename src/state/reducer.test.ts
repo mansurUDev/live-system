@@ -608,3 +608,64 @@ describe('mergeCloud', () => {
     expect(state.celebratingId).toBeNull()
   })
 })
+
+describe('поступление денег', () => {
+  it('сумма идёт и в планку месяца, и на руки', () => {
+    const base = normalize(defaultDoc(NOW), NOW)
+    const start: AppState = {
+      doc: { ...base, fin: { ...base.fin, got: 100, onHand: 50 } },
+      celebratingId: null,
+    }
+    const s = reducer(start, { type: 'addIncome', amount: 400, now: NOW })
+    expect(s.doc.fin.got).toBe(500)
+    expect(s.doc.fin.onHand).toBe(450)
+  })
+
+  it('баланс меняется ровно на внесённую сумму', () => {
+    // roundMoney — правило показа (сотни до целых); округлять им сам баланс
+    // значило бы менять его на величину, которую никто не вводил
+    const base = normalize(defaultDoc(NOW), NOW)
+    const start: AppState = {
+      doc: { ...base, fin: { ...base.fin, got: 0, onHand: 99.6 } },
+      celebratingId: null,
+    }
+    const s = reducer(start, { type: 'addIncome', amount: 1, now: NOW })
+    expect(s.doc.fin.onHand).toBeCloseTo(100.6, 5)
+  })
+
+  it('мелкая сумма не теряется', () => {
+    const base = normalize(defaultDoc(NOW), NOW)
+    const start: AppState = {
+      doc: { ...base, fin: { ...base.fin, got: 5000, onHand: 3000 } },
+      celebratingId: null,
+    }
+    const s = reducer(start, { type: 'addIncome', amount: 0.4, now: NOW })
+    expect(s.doc.fin.got).toBeCloseTo(5000.4, 5)
+    expect(s.doc.fin.onHand).toBeCloseTo(3000.4, 5)
+  })
+
+  it('после полуночи первого числа деньги идут новому месяцу, а не прошлому', () => {
+    // вкладку держат открытой сутками: без перевода месяца здесь июль закрылся
+    // бы как «планка взята», а такую отметку в облаке уже не отменить
+    const base = normalize(defaultDoc(NOW), NOW)
+    const july: AppState = {
+      doc: { ...base, fin: { ...base.fin, monthKey: '2026-07', goal: 5000, got: 4700, onHand: 0 } },
+      celebratingId: null,
+    }
+    const august = new Date('2026-08-01T00:05:00').getTime()
+    const s = reducer(july, { type: 'addIncome', amount: 400, now: august })
+
+    expect(s.doc.fin.monthKey).toBe('2026-08')
+    expect(s.doc.fin.got).toBe(400)
+    expect(s.doc.fin.hist['2026-07']).toBe(false)
+    expect(s.doc.fin.onHand).toBe(400)
+  })
+
+  it('ноль и мусор ничего не меняют', () => {
+    const base = normalize(defaultDoc(NOW), NOW)
+    const start: AppState = { doc: base, celebratingId: null }
+    // finalize всегда пересобирает документ, поэтому сравниваем сами финансы
+    expect(reducer(start, { type: 'addIncome', amount: 0, now: NOW }).doc.fin).toBe(base.fin)
+    expect(reducer(start, { type: 'addIncome', amount: -5, now: NOW }).doc.fin).toBe(base.fin)
+  })
+})

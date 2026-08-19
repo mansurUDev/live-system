@@ -254,7 +254,7 @@ describe('привычки — замер', () => {
 describe('финансы — дневной лимит', () => {
   it('делит свободные деньги на дни до поступления', () => {
     const c = financeCalc(
-      fin({ onHand: 1000, cushion: 100, mandatory: [{ id: 'm', name: 'Еда', amount: 300, currency: 'UZS' }], nextIncome: '2026-03-25' }),
+      fin({ onHand: 1000, cushion: 100, mandatory: [{ id: 'm', name: 'Еда', amount: 300, currency: 'UZS', day: 0 }], nextIncome: '2026-03-25' }),
       CONV,
       NOW,
     )
@@ -341,8 +341,8 @@ describe('финансы — расходы в разных валютах', () 
     const c = financeCalc(
       fin({
         mandatory: [
-          { id: 'm1', name: 'Подписка Claude', amount: 20, currency: 'USD' },
-          { id: 'm2', name: 'Аренда', amount: 500_000, currency: 'UZS' },
+          { id: 'm1', name: 'Подписка Claude', amount: 20, currency: 'USD', day: 0 },
+          { id: 'm2', name: 'Аренда', amount: 500_000, currency: 'UZS', day: 0 },
         ],
       }),
       UZS,
@@ -367,7 +367,7 @@ describe('финансы — расходы в разных валютах', () 
   })
 
   it('та же сумма в валюте отображения не трогается курсом', () => {
-    const c = financeCalc(fin({ mandatory: [{ id: 'm', name: 'Еда', amount: 300, currency: 'UZS' }] }), UZS, NOW)
+    const c = financeCalc(fin({ mandatory: [{ id: 'm', name: 'Еда', amount: 300, currency: 'UZS', day: 0 }] }), UZS, NOW)
     expect(c.mandatory).toBe(300)
   })
 
@@ -406,7 +406,7 @@ describe('финансы — расходы в разных валютах', () 
 
   it('нормализация: своя валюта расхода сохраняется', () => {
     const d = normalize(
-      { sectors: [], currency: 'UZS', fin: { mandatory: [{ id: 'm', name: 'Claude', amount: 20, currency: 'USD' }] } },
+      { sectors: [], currency: 'UZS', fin: { mandatory: [{ id: 'm', name: 'Claude', amount: 20, currency: 'USD', day: 0 }] } },
       NOW,
     )
     expect(d.fin.mandatory[0]!.currency).toBe('USD')
