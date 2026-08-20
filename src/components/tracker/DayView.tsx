@@ -99,36 +99,40 @@ export function DayView({
         <div style={{ fontSize: 13, color: C.muted }}>Отслежено: {fmtDur(trackedMs)}</div>
       </div>
 
-      <div
-        style={{
-          position: 'relative',
-          height: 38,
-          borderRadius: 8,
-          background: 'rgba(6,10,20,.85)',
-          border: '1px solid rgba(110,160,255,.14)',
-          overflow: 'hidden',
-          marginTop: 12,
-        }}
-      >
-        {blocks.map((b) => (
-          <div
-            key={b.entry.id}
-            onClick={() => onEditEntry(b.entry)}
-            onMouseEnter={() => setHovered({ title: b.title, leftPct: b.left + b.width / 2 })}
-            onMouseLeave={() => setHovered(null)}
-            style={{
-              position: 'absolute',
-              top: 5,
-              bottom: 5,
-              left: b.left.toFixed(3) + '%',
-              width: b.width.toFixed(3) + '%',
-              background: b.color + 'cc',
-              boxShadow: `0 0 8px ${b.color}66`,
-              borderRadius: 3,
-              cursor: 'pointer',
-            }}
-          />
-        ))}
+      {/* Обёртка без обрезки: сама полоса режет содержимое по краям суток, и
+          подсказка, всплывающая НАД ней, попадала под ту же обрезку — то есть
+          не показывалась вовсе. Поэтому тултип живёт снаружи полосы. */}
+      <div style={{ position: 'relative', marginTop: 12 }}>
+        <div
+          style={{
+            position: 'relative',
+            height: 38,
+            borderRadius: 8,
+            background: 'rgba(6,10,20,.85)',
+            border: '1px solid rgba(110,160,255,.14)',
+            overflow: 'hidden',
+          }}
+        >
+          {blocks.map((b) => (
+            <div
+              key={b.entry.id}
+              onClick={() => onEditEntry(b.entry)}
+              onMouseEnter={() => setHovered({ title: b.title, leftPct: b.left + b.width / 2 })}
+              onMouseLeave={() => setHovered(null)}
+              style={{
+                position: 'absolute',
+                top: 5,
+                bottom: 5,
+                left: b.left.toFixed(3) + '%',
+                width: b.width.toFixed(3) + '%',
+                background: b.color + 'cc',
+                boxShadow: `0 0 8px ${b.color}66`,
+                borderRadius: 3,
+                cursor: 'pointer',
+              }}
+            />
+          ))}
+        </div>
 
         {hovered && (
           <div
@@ -148,7 +152,7 @@ export function DayView({
               color: C.textBright,
               whiteSpace: 'nowrap',
               pointerEvents: 'none',
-              zIndex: 1,
+              zIndex: 2,
             }}
           >
             {hovered.title}
