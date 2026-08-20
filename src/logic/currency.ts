@@ -43,6 +43,21 @@ export function approx(amount: number, from: CurrencyCode, to: CurrencyCode, rat
   return '≈ ' + money(roundMoney(convert(amount, from, to, rates)), to)
 }
 
+/**
+ * Крупная сумма словами: «2,3 млн», «76,7 тыс». Суммы в сумах часто идут на
+ * миллионы — «2300000» с ходу не читается, сколько там нулей, приходится
+ * считать по три с конца. Меньше десяти тысяч подпись не нужна: там разряд и
+ * так виден сразу.
+ */
+export function humanMoney(n: number): string {
+  if (!Number.isFinite(n)) return ''
+  const abs = Math.abs(n)
+  if (abs < 10_000) return ''
+  const sign = n < 0 ? '−' : ''
+  if (abs >= 1_000_000) return sign + (abs / 1_000_000).toFixed(1).replace('.', ',').replace(',0', '') + ' млн'
+  return sign + (abs / 1_000).toFixed(1).replace('.', ',').replace(',0', '') + ' тыс'
+}
+
 /** Та же сумма во всех остальных валютах — подсказка под полем ввода */
 export function inOtherCurrencies(amount: number, from: CurrencyCode, rates: Rates): string[] {
   return CURRENCY_CODES.filter((c) => c !== from).map((c) =>

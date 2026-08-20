@@ -8,6 +8,7 @@ import { numberForecast, stepsForecast } from './forecast'
 import { buildHints } from './hints'
 import { normalize } from './normalize'
 import { nextChargeAt, ratesMissing } from './finance'
+import { humanMoney } from './currency'
 import { agenda } from './agenda'
 import { daysUntil, untilLabel } from './time'
 import { MAX_ARCHIVE } from '../constants'
@@ -1219,5 +1220,25 @@ describe('сколько осталось до срока', () => {
     expect(daysUntil(today, NOW)).toBe(0)
     expect(daysUntil('', NOW)).toBeNull()
     expect(daysUntil('не дата', NOW)).toBeNull()
+  })
+})
+
+describe('humanMoney', () => {
+  it('крупная сумма читается словами', () => {
+    expect(humanMoney(2_300_000)).toBe('2,3 млн')
+    expect(humanMoney(76_660)).toBe('76,7 тыс')
+    expect(humanMoney(1_000_000)).toBe('1 млн')
+    expect(humanMoney(10_000)).toBe('10 тыс')
+  })
+
+  it('меньше десяти тысяч — подписи нет: разряд и так виден', () => {
+    expect(humanMoney(999)).toBe('')
+    expect(humanMoney(9_999)).toBe('')
+    expect(humanMoney(0)).toBe('')
+  })
+
+  it('отрицательные и нечисловые', () => {
+    expect(humanMoney(-2_300_000)).toBe('−2,3 млн')
+    expect(humanMoney(NaN)).toBe('')
   })
 })

@@ -244,6 +244,7 @@ export function FinanceTab() {
               value={fin.got}
               onChange={(v) => patch({ got: v })}
               placeholder="0"
+              hint="пополняется кнопкой «Пришли деньги» — правь только для исправлений"
               currency={currency}
               rates={rates}
             />

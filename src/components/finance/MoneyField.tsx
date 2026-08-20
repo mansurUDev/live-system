@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { CURRENCIES } from '../../constants'
-import { convert, money, roundMoney } from '../../logic/currency'
+import { convert, currencySymbol, humanMoney, money, roundMoney } from '../../logic/currency'
+import { num } from '../../logic/time'
 import { C, input } from '../../theme'
 import type { CurrencyCode, Rates } from '../../types'
 
@@ -79,6 +80,9 @@ export function MoneyField({ value, onChange, placeholder, hint, label, big, cur
 
   const parsed = parse(draft)
   const foreign = withPicker && !!currency && pick !== currency
+  // «2300000» не читается с ходу — сколько там нулей, приходится считать по
+  // три с конца; вслух это «2,3 млн», и ровно так подписываем, пока набирают
+  const human = parsed !== null ? humanMoney(parsed) : ''
 
   return (
     <div>
@@ -90,11 +94,23 @@ export function MoneyField({ value, onChange, placeholder, hint, label, big, cur
           const n = parse(e.target.value)
           if (n !== null) onChange(toStore(n))
         }}
+        onBlur={() => {
+          // разряды видно только когда не редактируешь — во время набора
+          // пробелы прыгали бы за курсором и мешали печатать
+          const n = parse(draft)
+          if (n !== null && Math.abs(n) >= 1000) setDraft(num(n))
+        }}
         type="text"
         inputMode="decimal"
         placeholder={placeholder}
         style={style}
       />
+
+      {withPicker && human && (
+        <div style={{ fontSize: 12.5, color: '#fbbf24', marginTop: 4 }}>
+          = {human} {currencySymbol(pick)}
+        </div>
+      )}
 
       {withPicker && (
         <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap' }}>
@@ -124,6 +140,10 @@ export function MoneyField({ value, onChange, placeholder, hint, label, big, cur
       {foreign && currency && (
         <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>
           запишется {money(parsed === null ? value : toStore(parsed), currency)}
+          {(() => {
+            const stored = humanMoney(parsed === null ? value : toStore(parsed))
+            return stored ? ` (${stored})` : ''
+          })()}
         </div>
       )}
       {hint && <div style={{ fontSize: 12, color: C.faint, marginTop: 4 }}>{hint}</div>}
