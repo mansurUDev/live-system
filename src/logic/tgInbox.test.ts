@@ -131,6 +131,9 @@ describe('телеграм-бот — применение к документу
     expect(r.changed).toBe(true)
     expect(d.ideas[0]!.links[0]).toMatchObject({ url: 'https://www.example.com/chair', label: 'example.com' })
     expect(d.ideas[0]!.category).toBe('Покупки')
+    // поле нового приложения — если бот его забудет, клиент увидит правку
+    // из normalize там, где никто ничего не менял, и лишний раз отправит документ
+    expect(d.ideas[0]!.checklist).toEqual([])
   })
 
   it('одинаковая идея не дублируется', () => {

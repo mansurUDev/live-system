@@ -12,6 +12,8 @@ import {
   MAX_HABIT_NOTE,
   MAX_HABITS,
   MAX_IDEA_CATEGORY,
+  MAX_IDEA_CHECK_TEXT,
+  MAX_IDEA_CHECKS,
   MAX_IDEA_IMAGES,
   MAX_IDEA_LINK_LABEL,
   MAX_IDEA_LINKS,
@@ -49,6 +51,7 @@ import type {
   Finance,
   Habit,
   Idea,
+  IdeaCheck,
   IdeaLink,
   Library,
   LibDone,
@@ -421,6 +424,15 @@ export function normIdeas(x: unknown, nowIso: string): Idea[] {
           .map((raw2) => safeUrl(raw2, MAX_VIDEO_URL))
           .filter(Boolean)
       : []
+    const checklist: IdeaCheck[] = Array.isArray(it.checklist)
+      ? it.checklist
+          .slice(0, MAX_IDEA_CHECKS)
+          .map((rawC, j) => {
+            const c = obj(rawC)
+            return { id: str(c.id, 60, 'ic' + j), text: str(c.text, MAX_IDEA_CHECK_TEXT), done: !!c.done }
+          })
+          .filter((c) => c.text)
+      : []
 
     return {
       id: str(it.id, 60, 'i' + i),
@@ -429,6 +441,7 @@ export function normIdeas(x: unknown, nowIso: string): Idea[] {
       text: str(it.text, MAX_IDEA_TEXT),
       links,
       images,
+      checklist,
       done: !!it.done,
       createdAt: iso(it.createdAt, nowIso),
     }

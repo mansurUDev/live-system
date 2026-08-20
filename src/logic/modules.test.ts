@@ -32,6 +32,8 @@ import {
   DEFAULT_CURRENCY,
   DEFAULT_QUICK_AMOUNTS,
   DEFAULT_REMINDER_INTERVAL_DAYS,
+  MAX_IDEA_CHECK_TEXT,
+  MAX_IDEA_CHECKS,
   MAX_IDEAS,
   MAX_QUICK_AMOUNTS,
   MAX_REMINDER_INTERVAL_DAYS,
@@ -1002,6 +1004,40 @@ describe('идеи', () => {
     const d = normalize({ sectors: [], ideas: [{ title: 'X' }, { title: 'Y', done: true }] }, NOW)
     expect(d.ideas[0]!.done).toBe(false)
     expect(d.ideas[1]!.done).toBe(true)
+  })
+
+  it('чек-лист: нет поля — пустой список, старые документы читаются как есть', () => {
+    const d = normalize({ sectors: [], ideas: [{ title: 'X' }] }, NOW)
+    expect(d.ideas[0]!.checklist).toEqual([])
+  })
+
+  it('чек-лист: id-фолбэк, обрезка по MAX_IDEA_CHECKS и по длине текста, пустые пункты выбрасываются', () => {
+    const many = Array.from({ length: MAX_IDEA_CHECKS + 5 }, (_, i) => ({ text: 'пункт ' + i, done: i % 2 === 0 }))
+    const d = normalize(
+      {
+        sectors: [],
+        ideas: [
+          {
+            title: 'MagDeck',
+            checklist: [...many, { text: '   ' }, { text: 'x'.repeat(MAX_IDEA_CHECK_TEXT + 20) }],
+          },
+        ],
+      },
+      NOW,
+    )
+    expect(d.ideas[0]!.checklist).toHaveLength(MAX_IDEA_CHECKS)
+    expect(d.ideas[0]!.checklist[0]!.id).toBe('ic0')
+    expect(d.ideas[0]!.checklist[0]!.done).toBe(true)
+    expect(d.ideas[0]!.checklist[1]!.done).toBe(false)
+  })
+
+  it('чек-лист переживает второй проход normalize без изменений', () => {
+    const once = normalize(
+      { sectors: [], ideas: [{ title: 'X', checklist: [{ text: 'купить ESP32' }, { text: 'купить энкодер', done: true }] }] },
+      NOW,
+    )
+    const twice = normalize(once, NOW)
+    expect(twice.ideas[0]!.checklist).toEqual(once.ideas[0]!.checklist)
   })
 })
 

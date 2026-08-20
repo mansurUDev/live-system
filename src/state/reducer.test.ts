@@ -61,6 +61,7 @@ function idea(patch: Partial<Idea> = {}): Idea {
     text: '',
     links: [],
     images: [],
+    checklist: [],
     done: false,
     createdAt: new Date(NOW).toISOString(),
     ...patch,

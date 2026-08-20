@@ -302,6 +302,13 @@ export interface IdeaLink {
   label: string
 }
 
+/** Пункт чек-листа воплощения — деталь/шаг, часто с ценой и местом покупки прямо в тексте */
+export interface IdeaCheck {
+  id: string
+  text: string
+  done: boolean
+}
+
 /** Идея на будущее — заметка + фото + ссылки, без срока и без прогресса */
 export interface Idea {
   id: string
@@ -312,6 +319,8 @@ export interface Idea {
   links: IdeaLink[]
   /** URL в Supabase Storage — в документе только адреса */
   images: string[]
+  /** что нужно, чтобы воплотить: деталь, шаг — каждый со своей отметкой */
+  checklist: IdeaCheck[]
   /** воплощена в жизнь */
   done: boolean
   createdAt: string

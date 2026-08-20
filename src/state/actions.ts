@@ -12,6 +12,7 @@ import type {
   Habit,
   HabitType,
   Idea,
+  IdeaCheck,
   IdeaLink,
   MandatoryExpense,
   OneTimeExpense,
@@ -165,10 +166,12 @@ export const A = {
     text,
     links,
     images,
+    checklist: [],
     done: false,
     createdAt: new Date().toISOString(),
   }),
   newIdeaLink: (url: string, label: string): IdeaLink => ({ id: uid('il'), url, label }),
+  newIdeaCheck: (text: string): IdeaCheck => ({ id: uid('ic'), text, done: false }),
 
   patchFinance: (patch: Partial<Finance>): Action => ({ type: 'patchFinance', patch, now: Date.now() }),
 

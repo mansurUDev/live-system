@@ -7,6 +7,7 @@ interface Props {
   idea: Idea
   confirmingDelete: boolean
   onToggleDone: () => void
+  onToggleCheck: (checkId: string) => void
   onEdit: () => void
   onToBook: () => void
   onToExpense: () => void
@@ -30,6 +31,7 @@ export function IdeaCard({
   idea,
   confirmingDelete,
   onToggleDone,
+  onToggleCheck,
   onEdit,
   onToBook,
   onToExpense,
@@ -40,6 +42,7 @@ export function IdeaCard({
   const [expanded, setExpanded] = useState(false)
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const long = idea.text.length > COLLAPSE_AT
+  const checksDone = idea.checklist.filter((c) => c.done).length
 
   return (
     <div style={plainCard({ padding: '13px 15px', opacity: idea.done ? 0.7 : 1 })}>
@@ -81,6 +84,17 @@ export function IdeaCard({
               <span style={chipDot('#fbbf24')} />
               {idea.category}
             </span>
+            {idea.checklist.length > 0 && (
+              <span
+                style={{
+                  fontSize: 12,
+                  fontWeight: 600,
+                  color: checksDone === idea.checklist.length ? C.ok : C.muted,
+                }}
+              >
+                {checksDone}/{idea.checklist.length}
+              </span>
+            )}
           </div>
 
           {idea.text && (
@@ -123,6 +137,46 @@ export function IdeaCard({
                 </button>
               )}
             </>
+          )}
+
+          {idea.checklist.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 10 }}>
+              {idea.checklist.map((c) => (
+                <div key={c.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+                  <button
+                    onClick={() => onToggleCheck(c.id)}
+                    aria-label={c.done ? 'Снять отметку' : 'Отметить пункт'}
+                    style={{
+                      marginTop: 1,
+                      width: 16,
+                      height: 16,
+                      flex: 'none',
+                      borderRadius: 5,
+                      border: `1.5px solid ${c.done ? C.ok : 'rgba(148,163,184,.4)'}`,
+                      background: c.done ? C.ok : 'transparent',
+                      color: '#031018',
+                      fontSize: 10,
+                      lineHeight: '13px',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {c.done ? '✓' : ''}
+                  </button>
+                  <span
+                    style={{
+                      fontSize: 13.5,
+                      color: c.done ? C.faint : C.textSoft,
+                      textDecoration: c.done ? 'line-through' : 'none',
+                      overflowWrap: 'anywhere',
+                      lineHeight: 1.4,
+                    }}
+                  >
+                    {c.text}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
 
           {idea.images.length > 0 && (

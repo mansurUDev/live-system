@@ -106,6 +106,9 @@ export const MAX_IDEA_TEXT = 4000
 export const MAX_IDEA_LINKS = 10
 export const MAX_IDEA_LINK_LABEL = 80
 export const MAX_IDEA_IMAGES = 6
+/** Пункт вроде «купить ESP32 — 60 тыс сум, OLX (или AliExpress)» влезает с запасом */
+export const MAX_IDEA_CHECKS = 20
+export const MAX_IDEA_CHECK_TEXT = 120
 export const IDEA_CATEGORY_SUGGESTIONS = ['Ардуино', 'Кулинария', 'Разное']
 
 /** number-цель: сумма быстрого добавления по умолчанию — сегодняшнее фиксированное +10/+50 */

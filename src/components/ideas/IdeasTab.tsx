@@ -109,6 +109,14 @@ export function IdeasTab() {
               idea={idea}
               confirmingDelete={deleteId === idea.id}
               onToggleDone={() => dispatch(A.saveIdea({ ...idea, done: !idea.done }))}
+              onToggleCheck={(checkId) =>
+                dispatch(
+                  A.saveIdea({
+                    ...idea,
+                    checklist: idea.checklist.map((c) => (c.id === checkId ? { ...c, done: !c.done } : c)),
+                  }),
+                )
+              }
               onEdit={() => setEditing({ idea })}
               onToBook={() => toBook(idea)}
               onToExpense={() => openToExpense(idea)}

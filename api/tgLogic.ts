@@ -106,6 +106,7 @@ export interface TgDoc {
     text: string
     links: { id: string; url: string; label: string }[]
     images: string[]
+    checklist: { id: string; text: string; done: boolean }[]
     done: boolean
     createdAt: string
   }[]
@@ -179,6 +180,7 @@ export function applyAction(
     text: action.text,
     links: action.links.map((url, n) => ({ id: 'il' + meta.id + n, url, label: domainLabel(url) })),
     images: [],
+    checklist: [],
     done: false,
     createdAt: meta.nowIso,
   })

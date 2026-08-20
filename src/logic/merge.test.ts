@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { defaultDoc } from './defaults'
 import { deepEqual, emptyBase, mergeDoc, sameDoc } from './merge'
 import { normalize } from './normalize'
-import type { Doc, Habit, Show, TimeEntry } from '../types'
+import type { Doc, Habit, Idea, IdeaCheck, Show, TimeEntry } from '../types'
 
 const NOW = Date.parse('2026-08-19T09:00:00.000Z')
 
@@ -47,6 +47,25 @@ function habit(over: Partial<Habit> = {}): Habit {
     riskHour: null,
     logs: {},
     note: '',
+    createdAt: '2026-08-01T00:00:00.000Z',
+    ...over,
+  }
+}
+
+function ideaCheck(over: Partial<IdeaCheck> = {}): IdeaCheck {
+  return { id: 'ic1', text: 'купить ESP32', done: false, ...over }
+}
+
+function idea(over: Partial<Idea> = {}): Idea {
+  return {
+    id: 'idea1',
+    title: 'MagDeck',
+    category: 'Ардуино',
+    text: '',
+    links: [],
+    images: [],
+    checklist: [],
+    done: false,
     createdAt: '2026-08-01T00:00:00.000Z',
     ...over,
   }
@@ -184,6 +203,44 @@ describe('слияние — правки одной и той же записи
     const local = doc((d) => d.lib.shows.push(show('sh1', { episode: 6 })))
     const cloud = doc((d) => d.lib.shows.push(show('sh1', { episode: 7 })))
     expect(mergeDoc(base, local, cloud, NOW).lib.shows[0]!.episode).toBe(7)
+  })
+})
+
+describe('слияние — чек-лист идеи', () => {
+  it('отметка с двух устройств складывается', () => {
+    const base = doc((d) => d.ideas.push(idea({ checklist: [ideaCheck({ id: 'a' }), ideaCheck({ id: 'b', text: 'купить энкодер' })] })))
+    const local = doc((d) =>
+      d.ideas.push(idea({ checklist: [ideaCheck({ id: 'a', done: true }), ideaCheck({ id: 'b', text: 'купить энкодер' })] })),
+    )
+    const cloud = doc((d) =>
+      d.ideas.push(idea({ checklist: [ideaCheck({ id: 'a' }), ideaCheck({ id: 'b', text: 'купить энкодер', done: true })] })),
+    )
+    const merged = mergeDoc(base, local, cloud, NOW)
+    const checks = merged.ideas[0]!.checklist
+    expect(checks.find((c) => c.id === 'a')!.done).toBe(true)
+    expect(checks.find((c) => c.id === 'b')!.done).toBe(true)
+  })
+
+  it('добавление пунктов с двух сторон — оба остаются, без дублей', () => {
+    const base = doc((d) => d.ideas.push(idea()))
+    const local = doc((d) => d.ideas.push(idea({ checklist: [ideaCheck({ id: 'local1', text: 'купить ESP32' })] })))
+    const cloud = doc((d) => d.ideas.push(idea({ checklist: [ideaCheck({ id: 'cloud1', text: 'купить магниты' })] })))
+    const merged = mergeDoc(base, local, cloud, NOW)
+    expect(merged.ideas[0]!.checklist.map((c) => c.id).sort()).toEqual(['cloud1', 'local1'])
+  })
+
+  it('удаление против отметки — удаление побеждает', () => {
+    const base = doc((d) => d.ideas.push(idea({ checklist: [ideaCheck({ id: 'a' })] })))
+    const local = doc((d) => d.ideas.push(idea())) // пункт удалён здесь
+    const cloud = doc((d) => d.ideas.push(idea({ checklist: [ideaCheck({ id: 'a', done: true })] })))
+    expect(mergeDoc(base, local, cloud, NOW).ideas[0]!.checklist).toHaveLength(0)
+  })
+
+  it('эхо: mergeDoc(base, m, m) не меняет чек-лист', () => {
+    const base = doc((d) => d.ideas.push(idea()))
+    const m = doc((d) => d.ideas.push(idea({ checklist: [ideaCheck({ id: 'a', done: true })] })))
+    const merged = mergeDoc(base, m, clone(m), NOW)
+    expect(sameDoc(merged, m)).toBe(true)
   })
 })
 

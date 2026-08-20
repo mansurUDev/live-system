@@ -13,6 +13,7 @@ import type {
   Habit,
   HistoryRec,
   Idea,
+  IdeaCheck,
   IdeaLink,
   LibDone,
   LibNote,
@@ -428,6 +429,9 @@ function mergeIdea(b: Idea, l: Idea, c: Idea): Idea {
   return mergeFields(b, l, c, {
     links: (bl, ll, cl) => mergeById<IdeaLink>(bl, ll, cl, (x, y, z) => mergeFields(x, y, z)).list,
     images: set3,
+    // без правила pick3 забрал бы весь список с одной стороны и стёр отметки,
+    // сделанные на другом устройстве — ровно как steps у секторов
+    checklist: (bk, lk, ck) => mergeById<IdeaCheck>(bk, lk, ck, (x, y, z) => mergeFields(x, y, z)).list,
   })
 }
 

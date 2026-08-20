@@ -3,6 +3,8 @@ import { Modal } from './Modal'
 import {
   IDEA_CATEGORY_SUGGESTIONS,
   MAX_IDEA_CATEGORY,
+  MAX_IDEA_CHECK_TEXT,
+  MAX_IDEA_CHECKS,
   MAX_IDEA_IMAGES,
   MAX_IDEA_LINK_LABEL,
   MAX_IDEA_LINKS,
@@ -17,7 +19,7 @@ import { deleteImage, uploadImage } from '../../state/media'
 import { fetchYoutubeMeta } from '../../state/youtube'
 import { A } from '../../state/actions'
 import { btnAccent, btnCancelSm, btnGhost, C, chipBtn, errText, fieldLabel, input } from '../../theme'
-import type { Idea, IdeaLink } from '../../types'
+import type { Idea, IdeaCheck, IdeaLink } from '../../types'
 
 interface Props {
   idea: Idea | null
@@ -43,6 +45,8 @@ export function IdeaModal({ idea, usedCategories, onCancel, onCreate }: Props) {
   const [text, setText] = useState(idea?.text ?? '')
   const [links, setLinks] = useState<IdeaLink[]>(idea?.links ?? [])
   const [linkInput, setLinkInput] = useState('')
+  const [checks, setChecks] = useState<IdeaCheck[]>(idea?.checklist ?? [])
+  const [checkInput, setCheckInput] = useState('')
   const [images, setImages] = useState<string[]>(idea?.images ?? [])
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
@@ -72,6 +76,20 @@ export function IdeaModal({ idea, usedCategories, onCancel, onCreate }: Props) {
   }
 
   const removeLink = (id: string) => setLinks((prev) => prev.filter((l) => l.id !== id))
+
+  const addCheck = () => {
+    const text = checkInput.trim()
+    if (!text) return
+    if (checks.length >= MAX_IDEA_CHECKS) return setError('Слишком много пунктов')
+    setChecks((prev) => [...prev, A.newIdeaCheck(text.slice(0, MAX_IDEA_CHECK_TEXT))])
+    setCheckInput('')
+    setError('')
+  }
+
+  const removeCheck = (id: string) => setChecks((prev) => prev.filter((c) => c.id !== id))
+  // переименование не трогает отметку — правка текста и правка done независимы
+  const renameCheck = (id: string, text: string) =>
+    setChecks((prev) => prev.map((c) => (c.id === id ? { ...c, text } : c)))
 
   const addPhotos = async (files: FileList | null) => {
     if (!files || !files.length) return
@@ -105,12 +123,14 @@ export function IdeaModal({ idea, usedCategories, onCancel, onCreate }: Props) {
     const t = title.trim()
     if (!t) return setError('Напиши название')
     const cat = category.trim().slice(0, MAX_IDEA_CATEGORY) || IDEA_CATEGORY_SUGGESTIONS[2]!
+    // пустые после обрезки строки не сохраняем — «только пробелы» не пункт
+    const checklist = checks.map((c) => ({ ...c, text: c.text.trim().slice(0, MAX_IDEA_CHECK_TEXT) })).filter((c) => c.text)
 
     if (idea) {
-      onCreate({ ...idea, title: t, category: cat, text: text.trim().slice(0, MAX_IDEA_TEXT), links, images })
+      onCreate({ ...idea, title: t, category: cat, text: text.trim().slice(0, MAX_IDEA_TEXT), links, images, checklist })
       return
     }
-    onCreate(A.newIdea(t, cat, text.trim().slice(0, MAX_IDEA_TEXT), links, images))
+    onCreate({ ...A.newIdea(t, cat, text.trim().slice(0, MAX_IDEA_TEXT), links, images), checklist })
   }
 
   return (
@@ -204,6 +224,45 @@ export function IdeaModal({ idea, usedCategories, onCancel, onCreate }: Props) {
             style={{ ...input, flex: 1 }}
           />
           <button className="h-ghost-bright" style={btnCancelSm} onClick={() => void addLink()}>
+            Добавить
+          </button>
+        </div>
+      </div>
+
+      <div style={{ marginTop: 13 }}>
+        <div style={fieldLabel}>Чек-лист — что купить и сделать</div>
+        {checks.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+            {checks.map((c) => (
+              <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <input
+                  value={c.text}
+                  onChange={(e) => renameCheck(c.id, e.target.value)}
+                  maxLength={MAX_IDEA_CHECK_TEXT}
+                  style={{ ...input, flex: 1, fontSize: 13.5, padding: '6px 10px' }}
+                />
+                <button style={btnCancelSm} onClick={() => removeCheck(c.id)} aria-label="Убрать пункт">
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+          <input
+            value={checkInput}
+            onChange={(e) => setCheckInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                addCheck()
+              }
+            }}
+            maxLength={MAX_IDEA_CHECK_TEXT}
+            placeholder="ESP32 DevKit — 60 тыс сум, OLX"
+            style={{ ...input, flex: 1 }}
+          />
+          <button className="h-ghost-bright" style={btnCancelSm} onClick={addCheck}>
             Добавить
           </button>
         </div>
