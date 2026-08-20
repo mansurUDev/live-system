@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { DAY_MS } from '../../constants'
 import { actBy } from '../../logic/analytics'
 import { addDays, fmtDur, hhmm, startOfDay } from '../../logic/time'
@@ -29,6 +29,11 @@ export function DayView({
 }: Props) {
   const dayStart = addDays(startOfDay(now), dayOffset)
   const dayEnd = addDays(dayStart, 1)
+
+  // Свой тултип вместо нативного title=: у браузера подсказка всплывает с
+  // задержкой в секунду, а тут блоки в среднем секунд на 43 узкие — наведение
+  // на них должно отвечать сразу, а не после паузы.
+  const [hovered, setHovered] = useState<{ title: string; leftPct: number } | null>(null)
 
   const { blocks, rows, trackedMs } = useMemo(() => {
     const sorted = [...entries].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))
@@ -109,7 +114,8 @@ export function DayView({
           <div
             key={b.entry.id}
             onClick={() => onEditEntry(b.entry)}
-            title={b.title}
+            onMouseEnter={() => setHovered({ title: b.title, leftPct: b.left + b.width / 2 })}
+            onMouseLeave={() => setHovered(null)}
             style={{
               position: 'absolute',
               top: 5,
@@ -123,6 +129,31 @@ export function DayView({
             }}
           />
         ))}
+
+        {hovered && (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              left: `${Math.min(96, Math.max(4, hovered.leftPct))}%`,
+              transform: 'translateX(-50%)',
+              marginBottom: 6,
+              padding: '4px 9px',
+              borderRadius: 7,
+              background: 'rgba(8,13,26,.96)',
+              border: '1px solid rgba(148,163,184,.3)',
+              boxShadow: '0 4px 16px rgba(0,0,0,.4)',
+              fontFamily: MONO,
+              fontSize: 12,
+              color: C.textBright,
+              whiteSpace: 'nowrap',
+              pointerEvents: 'none',
+              zIndex: 1,
+            }}
+          >
+            {hovered.title}
+          </div>
+        )}
       </div>
       <div
         style={{
