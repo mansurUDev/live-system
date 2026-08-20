@@ -18,6 +18,7 @@ import {
   plainCard,
   sectionLabel,
 } from '../../theme'
+import { FocusFlash } from '../FocusFlash'
 import { ExpenseModal, type ExpenseDraft } from '../modals/ExpenseModal'
 import { MoneyField } from './MoneyField'
 import type { CurrencyCode, OneTimeExpense, Rates } from '../../types'
@@ -25,7 +26,7 @@ import type { CurrencyCode, OneTimeExpense, Rates } from '../../types'
 /** Что открыто в модалке: вид расхода и id — либо null у нового */
 type ExpenseForm = { kind: 'mandatory' | 'oneTime'; id: string | null; draft: ExpenseDraft | null } | null
 
-export function FinanceTab() {
+export function FinanceTab({ focus }: { focus?: string | null }) {
   const { state, dispatch } = useData()
   const toast = useToast()
   const now = useNow()
@@ -369,8 +370,8 @@ export function FinanceTab() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
           {fin.mandatory.map((m) => (
+            <FocusFlash key={m.id} active={focus === m.id}>
             <button
-              key={m.id}
               className="h-row-soft"
               onClick={() =>
                 setExpenseForm({
@@ -403,6 +404,7 @@ export function FinanceTab() {
               </span>
               <Amount amount={m.amount} from={m.currency} to={currency} rates={rates} />
             </button>
+            </FocusFlash>
           ))}
           {!fin.mandatory.length && (
             <div style={{ fontSize: 13.5, color: C.faint }}>
@@ -426,29 +428,31 @@ export function FinanceTab() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
           {calc.upcoming.map((o, i) => (
-            <ExpenseRow
-              key={o.id}
-              item={o}
-              now={now}
-              currency={currency}
-              rates={rates}
-              highlight={i === 0}
-              reserved={new Date(o.date + 'T00:00:00').getTime() < calc.reserveCutoff}
-              onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
-              onPay={() => payExpense(o)}
-            />
+            <FocusFlash key={o.id} active={focus === o.id}>
+              <ExpenseRow
+                item={o}
+                now={now}
+                currency={currency}
+                rates={rates}
+                highlight={i === 0}
+                reserved={new Date(o.date + 'T00:00:00').getTime() < calc.reserveCutoff}
+                onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
+                onPay={() => payExpense(o)}
+              />
+            </FocusFlash>
           ))}
           {calc.past.map((o) => (
-            <ExpenseRow
-              key={o.id}
-              item={o}
-              now={now}
-              currency={currency}
-              rates={rates}
-              past
-              onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
-              onPay={() => payExpense(o)}
-            />
+            <FocusFlash key={o.id} active={focus === o.id}>
+              <ExpenseRow
+                item={o}
+                now={now}
+                currency={currency}
+                rates={rates}
+                past
+                onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
+                onPay={() => payExpense(o)}
+              />
+            </FocusFlash>
           ))}
           {!fin.oneTime.length && (
             <div style={{ fontSize: 13.5, color: C.faint }}>

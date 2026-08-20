@@ -10,7 +10,7 @@ import { CelebrationOverlay } from './CelebrationOverlay'
 import { SectorPanel } from './SectorPanel'
 import { WheelSvg } from './WheelSvg'
 
-export function WheelTab() {
+export function WheelTab({ focus }: { focus?: string | null }) {
   const { state, dispatch } = useData()
   const toast = useToast()
   const isMobile = useIsMobile()
@@ -25,6 +25,12 @@ export function WheelTab() {
   useEffect(() => {
     if (selectedId && !sectors.some((s) => s.id === selectedId)) setSelectedId(null)
   }, [sectors, selectedId])
+
+  // Пришли из сводки к конкретной цели — сразу открываем её панель: подсвечивать
+  // дольку колеса бессмысленно, человеку нужен прогресс, а не место на круге.
+  useEffect(() => {
+    if (focus && sectors.some((s) => s.id === focus)) setSelectedId(focus)
+  }, [focus, sectors])
 
   const openAdd = () => {
     if (sectors.length >= MAX_SECTORS) {

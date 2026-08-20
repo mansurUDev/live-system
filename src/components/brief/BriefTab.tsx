@@ -22,7 +22,7 @@ const URGENCY_COLOR: Record<Urgency, string> = {
   calm: '#22d3ee',
 }
 
-export function BriefTab({ onGo }: { onGo: (tab: Tab) => void }) {
+export function BriefTab({ onGo }: { onGo: (tab: Tab, focus?: string) => void }) {
   const { state, dispatch } = useData()
   const now = useNow()
   const isMobile = useIsMobile()

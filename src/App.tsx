@@ -60,10 +60,25 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   const [changingCode, setChangingCode] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
 
-  const go = (t: Tab) => {
+  // Куда именно нажали в сводке: вкладка открывается целиком, и без подсветки
+  // человек оказывается перед общим списком, не понимая, зачем его сюда привели.
+  const [focus, setFocus] = useState<{ tab: Tab; id: string } | null>(null)
+
+  const go = (t: Tab, focusId?: string) => {
     setTab(t)
     setMoreOpen(false)
+    setFocus(focusId ? { tab: t, id: focusId } : null)
   }
+
+  // Снимаем отметку, когда вспышка отыграла: иначе повторный переход к той же
+  // записи ничего бы не показал — класс уже висит, анимация не перезапустится.
+  useEffect(() => {
+    if (!focus) return
+    const t = setTimeout(() => setFocus(null), 2400)
+    return () => clearTimeout(t)
+  }, [focus])
+
+  const focusFor = (t: Tab) => (focus && focus.tab === t ? focus.id : null)
 
   return (
     <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'clip' }}>
@@ -83,11 +98,11 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
         <Tabs tab={tab} onChange={go} archiveCount={state.doc.archive.length} hideWatch={state.doc.hideWatch} />
 
         {tab === 'brief' && <BriefTab onGo={go} />}
-        {tab === 'wheel' && <WheelTab />}
+        {tab === 'wheel' && <WheelTab focus={focusFor('wheel')} />}
         {tab === 'track' && <TrackerTab />}
-        {tab === 'habits' && <HabitsTab />}
-        {tab === 'fin' && <FinanceTab />}
-        {tab === 'books' && <BooksTab />}
+        {tab === 'habits' && <HabitsTab focus={focusFor('habits')} />}
+        {tab === 'fin' && <FinanceTab focus={focusFor('fin')} />}
+        {tab === 'books' && <BooksTab focus={focusFor('books')} />}
         {tab === 'lib' && <LibraryTab />}
         {tab === 'watch' && <WatchTab />}
         {tab === 'ideas' && <IdeasTab />}

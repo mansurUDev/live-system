@@ -10,6 +10,7 @@ import { pageStyle } from '../../theme'
 import { BookModal } from '../modals/BookModal'
 import { FinishModal } from '../modals/FinishModal'
 import { DoneShelf, Empty, Shelf } from '../library/LibraryParts'
+import { FocusFlash } from '../FocusFlash'
 import { BookCard } from './BookCard'
 import type { Book } from '../../types'
 
@@ -20,7 +21,7 @@ type Finishing = { id: string; title: string } | null
  * Книги — своя вкладка, а не полка внутри общего раздела: у неё есть позиция,
  * срок и заметки, ей нужен собственный экран, а не соседство с курсами.
  */
-export function BooksTab() {
+export function BooksTab({ focus }: { focus?: string | null }) {
   const { state, dispatch } = useData()
   const toast = useToast()
   const now = useNow()
@@ -56,8 +57,8 @@ export function BooksTab() {
       {lib.books.length ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lib.books.map((b) => (
+            <FocusFlash key={b.id} active={focus === b.id}>
             <BookCard
-              key={b.id}
               book={b}
               open={openId === b.id}
               onToggle={() => toggleOpen(b.id)}
@@ -72,6 +73,7 @@ export function BooksTab() {
                 toast('Убрано из книг')
               }}
             />
+            </FocusFlash>
           ))}
         </div>
       ) : (

@@ -13,13 +13,14 @@ import { ReminderModal } from '../modals/ReminderModal'
 import { DoHabitCard } from './DoHabitCard'
 import { LogHabitCard } from './LogHabitCard'
 import { QuitHabitCard } from './QuitHabitCard'
+import { FocusFlash } from '../FocusFlash'
 import { ReminderCard } from './ReminderCard'
 import type { Habit, Reminder } from '../../types'
 
 type Form = { habit: Habit | null } | null
 type ReminderForm = { reminder: Reminder | null } | null
 
-export function HabitsTab() {
+export function HabitsTab({ focus }: { focus?: string | null }) {
   const { state, dispatch } = useData()
   const toast = useToast()
   const now = useNow()
@@ -179,8 +180,8 @@ export function HabitsTab() {
       {reminders.length ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {reminders.map((r) => (
+            <FocusFlash key={r.id} active={focus === r.id}>
             <ReminderCard
-              key={r.id}
               reminder={r}
               now={now}
               onMarkDone={() => {
@@ -189,6 +190,7 @@ export function HabitsTab() {
               }}
               onEdit={() => setReminderForm({ reminder: r })}
             />
+            </FocusFlash>
           ))}
         </div>
       ) : (

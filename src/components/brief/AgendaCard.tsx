@@ -10,7 +10,7 @@ import type { Doc, Tab } from '../../types'
  * платежа: беспроцентный период по займу видно только в «Финансах», книгу —
  * только в «Книгах».
  */
-export function AgendaCard({ doc, now, onGo }: { doc: Doc; now: number; onGo: (tab: Tab) => void }) {
+export function AgendaCard({ doc, now, onGo }: { doc: Doc; now: number; onGo: (tab: Tab, focus?: string) => void }) {
   const items = agenda(doc, now)
   if (!items.length) return null
 
@@ -32,7 +32,7 @@ export function AgendaCard({ doc, now, onGo }: { doc: Doc; now: number; onGo: (t
           return (
             <button
               key={it.id}
-              onClick={() => onGo(it.tab)}
+              onClick={() => onGo(it.tab, it.focus)}
               style={{
                 display: 'flex',
                 alignItems: 'center',

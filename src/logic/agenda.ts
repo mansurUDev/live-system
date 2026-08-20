@@ -20,6 +20,9 @@ export interface AgendaItem {
   sub: string
   /** куда ведёт нажатие */
   tab: Tab
+  /** id самой записи на той вкладке — чтобы подсветить именно её, а не бросить
+   *  человека в общий список гадать, зачем он сюда попал */
+  focus: string
   color: string
 }
 
@@ -55,6 +58,7 @@ export function agenda(doc: Doc, now: number = Date.now(), horizonDays = AGENDA_
     if (d < -horizonDays) continue
     add({
       id: 'exp-' + o.id,
+      focus: o.id,
       at,
       days: d,
       title: o.name,
@@ -70,6 +74,7 @@ export function agenda(doc: Doc, now: number = Date.now(), horizonDays = AGENDA_
     if (at === null) continue
     add({
       id: 'mand-' + m.id,
+      focus: m.id,
       at,
       days: daysTo(at),
       title: m.name,
@@ -87,6 +92,7 @@ export function agenda(doc: Doc, now: number = Date.now(), horizonDays = AGENDA_
     if (d < -horizonDays) continue
     add({
       id: 'rem-' + r.id,
+      focus: r.id,
       at,
       days: d,
       title: r.name,
@@ -106,6 +112,7 @@ export function agenda(doc: Doc, now: number = Date.now(), horizonDays = AGENDA_
     if (d < -horizonDays) continue
     add({
       id: 'book-' + b.id,
+      focus: b.id,
       at,
       days: d,
       title: b.title,
@@ -125,6 +132,7 @@ export function agenda(doc: Doc, now: number = Date.now(), horizonDays = AGENDA_
     if (f.kind !== 'ok') continue
     add({
       id: 'goal-' + s.id,
+      focus: s.id,
       at: f.targetAt,
       days: daysTo(f.targetAt),
       title: s.name,
