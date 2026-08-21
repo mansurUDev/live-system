@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { MAX_BOOKS, MAX_EXPENSE_NAME, MAX_IDEAS, MAX_NOTE_TEXT, MAX_ONETIME, PAL } from '../../constants'
 import { useAuth } from '../../state/AuthProvider'
 import { useData } from '../../state/DataProvider'
@@ -6,6 +6,8 @@ import { useToast } from '../../state/ToastProvider'
 import { deleteImage } from '../../state/media'
 import { A } from '../../state/actions'
 import { useIsMobile } from '../../hooks/useIsMobile'
+import { useListDrag } from '../../hooks/useListDrag'
+import { moveIdeaTo } from '../../logic/ideaOrder'
 import { btnAccent, C, chipBtn, pageStyle, plainCard } from '../../theme'
 import { ExpenseModal } from '../modals/ExpenseModal'
 import { IdeaModal } from '../modals/IdeaModal'
@@ -29,6 +31,27 @@ export function IdeasTab() {
 
   const categories = [...new Set(ideas.map((i) => i.category))].sort((a, b) => a.localeCompare(b, 'ru'))
   const visible = filter ? ideas.filter((i) => i.category === filter) : ideas
+  const scope = useMemo(() => visible.map((i) => i.id), [visible])
+
+  const listRef = useRef<HTMLDivElement | null>(null)
+  const ghostRef = useRef<HTMLDivElement | null>(null)
+
+  const drag = useListDrag({
+    ids: scope,
+    scopeRef: listRef,
+    ghostRef,
+    onDrop: (id, index) => dispatch(A.moveIdea(id, index, scope)),
+  })
+
+  // Пока карточку тянут, список показывает итог заранее — той же функцией,
+  // которой потом сработает редьюсер, поэтому превью и результат не разойдутся.
+  const shown = useMemo(() => {
+    if (!drag) return visible
+    const moved = moveIdeaTo(visible, scope, drag.id, drag.index)
+    return filter ? moved.filter((i) => i.category === filter) : moved
+  }, [visible, scope, drag, filter])
+
+  const dragged = drag ? ideas.find((i) => i.id === drag.id) : null
 
   const openAdd = () => {
     if (ideas.length >= MAX_IDEAS) {
@@ -102,13 +125,23 @@ export function IdeasTab() {
       )}
 
       {visible.length ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {visible.map((idea) => (
-            <IdeaCard
+        <div ref={listRef} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {shown.map((idea) => (
+            <div
               key={idea.id}
+              data-drag-id={idea.id}
+              style={{
+                // сама карточка остаётся в потоке и держит высоту, но пока её
+                // тянут — она бледная, а «настоящая» едет за пальцем призраком
+                opacity: drag?.id === idea.id ? 0.25 : 1,
+                transition: 'opacity .12s ease',
+              }}
+            >
+            <IdeaCard
               idea={idea}
               confirmingDelete={deleteId === idea.id}
               onToggleDone={() => dispatch(A.saveIdea({ ...idea, done: !idea.done }))}
+              onTogglePin={() => dispatch(A.toggleIdeaPin(idea.id))}
               onToggleCheck={(checkId) =>
                 dispatch(
                   A.saveIdea({
@@ -129,11 +162,42 @@ export function IdeasTab() {
                 toast('Идея убрана')
               }}
             />
+            </div>
           ))}
         </div>
       ) : (
         <div style={plainCard({ padding: 18, color: C.faint, fontSize: 14 })}>
           {filter ? 'В этой категории пока пусто' : 'Сохрани первую идею — с фото или ссылкой, если есть'}
+        </div>
+      )}
+
+      {dragged && drag && (
+        <div
+          ref={ghostRef}
+          style={{
+            position: 'fixed',
+            left: drag.grabRect.left,
+            top: drag.grabRect.top,
+            width: drag.grabRect.width,
+            pointerEvents: 'none',
+            zIndex: 60,
+            opacity: 0.95,
+            filter: 'drop-shadow(0 10px 24px rgba(0,0,0,.55))',
+          }}
+        >
+          <IdeaCard
+            idea={dragged}
+            confirmingDelete={false}
+            onToggleDone={() => {}}
+            onTogglePin={() => {}}
+            onToggleCheck={() => {}}
+            onEdit={() => {}}
+            onToBook={() => {}}
+            onToExpense={() => {}}
+            onAskDelete={() => {}}
+            onCancelDelete={() => {}}
+            onDelete={() => {}}
+          />
         </div>
       )}
 

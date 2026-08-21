@@ -159,6 +159,17 @@ export const A = {
 
   saveIdea: (idea: Idea): Action => ({ type: 'saveIdea', idea, now: Date.now() }),
   deleteIdea: (id: string): Action => ({ type: 'deleteIdea', id, now: Date.now() }),
+
+  toggleIdeaPin: (id: string): Action => ({ type: 'toggleIdeaPin', id, now: Date.now() }),
+
+  /** scope — id видимых идей в текущем порядке: индекс считается среди них */
+  moveIdea: (id: string, index: number, scope: readonly string[]): Action => ({
+    type: 'moveIdea',
+    id,
+    index,
+    scope,
+    now: Date.now(),
+  }),
   newIdea: (title: string, category: string, text: string, links: IdeaLink[], images: string[]): Idea => ({
     id: uid('i'),
     title,

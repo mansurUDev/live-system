@@ -20,6 +20,7 @@ import { moveActTo, type MoveTarget } from '../logic/actLayout'
 import { convert, money } from '../logic/currency'
 import { rollMonth } from '../logic/finance'
 import { resetQuit, toggleToday } from '../logic/habits'
+import { moveIdeaTo, toggleIdeaPin } from '../logic/ideaOrder'
 import { mergeDoc } from '../logic/merge'
 import { kindLabel, pct, summary } from '../logic/pct'
 import { markDone } from '../logic/reminders'
@@ -102,6 +103,9 @@ export type Action =
   // идеи
   | { type: 'saveIdea'; idea: Idea; now: number }
   | { type: 'deleteIdea'; id: string; now: number }
+  /** приоритет идей задаёт человек: звезда наверх и перетаскивание */
+  | { type: 'toggleIdeaPin'; id: string; now: number }
+  | { type: 'moveIdea'; id: string; index: number; scope: readonly string[]; now: number }
   // финансы
   | { type: 'patchFinance'; patch: Partial<Finance>; now: number }
   | { type: 'rollFinanceMonth'; now: number }
@@ -395,6 +399,12 @@ function coreReducer(doc: Doc, action: Action): Doc {
           : [...doc.ideas, action.idea].slice(0, MAX_IDEAS),
       }
     }
+
+    case 'toggleIdeaPin':
+      return { ...doc, ideas: toggleIdeaPin(doc.ideas, action.id) }
+
+    case 'moveIdea':
+      return { ...doc, ideas: moveIdeaTo(doc.ideas, action.scope, action.id, action.index) }
 
     case 'deleteIdea':
       return { ...doc, ideas: doc.ideas.filter((i) => i.id !== action.id) }

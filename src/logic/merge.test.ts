@@ -502,3 +502,50 @@ describe('слияние — эхо не превращается в правк�
     expect(sameDoc(merged, m)).toBe(true)
   })
 })
+
+describe('слияние — приоритет идей', () => {
+  const withIdeas = (d: Doc, list: { id: string; pinned?: true }[]) => {
+    d.ideas = list.map((x) => ({
+      id: x.id,
+      title: x.id,
+      category: 'Разное',
+      text: '',
+      links: [],
+      images: [],
+      checklist: [],
+      done: false,
+      ...(x.pinned ? { pinned: x.pinned } : null),
+      createdAt: '2026-08-20T10:00:00.000Z',
+    }))
+  }
+
+  it('звезда, поставленная на одном устройстве, доезжает до второго', () => {
+    const base = doc((d) => withIdeas(d, [{ id: 'i1' }, { id: 'i2' }]))
+    const local = doc((d) => withIdeas(d, [{ id: 'i1', pinned: true }, { id: 'i2' }]))
+    const cloud = doc((d) => withIdeas(d, [{ id: 'i1' }, { id: 'i2' }]))
+    const merged = mergeDoc(base, local, cloud, NOW)
+    expect(merged.ideas.find((i) => i.id === 'i1')!.pinned).toBe(true)
+  })
+
+  it('снятая звезда не возвращается из облака', () => {
+    const base = doc((d) => withIdeas(d, [{ id: 'i1', pinned: true }, { id: 'i2' }]))
+    const local = doc((d) => withIdeas(d, [{ id: 'i1' }, { id: 'i2' }]))
+    const cloud = doc((d) => withIdeas(d, [{ id: 'i1', pinned: true }, { id: 'i2' }]))
+    const merged = mergeDoc(base, local, cloud, NOW)
+    expect('pinned' in merged.ideas.find((i) => i.id === 'i1')!).toBe(false)
+  })
+
+  it('порядок, переставленный только здесь, переживает слияние', () => {
+    // перестановка — это приоритет, заданный руками: чужой документ, который её
+    // не касался, не должен возвращать список к прежнему виду
+    const base = doc((d) => withIdeas(d, [{ id: 'i1' }, { id: 'i2' }, { id: 'i3' }]))
+    const local = doc((d) => withIdeas(d, [{ id: 'i3' }, { id: 'i1' }, { id: 'i2' }]))
+    const cloud = doc((d) => {
+      withIdeas(d, [{ id: 'i1' }, { id: 'i2' }, { id: 'i3' }])
+      d.fin.onHand = 500
+    })
+    const merged = mergeDoc(base, local, cloud, NOW)
+    expect(merged.ideas.map((i) => i.id)).toEqual(['i3', 'i1', 'i2'])
+    expect(merged.fin.onHand).toBe(500)
+  })
+})

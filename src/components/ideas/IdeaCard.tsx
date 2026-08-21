@@ -7,6 +7,7 @@ interface Props {
   idea: Idea
   confirmingDelete: boolean
   onToggleDone: () => void
+  onTogglePin: () => void
   onToggleCheck: (checkId: string) => void
   onEdit: () => void
   onToBook: () => void
@@ -31,6 +32,7 @@ export function IdeaCard({
   idea,
   confirmingDelete,
   onToggleDone,
+  onTogglePin,
   onToggleCheck,
   onEdit,
   onToBook,
@@ -45,8 +47,42 @@ export function IdeaCard({
   const checksDone = idea.checklist.filter((c) => c.done).length
 
   return (
-    <div style={plainCard({ padding: '13px 15px', opacity: idea.done ? 0.7 : 1 })}>
+    <div
+      style={{
+        ...plainCard({ padding: '13px 15px', opacity: idea.done ? 0.7 : 1 }),
+        // приоритетную видно с одного взгляда, не вчитываясь в список
+        ...(idea.pinned
+          ? {
+              border: '1px solid rgba(251,191,36,.5)',
+              background: 'linear-gradient(165deg, rgba(251,191,36,.09), rgba(10,16,32,.5))',
+              boxShadow: '0 0 18px rgba(251,191,36,.1)',
+            }
+          : null),
+      }}
+    >
       <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+        {/* ручка: тянуть можно только за неё — остальная карточка кликабельна */}
+        <span
+          data-drag-handle
+          aria-hidden
+          title="Перетащить"
+          style={{
+            marginTop: 1,
+            width: 18,
+            flex: 'none',
+            alignSelf: 'stretch',
+            color: C.faint,
+            fontSize: 13,
+            lineHeight: '20px',
+            textAlign: 'center',
+            cursor: 'grab',
+            touchAction: 'none',
+            userSelect: 'none',
+          }}
+        >
+          ⠿
+        </span>
+
         <button
           onClick={onToggleDone}
           aria-label={idea.done ? 'Не воплощена' : 'Воплощена'}
@@ -65,6 +101,28 @@ export function IdeaCard({
           }}
         >
           {idea.done ? '✓' : ''}
+        </button>
+
+        <button
+          onClick={onTogglePin}
+          aria-label={idea.pinned ? 'Убрать из приоритетных' : 'В приоритет — наверх списка'}
+          title={idea.pinned ? 'Убрать из приоритетных' : 'В приоритет — наверх списка'}
+          style={{
+            marginTop: 1,
+            width: 20,
+            height: 20,
+            flex: 'none',
+            border: 'none',
+            background: 'none',
+            padding: 0,
+            fontSize: 14,
+            lineHeight: '20px',
+            cursor: 'pointer',
+            color: idea.pinned ? '#fbbf24' : C.faint,
+            textShadow: idea.pinned ? '0 0 10px rgba(251,191,36,.65)' : 'none',
+          }}
+        >
+          {idea.pinned ? '★' : '☆'}
         </button>
 
         <div style={{ flex: 1, minWidth: 0 }}>

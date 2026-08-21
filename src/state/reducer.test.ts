@@ -670,3 +670,50 @@ describe('поступление денег', () => {
     expect(reducer(start, { type: 'addIncome', amount: -5, now: NOW }).doc.fin).toBe(base.fin)
   })
 })
+
+describe('приоритет идей', () => {
+  const mk = (id: string, category = 'Разное') => ({
+    id,
+    title: id,
+    category,
+    text: '',
+    links: [],
+    images: [],
+    checklist: [],
+    done: false,
+    createdAt: '2026-08-20T10:00:00.000Z',
+  })
+
+  const start = (ideas: ReturnType<typeof mk>[]): AppState => {
+    const base = normalize(defaultDoc(NOW), NOW)
+    return { doc: { ...base, ideas }, celebratingId: null }
+  }
+
+  it('звезда поднимает идею наверх', () => {
+    const s = reducer(start([mk('a'), mk('b'), mk('c')]), { type: 'toggleIdeaPin', id: 'c', now: NOW })
+    expect(s.doc.ideas.map((i) => i.id)).toEqual(['c', 'a', 'b'])
+    expect(s.doc.ideas[0]!.pinned).toBe(true)
+  })
+
+  it('перетаскивание меняет порядок в пределах видимых', () => {
+    const s = reducer(start([mk('a'), mk('b'), mk('c')]), {
+      type: 'moveIdea',
+      id: 'a',
+      index: 2,
+      scope: ['a', 'b', 'c'],
+      now: NOW,
+    })
+    expect(s.doc.ideas.map((i) => i.id)).toEqual(['b', 'c', 'a'])
+  })
+
+  it('при фильтре по категории скрытые идеи остаются на своих местах', () => {
+    const s = reducer(start([mk('a', 'A'), mk('x', 'B'), mk('b', 'A')]), {
+      type: 'moveIdea',
+      id: 'b',
+      index: 0,
+      scope: ['a', 'b'],
+      now: NOW,
+    })
+    expect(s.doc.ideas.map((i) => i.id)).toEqual(['b', 'x', 'a'])
+  })
+})

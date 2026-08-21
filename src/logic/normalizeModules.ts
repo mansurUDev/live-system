@@ -443,6 +443,8 @@ export function normIdeas(x: unknown, nowIso: string): Idea[] {
       images,
       checklist,
       done: !!it.done,
+      // поле только когда осмысленно — см. комментарий у Idea.pinned
+      ...(it.pinned === true ? { pinned: true as const } : null),
       createdAt: iso(it.createdAt, nowIso),
     }
   })
