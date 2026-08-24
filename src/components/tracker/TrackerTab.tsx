@@ -3,8 +3,8 @@ import type { CSSProperties } from 'react'
 import { CATS, HOT_MAX, MAX_ACTS } from '../../constants'
 import { actBy, actTotals } from '../../logic/analytics'
 import { canPin, hotDockHeight, moveActTo, splitActs, type MoveTarget } from '../../logic/actLayout'
-import { segs, runningEntry } from '../../logic/segs'
-import { addDays, fmtHm, hhmm, minuteOf, startOfDay } from '../../logic/time'
+import { prevEnded, segs, runningEntry } from '../../logic/segs'
+import { addDays, fmtDur, fmtHm, hhmm, minuteOf, startOfDay } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
@@ -62,6 +62,8 @@ export function TrackerTab() {
   const runningId = running?.actId ?? null
   const runningAct = running ? actBy(acts, running.actId) : null
   const nextAct = runningAct?.nextId ? actBy(acts, runningAct.nextId) : null
+  const prevEntry = running ? prevEnded(entries, running) : null
+  const prevAct = prevEntry ? actBy(acts, prevEntry.actId) : null
 
   // press() молчит при успехе и его guard «уже идёт» тут не нужен: само-ссылка
   // запрещена normalize и модалкой, nextAct.id всегда отличается от running.actId
@@ -140,12 +142,22 @@ export function TrackerTab() {
         now={now}
         compact={zone === 'phone'}
         nextAct={nextAct}
+        prevAct={prevAct}
         onStop={() => {
           dispatch(A.stopTrack())
           toast('Отсчёт остановлен')
         }}
         onChain={chain}
         onChainLongPress={(next, x, y) => setBackdate({ id: next.id, name: next.name, color: next.color, x, y })}
+        onLate={() => {
+          if (!running || !prevAct) return
+          // тот же округлённый до минуты момент, что фактически запишет A.lateSwitch()
+          const roundedNow = Math.floor(Date.now() / 60_000) * 60_000
+          const transferMs = roundedNow - new Date(running.start).getTime()
+          if (transferMs <= 0) return
+          dispatch(A.lateSwitch())
+          toast(`${fmtDur(transferMs)} вернулось в «${prevAct.name}» — «${runningAct?.name ?? ''}» идёт с нуля`)
+        }}
       />
 
       {zone === 'phone' && nextAct && (

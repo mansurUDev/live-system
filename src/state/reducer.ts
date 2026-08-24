@@ -24,7 +24,7 @@ import { moveIdeaTo, toggleIdeaPin } from '../logic/ideaOrder'
 import { mergeDoc } from '../logic/merge'
 import { kindLabel, pct, summary } from '../logic/pct'
 import { markDone } from '../logic/reminders'
-import { runningEntry } from '../logic/segs'
+import { prevEnded, runningEntry } from '../logic/segs'
 import { withTodaySnapshot } from '../logic/snapshot'
 import { localDateKey, num } from '../logic/time'
 import { uid } from '../logic/uid'
@@ -84,6 +84,13 @@ export type Action =
   | { type: 'dismissCelebration' }
   | { type: 'pressAct'; actId: string; entryId: string; now: number }
   | { type: 'stopTrack'; now: number }
+  /**
+   * «Задержался»: нажал следующую кнопку раньше времени (ушёл «Домой», а
+   * директор ещё задержал), и текущий статус на самом деле не начинался.
+   * Прошедшее время идущей записи переезжает в ту, что шла перед ней, а
+   * идущая стартует заново с этого момента.
+   */
+  | { type: 'lateSwitch'; now: number }
   | { type: 'saveAct'; act: Activity; now: number }
   | { type: 'deleteAct'; id: string; now: number }
   | { type: 'toggleActPin'; id: string; now: number }
@@ -266,6 +273,32 @@ function coreReducer(doc: Doc, action: Action): Doc {
     case 'stopTrack': {
       if (!runningEntry(doc.entries)) return doc
       return { ...doc, entries: closeOpen(doc.entries, action.now) }
+    }
+
+    case 'lateSwitch': {
+      const run = runningEntry(doc.entries)
+      if (!run) return doc
+      const prev = prevEnded(doc.entries, run)
+      if (!prev) return doc
+
+      const runStart = new Date(run.start).getTime()
+      const transferMs = action.now - runStart
+      if (transferMs <= 0) return doc
+
+      // конец prev не мог быть позже старта run (иначе они бы пересекались),
+      // а прибавка не больше transferMs — значит новый конец не уйдёт за now
+      const prevEnd = new Date(prev.end!).getTime()
+      const nextPrevEnd = new Date(prevEnd + transferMs).toISOString()
+      const startedNow = new Date(action.now).toISOString()
+
+      return {
+        ...doc,
+        entries: doc.entries.map((e) => {
+          if (e.id === prev.id) return { ...e, end: nextPrevEnd }
+          if (e.id === run.id) return { ...e, start: startedNow }
+          return e
+        }),
+      }
     }
 
     case 'saveAct': {

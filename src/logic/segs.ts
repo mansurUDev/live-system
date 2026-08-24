@@ -52,3 +52,17 @@ export function runningEntry(entries: TimeEntry[]): TimeEntry | null {
   }
   return null
 }
+
+/**
+ * Запись, которая шла перед идущей: последняя завершённая, начатая не позже неё.
+ * Нужна кнопке «задержался» — время текущего статуса возвращается в предыдущий,
+ * когда переключились раньше времени (нажал «Домой», а директор задержал).
+ */
+export function prevEnded(entries: TimeEntry[], running: TimeEntry): TimeEntry | null {
+  let best: TimeEntry | null = null
+  for (const e of entries) {
+    if (!e.end || e.id === running.id || e.start > running.start) continue
+    if (!best || e.start > best.start) best = e
+  }
+  return best
+}

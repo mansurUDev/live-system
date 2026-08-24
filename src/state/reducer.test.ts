@@ -717,3 +717,86 @@ describe('приоритет идей', () => {
     expect(s.doc.ideas.map((i) => i.id)).toEqual(['b', 'x', 'a'])
   })
 })
+
+describe('«задержался»', () => {
+  const acts = () => defaultDoc(NOW).acts
+  const withEntries = (entries: Doc['entries']): AppState => ({
+    doc: { ...normalize(defaultDoc(NOW), NOW), entries },
+    celebratingId: null,
+  })
+
+  it('время переезжает во встык идущую запись, текущая стартует заново', () => {
+    const a1 = acts()[0]!.id
+    const a2 = acts()[1]!.id
+    const start = withEntries([
+      { id: 'e1', actId: a1, start: '2026-03-15T10:00:00.000Z', end: '2026-03-15T11:00:00.000Z' },
+      { id: 'e2', actId: a2, start: '2026-03-15T11:00:00.000Z', end: null },
+    ])
+    // нажали «домой» в 11:00, задержали до 11:15
+    const now = new Date('2026-03-15T11:15:00.000Z').getTime()
+    const s = reducer(start, { type: 'lateSwitch', now })
+
+    const e1 = s.doc.entries.find((e) => e.id === 'e1')!
+    const e2 = s.doc.entries.find((e) => e.id === 'e2')!
+    expect(e1.end).toBe('2026-03-15T11:15:00.000Z') // 15 минут переехали сюда
+    expect(e2.start).toBe('2026-03-15T11:15:00.000Z') // текущая — с нуля от нажатия
+    expect(e2.end).toBeNull()
+  })
+
+  it('зазор между записями сохраняется, а не заметается', () => {
+    const a1 = acts()[0]!.id
+    const a2 = acts()[1]!.id
+    const start = withEntries([
+      { id: 'e1', actId: a1, start: '2026-03-15T10:00:00.000Z', end: '2026-03-15T10:50:00.000Z' },
+      { id: 'e2', actId: a2, start: '2026-03-15T11:00:00.000Z', end: null }, // 10-минутный зазор перед e2
+    ])
+    const now = new Date('2026-03-15T11:20:00.000Z').getTime()
+    const s = reducer(start, { type: 'lateSwitch', now })
+    const e1 = s.doc.entries.find((e) => e.id === 'e1')!
+    // 20 минут переноса прибавились к 10:50, зазор в 10 минут остаётся зазором
+    expect(e1.end).toBe('2026-03-15T11:10:00.000Z')
+  })
+
+  it('нет идущей записи — ничего не меняет', () => {
+    const a1 = acts()[0]!.id
+    const start = withEntries([
+      { id: 'e1', actId: a1, start: '2026-03-15T10:00:00.000Z', end: '2026-03-15T11:00:00.000Z' },
+    ])
+    const s = reducer(start, { type: 'lateSwitch', now: NOW })
+    expect(s.doc.entries).toEqual(start.doc.entries)
+  })
+
+  it('идущая — первая запись документа: переносить некуда, ничего не меняет', () => {
+    const a1 = acts()[0]!.id
+    const start = withEntries([{ id: 'e1', actId: a1, start: '2026-03-15T10:00:00.000Z', end: null }])
+    const now = new Date('2026-03-15T10:15:00.000Z').getTime()
+    const s = reducer(start, { type: 'lateSwitch', now })
+    expect(s.doc.entries).toEqual(start.doc.entries)
+  })
+
+  it('нажали сразу же (ничего не прошло) — ничего не меняет', () => {
+    const a1 = acts()[0]!.id
+    const a2 = acts()[1]!.id
+    const start = withEntries([
+      { id: 'e1', actId: a1, start: '2026-03-15T10:00:00.000Z', end: '2026-03-15T11:00:00.000Z' },
+      { id: 'e2', actId: a2, start: '2026-03-15T11:00:00.000Z', end: null },
+    ])
+    const s = reducer(start, { type: 'lateSwitch', now: new Date('2026-03-15T11:00:00.000Z').getTime() })
+    expect(s.doc.entries).toEqual(start.doc.entries)
+  })
+
+  it('повторное нажатие переносит ещё раз накопившееся время', () => {
+    const a1 = acts()[0]!.id
+    const a2 = acts()[1]!.id
+    const start = withEntries([
+      { id: 'e1', actId: a1, start: '2026-03-15T10:00:00.000Z', end: '2026-03-15T11:00:00.000Z' },
+      { id: 'e2', actId: a2, start: '2026-03-15T11:00:00.000Z', end: null },
+    ])
+    const once = reducer(start, { type: 'lateSwitch', now: new Date('2026-03-15T11:10:00.000Z').getTime() })
+    const twice = reducer(once, { type: 'lateSwitch', now: new Date('2026-03-15T11:20:00.000Z').getTime() })
+    const e1 = twice.doc.entries.find((e) => e.id === 'e1')!
+    const e2 = twice.doc.entries.find((e) => e.id === 'e2')!
+    expect(e1.end).toBe('2026-03-15T11:20:00.000Z')
+    expect(e2.start).toBe('2026-03-15T11:20:00.000Z')
+  })
+})

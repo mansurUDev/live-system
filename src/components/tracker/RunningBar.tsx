@@ -13,12 +13,26 @@ interface Props {
   compact: boolean
   /** цель цепочки идущей активности; null — nextId нет или кнопка-цель удалена */
   nextAct: Activity | null
+  /** активность, что шла перед идущей — есть кнопке «задержался» куда вернуть время */
+  prevAct: Activity | null
   onStop: () => void
   onChain: (next: Activity) => void
   onChainLongPress: (next: Activity, x: number, y: number) => void
+  onLate: () => void
 }
 
-export function RunningBar({ running, acts, now, compact, nextAct, onStop, onChain, onChainLongPress }: Props) {
+export function RunningBar({
+  running,
+  acts,
+  now,
+  compact,
+  nextAct,
+  prevAct,
+  onStop,
+  onChain,
+  onChainLongPress,
+  onLate,
+}: Props) {
   const act = running ? actBy(acts, running.actId) : null
   const color = act?.color ?? '#334155'
   const started = running ? new Date(running.start).getTime() : 0
@@ -137,6 +151,43 @@ export function RunningBar({ running, acts, now, compact, nextAct, onStop, onCha
       >
         {compact ? '■' : '■ Стоп'}
       </button>
+
+      {prevAct && (
+        <button
+          className="h-ghost-bright"
+          aria-label={`Задержался — вернуть прошедшее время «${prevAct.name}»`}
+          title={`Переключился раньше времени — вернуть прошедшее в «${prevAct.name}»`}
+          style={
+            compact
+              ? {
+                  fontFamily: 'inherit',
+                  fontSize: 16,
+                  color: C.textSoft,
+                  background: 'rgba(148,163,184,.08)',
+                  border: '1px solid rgba(148,163,184,.3)',
+                  borderRadius: 10,
+                  width: 40,
+                  height: 40,
+                  cursor: 'pointer',
+                  flex: 'none',
+                }
+              : {
+                  fontFamily: 'inherit',
+                  fontSize: 13.5,
+                  color: C.textSoft,
+                  background: 'rgba(148,163,184,.08)',
+                  border: '1px solid rgba(148,163,184,.3)',
+                  borderRadius: 10,
+                  padding: '9px 16px',
+                  cursor: 'pointer',
+                  letterSpacing: '.5px',
+                }
+          }
+          onClick={onLate}
+        >
+          {compact ? '⤺' : '⤺ Задержался'}
+        </button>
+      )}
 
       {!compact && nextAct && <ChainSlot nextAct={nextAct} onChain={onChain} onLongPress={onChainLongPress} />}
     </div>

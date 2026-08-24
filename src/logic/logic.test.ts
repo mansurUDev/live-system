@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { avgPct, pct } from './pct'
 import { findConflict, overlaps, resolveEnd } from './overlap'
-import { runningEntry, segs, splitByDay, totalMs } from './segs'
+import { prevEnded, runningEntry, segs, splitByDay, totalMs } from './segs'
 import { actTotals, catTotals, topActs, untrackedMs, weekdayTotals } from './analytics'
 import { canPin, DOCK, hotDockHeight, mergeAct, moveActTo, splitActs } from './actLayout'
 import { numberForecast, stepsForecast } from './forecast'
@@ -224,6 +224,36 @@ describe('segs / splitByDay', () => {
     ]
     expect(runningEntry(list)?.id).toBe('e2')
     expect(runningEntry([list[0]!])).toBeNull()
+  })
+
+  it('находит запись, что шла перед идущей', () => {
+    const list = [
+      entry('e1', 'a1', '2026-03-15T09:00:00', '2026-03-15T10:00:00'),
+      entry('e2', 'a2', '2026-03-15T10:00:00', null),
+    ]
+    const running = list[1]!
+    expect(prevEnded(list, running)?.id).toBe('e1')
+  })
+
+  it('нет предыдущей записи — null', () => {
+    const running = entry('e1', 'a1', '2026-03-15T09:00:00', null)
+    expect(prevEnded([running], running)).toBeNull()
+  })
+
+  it('запись, начатая позже идущей, не считается предыдущей', () => {
+    const running = entry('e1', 'a1', '2026-03-15T09:00:00', null)
+    const future = entry('e2', 'a2', '2026-03-15T10:00:00', '2026-03-15T11:00:00')
+    expect(prevEnded([running, future], running)).toBeNull()
+  })
+
+  it('из нескольких завершённых берёт ту, что кончилась последней', () => {
+    const running = entry('e3', 'a3', '2026-03-15T11:00:00', null)
+    const list = [
+      entry('e1', 'a1', '2026-03-15T08:00:00', '2026-03-15T09:00:00'),
+      entry('e2', 'a2', '2026-03-15T09:00:00', '2026-03-15T10:30:00'),
+      running,
+    ]
+    expect(prevEnded(list, running)?.id).toBe('e2')
   })
 })
 

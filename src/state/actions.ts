@@ -112,6 +112,8 @@ export const A = {
     now: minuteStart(backMinutes),
   }),
   stopTrack: (): Action => ({ type: 'stopTrack', now: minuteStart() }),
+
+  lateSwitch: (): Action => ({ type: 'lateSwitch', now: minuteStart() }),
   saveAct: (act: Activity): Action => ({ type: 'saveAct', act, now: Date.now() }),
   deleteAct: (id: string): Action => ({ type: 'deleteAct', id, now: minuteStart() }),
   toggleActPin: (id: string): Action => ({ type: 'toggleActPin', id, now: Date.now() }),
