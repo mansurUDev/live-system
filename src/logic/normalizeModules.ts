@@ -367,6 +367,7 @@ export function normLibrary(x: unknown, nowIso: string): Library {
   const shows: Show[] = Array.isArray(l.shows)
     ? l.shows.slice(0, MAX_SHOWS).map((raw, i) => {
         const s = obj(raw)
+        const startedAt = iso(s.startedAt, nowIso)
         return {
           id: str(s.id, 60, 'sh' + i),
           title: str(s.title, MAX_TITLE, 'Без названия'),
@@ -376,7 +377,9 @@ export function normLibrary(x: unknown, nowIso: string): Library {
           episode: showNumber(s.episode),
           minute: showNumber(s.minute),
           link: safeUrl(s.link, MAX_VIDEO_URL),
-          startedAt: iso(s.startedAt, nowIso),
+          startedAt,
+          // документы до этой правки поля не знают — свежесть = дате добавления
+          updatedAt: iso(s.updatedAt, startedAt),
         }
       })
     : []

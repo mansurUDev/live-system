@@ -49,6 +49,7 @@ function show(patch: Partial<Show> = {}): Show {
     minute: 12,
     link: '',
     startedAt: new Date(NOW).toISOString(),
+    updatedAt: new Date(NOW).toISOString(),
     ...patch,
   }
 }
@@ -493,6 +494,13 @@ describe('полка «Смотреть»', () => {
     s = run(s, { type: 'saveShow', show: show({ episode: 4 }), now: NOW })
     expect(s.doc.lib.shows).toHaveLength(1)
     expect(s.doc.lib.shows[0]!.episode).toBe(4)
+  })
+
+  it('saveShow штампует updatedAt текущим моментом — по нему список сортируется', () => {
+    const later = NOW + 60_000
+    let s = stateWith({ lib: lib([]) })
+    s = run(s, { type: 'saveShow', show: show({ updatedAt: '2020-01-01T00:00:00.000Z' }), now: later })
+    expect(s.doc.lib.shows[0]!.updatedAt).toBe(new Date(later).toISOString())
   })
 
   it('finishLibItem(show) переезжает в lib.done с byline = метка вида', () => {

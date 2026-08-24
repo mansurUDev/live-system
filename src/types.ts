@@ -268,6 +268,8 @@ export interface Show {
   /** где смотрю — необязательно */
   link: string
   startedAt: string
+  /** момент последнего сохранения — по нему список сортируется, свежее сверху */
+  updatedAt: string
 }
 
 export interface LibDone {

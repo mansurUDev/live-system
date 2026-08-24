@@ -568,14 +568,17 @@ function coreReducer(doc: Doc, action: Action): Doc {
     }
 
     case 'saveShow': {
-      const exists = doc.lib.shows.some((s) => s.id === action.show.id)
+      // штамп на каждое сохранение — и создание, и правку позиции: список
+      // «Смотреть» сортируется по нему, свежее обновление всплывает наверх
+      const show = { ...action.show, updatedAt: new Date(action.now).toISOString() }
+      const exists = doc.lib.shows.some((s) => s.id === show.id)
       return {
         ...doc,
         lib: {
           ...doc.lib,
           shows: exists
-            ? doc.lib.shows.map((s) => (s.id === action.show.id ? action.show : s))
-            : [...doc.lib.shows, action.show].slice(0, MAX_SHOWS),
+            ? doc.lib.shows.map((s) => (s.id === show.id ? show : s))
+            : [...doc.lib.shows, show].slice(0, MAX_SHOWS),
         },
       }
     }

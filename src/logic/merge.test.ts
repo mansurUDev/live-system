@@ -25,6 +25,7 @@ function show(id: string, over: Partial<Show> = {}): Show {
     minute: 0,
     link: '',
     startedAt: '2026-08-18T10:00:00.000Z',
+    updatedAt: '2026-08-18T10:00:00.000Z',
     ...over,
   }
 }
@@ -203,6 +204,17 @@ describe('слияние — правки одной и той же записи
     const local = doc((d) => d.lib.shows.push(show('sh1', { episode: 6 })))
     const cloud = doc((d) => d.lib.shows.push(show('sh1', { episode: 7 })))
     expect(mergeDoc(base, local, cloud, NOW).lib.shows[0]!.episode).toBe(7)
+  })
+
+  it('updatedAt побеждает более свежий — список сортируется по нему, обновление должно всплыть', () => {
+    const base = doc((d) => d.lib.shows.push(show('sh1', { updatedAt: '2026-08-10T00:00:00.000Z' })))
+    const local = doc((d) =>
+      d.lib.shows.push(show('sh1', { episode: 6, updatedAt: '2026-08-15T00:00:00.000Z' })),
+    )
+    const cloud = doc((d) =>
+      d.lib.shows.push(show('sh1', { episode: 7, updatedAt: '2026-08-12T00:00:00.000Z' })),
+    )
+    expect(mergeDoc(base, local, cloud, NOW).lib.shows[0]!.updatedAt).toBe('2026-08-15T00:00:00.000Z')
   })
 })
 

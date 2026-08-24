@@ -1,6 +1,6 @@
 import { DAY_MS } from '../constants'
 import { startOfDay } from './time'
-import type { Book, Course } from '../types'
+import type { Book, Course, Show } from '../types'
 
 /**
  * Разбор позиции в аудиокниге. Принимает и «3:15» (часы:минуты), и просто число
@@ -71,4 +71,18 @@ export function readingPlan(b: Book, now: number = Date.now()): ReadingPlan {
 
   const daysLeft = days + 1
   return { kind: 'ok', pagesLeft, daysLeft, perDay: Math.ceil(pagesLeft / daysLeft) }
+}
+
+/**
+ * Что показывать в списке «Смотреть»: по виду, по названию, свежее обновление
+ * сверху. Отметка позиции обновляет `updatedAt`, поэтому «досмотрел вчера
+ * серию» поднимает запись наверх — так проще найти то, чем занят сейчас, среди
+ * давно заброшенного.
+ */
+export function visibleShows(shows: Show[], query: string, kind: Show['kind'] | null): Show[] {
+  const q = query.trim().toLowerCase()
+  return shows
+    .filter((s) => kind === null || s.kind === kind)
+    .filter((s) => !q || s.title.toLowerCase().includes(q))
+    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
 }

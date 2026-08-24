@@ -24,6 +24,7 @@ const withShow = (): Doc => {
     minute: 0,
     link: 'https://doramy.club/x',
     startedAt: '2026-03-14T10:00:00.000Z',
+    updatedAt: '2026-03-14T10:00:00.000Z',
   })
   return normalize(d, NOW)
 }

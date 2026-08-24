@@ -422,6 +422,9 @@ function mergeShow(b: Show, l: Show, c: Show): Show {
     season: () => ahead.season,
     episode: () => ahead.episode,
     minute: () => ahead.minute,
+    // список сортируется по этому полю — обновление с любого устройства
+    // должно поднять запись наверх, а не проиграть более старому updatedAt
+    updatedAt: (_b, lv, cv) => (lv >= cv ? lv : cv),
   })
 }
 

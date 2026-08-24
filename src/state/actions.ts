@@ -281,5 +281,8 @@ export const A = {
     minute: 0,
     link,
     startedAt: new Date().toISOString(),
+    // редьюсер сам штампует актуальный updatedAt при saveShow — это значение
+    // на случай если объект где-то прочитают до диспатча
+    updatedAt: new Date().toISOString(),
   }),
 }
