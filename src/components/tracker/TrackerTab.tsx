@@ -231,6 +231,10 @@ export function TrackerTab() {
         onPrevDay={() => setDayOffset((d) => d - 1)}
         onNextDay={() => setDayOffset((d) => Math.min(0, d + 1))}
         onEditEntry={(entry) => setEntryForm({ entry })}
+        onDeleteEntry={(entry) => {
+          dispatch(A.deleteEntry(entry.id))
+          toast('Запись удалена')
+        }}
         onAddBackdated={() => {
           if (!acts.length) {
             toast('Сначала добавь хотя бы одну кнопку активности')

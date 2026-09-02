@@ -2,7 +2,10 @@ import { useMemo, useState } from 'react'
 import { DAY_MS } from '../../constants'
 import { actBy } from '../../logic/analytics'
 import { addDays, fmtDur, hhmm, startOfDay } from '../../logic/time'
+import { useContextMenu } from '../../hooks/useContextMenu'
 import { btnGhostSm, C, card, chipDot, iconBtn, MONO } from '../../theme'
+import { ContextMenu } from '../ContextMenu'
+import type { CtxEntry } from '../ContextMenu'
 import type { Activity, TimeEntry } from '../../types'
 
 interface Props {
@@ -13,6 +16,7 @@ interface Props {
   onPrevDay: () => void
   onNextDay: () => void
   onEditEntry: (entry: TimeEntry) => void
+  onDeleteEntry: (entry: TimeEntry) => void
   onAddBackdated: () => void
 }
 
@@ -25,8 +29,17 @@ export function DayView({
   onPrevDay,
   onNextDay,
   onEditEntry,
+  onDeleteEntry,
   onAddBackdated,
 }: Props) {
+  const menu = useContextMenu<TimeEntry>()
+
+  const menuItems = (entry: TimeEntry): CtxEntry[] => [
+    { icon: '✎', label: 'Изменить', onClick: () => onEditEntry(entry) },
+    'sep',
+    { icon: '🗑', label: 'Удалить', danger: true, confirm: 'Точно удалить?', onClick: () => onDeleteEntry(entry) },
+  ]
+
   const dayStart = addDays(startOfDay(now), dayOffset)
   const dayEnd = addDays(dayStart, 1)
 
@@ -180,7 +193,8 @@ export function DayView({
             {rows.map((r) => (
               <div
                 key={r.entry.id}
-                className="h-row-soft"
+                className="h-row-soft ctx-target"
+                {...menu.bind(r.entry)}
                 style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 8px', borderRadius: 8 }}
               >
                 <span style={{ fontFamily: MONO, fontSize: 12.5, color: C.muted, flex: 'none', minWidth: 96 }}>
@@ -224,6 +238,15 @@ export function DayView({
           + Запись задним числом
         </button>
       </div>
+
+      {menu.state &&
+        (() => {
+          // см. WatchTab: пункты действуют по свежей записи, а не по снимку
+          const fresh = entries.find((x) => x.id === menu.state!.data.id)
+          return fresh ? (
+            <ContextMenu x={menu.state.x} y={menu.state.y} items={menuItems(fresh)} onClose={menu.close} />
+          ) : null
+        })()}
     </div>
   )
 }

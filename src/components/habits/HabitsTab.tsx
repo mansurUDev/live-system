@@ -6,8 +6,11 @@ import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
+import { useContextMenu } from '../../hooks/useContextMenu'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { btnAccent, C, pageStyle, plainCard } from '../../theme'
+import { ContextMenu } from '../ContextMenu'
+import type { CtxEntry } from '../ContextMenu'
 import { HabitModal } from '../modals/HabitModal'
 import { ReminderModal } from '../modals/ReminderModal'
 import { DoHabitCard } from './DoHabitCard'
@@ -19,6 +22,7 @@ import type { Habit, Reminder } from '../../types'
 
 type Form = { habit: Habit | null } | null
 type ReminderForm = { reminder: Reminder | null } | null
+type MenuTarget = { kind: 'habit'; habit: Habit } | { kind: 'reminder'; reminder: Reminder }
 
 export function HabitsTab({ focus }: { focus?: string | null }) {
   const { state, dispatch } = useData()
@@ -29,6 +33,7 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
   const [reminderForm, setReminderForm] = useState<ReminderForm>(null)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [flashId, setFlashId] = useState<string | null>(null)
+  const menu = useContextMenu<MenuTarget>()
 
   const habits = state.doc.habits
   const dos = habits.filter((h) => h.type === 'do')
@@ -71,6 +76,29 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
     setReminderForm({ reminder: null })
   }
 
+  const menuItems = (t: MenuTarget): CtxEntry[] => {
+    if (t.kind === 'reminder') {
+      const r = t.reminder
+      return [
+        { icon: '✔', label: 'Готово', onClick: () => { dispatch(A.markReminderDone(r.id)); toast('Отмечено — отсчёт пошёл заново') } },
+        { icon: '✎', label: 'Редактировать', onClick: () => setReminderForm({ reminder: r }) },
+        'sep',
+        { icon: '🗑', label: 'Удалить', danger: true, confirm: 'Точно удалить?', onClick: () => { dispatch(A.deleteReminder(r.id)); toast('Напоминание удалено') } },
+      ]
+    }
+    const h = t.habit
+    return [
+      ...(h.type === 'do'
+        ? [{ icon: '✔', label: isDoneToday(h, now) ? 'Снять отметку' : 'Отметить сегодня', onClick: () => toggle(h) }]
+        : []),
+      // срыв — только через форму с причиной: журнал без «почему» бесполезен
+      ...(h.type === 'quit' ? [{ icon: '✕', label: 'Сорвался…', onClick: () => setConfirmId(h.id) }] : []),
+      { icon: '✎', label: 'Редактировать', onClick: () => setForm({ habit: h }) },
+      'sep',
+      { icon: '🗑', label: 'Удалить', danger: true, confirm: 'Точно удалить?', onClick: () => { dispatch(A.deleteHabit(h.id)); toast('Привычка удалена') } },
+    ]
+  }
+
   return (
     <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
@@ -87,8 +115,8 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
       {dos.length ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {dos.map((h) => (
+            <div key={h.id} className="ctx-target" {...menu.bind({ kind: 'habit', habit: h })}>
             <DoHabitCard
-              key={h.id}
               habit={h}
               done={isDoneToday(h, now)}
               streak={streak(h, now)}
@@ -99,6 +127,7 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
               onEdit={() => setForm({ habit: h })}
               onUpdateNote={(note) => updateNote(h, note)}
             />
+            </div>
           ))}
         </div>
       ) : (
@@ -121,8 +150,10 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
           }}
         >
           {quits.map((h) => (
+            // display:grid — обёртка стала элементом сетки, карточка внутри
+            // должна тянуться на высоту ряда, как раньше тянулась сама
+            <div key={h.id} className="ctx-target" style={{ display: 'grid' }} {...menu.bind({ kind: 'habit', habit: h })}>
             <QuitHabitCard
-              key={h.id}
               habit={h}
               days={daysWithout(h, now)}
               best={bestWithout(h, now)}
@@ -133,6 +164,7 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
               onEdit={() => setForm({ habit: h })}
               onUpdateNote={(note) => updateNote(h, note)}
             />
+            </div>
           ))}
         </div>
       ) : (
@@ -151,13 +183,14 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {logs.map((h) => (
+              <div key={h.id} className="ctx-target" {...menu.bind({ kind: 'habit', habit: h })}>
               <LogHabitCard
-                key={h.id}
                 habit={h}
                 onLog={(minutes) => dispatch(A.logHabit(h.id, minutes))}
                 onEdit={() => setForm({ habit: h })}
                 onUpdateNote={(note) => updateNote(h, note)}
               />
+              </div>
             ))}
           </div>
         </>
@@ -181,6 +214,7 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {reminders.map((r) => (
             <FocusFlash key={r.id} active={focus === r.id}>
+            <div className="ctx-target" {...menu.bind({ kind: 'reminder', reminder: r })}>
             <ReminderCard
               reminder={r}
               now={now}
@@ -190,6 +224,7 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
               }}
               onEdit={() => setReminderForm({ reminder: r })}
             />
+            </div>
             </FocusFlash>
           ))}
         </div>
@@ -198,6 +233,21 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
           Например: «Обновить LinkedIn» или «Обновить профиль Upwork» — раз в месяц достаточно
         </div>
       )}
+
+      {menu.state &&
+        (() => {
+          // см. WatchTab: пункты действуют по свежей записи, а не по снимку
+          const t = menu.state.data
+          const fresh: MenuTarget | null =
+            t.kind === 'habit'
+              ? ((h) => (h ? { kind: 'habit' as const, habit: h } : null))(habits.find((x) => x.id === t.habit.id))
+              : ((r) => (r ? { kind: 'reminder' as const, reminder: r } : null))(
+                  reminders.find((x) => x.id === t.reminder.id),
+                )
+          return fresh ? (
+            <ContextMenu x={menu.state.x} y={menu.state.y} items={menuItems(fresh)} onClose={menu.close} />
+          ) : null
+        })()}
 
       {form && (
         <HabitModal

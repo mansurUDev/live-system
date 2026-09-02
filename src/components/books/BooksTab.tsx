@@ -5,8 +5,11 @@ import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
+import { useContextMenu } from '../../hooks/useContextMenu'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { pageStyle } from '../../theme'
+import { ContextMenu } from '../ContextMenu'
+import type { CtxEntry } from '../ContextMenu'
 import { BookModal } from '../modals/BookModal'
 import { FinishModal } from '../modals/FinishModal'
 import { DoneShelf, Empty, Shelf } from '../library/LibraryParts'
@@ -31,6 +34,7 @@ export function BooksTab({ focus }: { focus?: string | null }) {
   const [openId, setOpenId] = useState<string | null>(null)
   const [form, setForm] = useState<BookForm>(null)
   const [finishing, setFinishing] = useState<Finishing>(null)
+  const menu = useContextMenu<Book>()
 
   // цвета делятся со всей библиотекой, чтобы карточки не повторялись между вкладками
   const usedColors = [...lib.books, ...lib.courses, ...lib.videos, ...lib.shows].map((x) => x.color)
@@ -51,6 +55,20 @@ export function BooksTab({ focus }: { focus?: string | null }) {
     setForm({ book: null })
   }
 
+  const deleteBook = (b: Book) => {
+    dispatch(A.deleteLibItem('book', b.id))
+    setOpenId(null)
+    toast('Убрано из книг')
+  }
+
+  const menuItems = (b: Book): CtxEntry[] => [
+    { icon: '✎', label: 'Редактировать', onClick: () => setForm({ book: b }) },
+    { icon: '✔', label: 'Дочитал', onClick: () => setFinishing({ id: b.id, title: b.title }) },
+    ...(b.audioLink ? [{ icon: '⧉', label: 'Скопировать ссылку', onClick: () => copyLink(b.audioLink) }] : []),
+    'sep',
+    { icon: '🗑', label: 'Убрать', danger: true, confirm: 'Точно убрать?', onClick: () => deleteBook(b) },
+  ]
+
   return (
     <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Shelf title="Книги" subtitle="страница и минута аудио — обе позиции одной книги" onAdd={openAdd} />
@@ -58,6 +76,7 @@ export function BooksTab({ focus }: { focus?: string | null }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lib.books.map((b) => (
             <FocusFlash key={b.id} active={focus === b.id}>
+            <div className="ctx-target" {...menu.bind(b)}>
             <BookCard
               book={b}
               open={openId === b.id}
@@ -67,12 +86,9 @@ export function BooksTab({ focus }: { focus?: string | null }) {
               onEdit={() => setForm({ book: b })}
               onCopyLink={() => copyLink(b.audioLink)}
               onFinish={() => setFinishing({ id: b.id, title: b.title })}
-              onDelete={() => {
-                dispatch(A.deleteLibItem('book', b.id))
-                setOpenId(null)
-                toast('Убрано из книг')
-              }}
+              onDelete={() => deleteBook(b)}
             />
+            </div>
             </FocusFlash>
           ))}
         </div>
@@ -81,6 +97,15 @@ export function BooksTab({ focus }: { focus?: string | null }) {
       )}
 
       <DoneShelf items={done} title="Прочитано" now={now} />
+
+      {menu.state &&
+        (() => {
+          // см. WatchTab: пункты действуют по свежей записи, а не по снимку
+          const fresh = lib.books.find((x) => x.id === menu.state!.data.id)
+          return fresh ? (
+            <ContextMenu x={menu.state.x} y={menu.state.y} items={menuItems(fresh)} onClose={menu.close} />
+          ) : null
+        })()}
 
       {form && (
         <BookModal

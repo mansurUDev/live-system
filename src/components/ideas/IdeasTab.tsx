@@ -5,10 +5,13 @@ import { useData } from '../../state/DataProvider'
 import { useToast } from '../../state/ToastProvider'
 import { deleteImage } from '../../state/media'
 import { A } from '../../state/actions'
+import { useContextMenu } from '../../hooks/useContextMenu'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { useListDrag } from '../../hooks/useListDrag'
 import { moveIdeaTo } from '../../logic/ideaOrder'
 import { btnAccent, C, chipBtn, pageStyle, plainCard } from '../../theme'
+import { ContextMenu } from '../ContextMenu'
+import type { CtxEntry } from '../ContextMenu'
 import { ExpenseModal } from '../modals/ExpenseModal'
 import { IdeaModal } from '../modals/IdeaModal'
 import { IdeaCard } from './IdeaCard'
@@ -28,6 +31,7 @@ export function IdeasTab() {
   const [editing, setEditing] = useState<Editing>(null)
   const [toExpense, setToExpense] = useState<ToExpense>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const menu = useContextMenu<Idea>()
 
   const categories = [...new Set(ideas.map((i) => i.category))].sort((a, b) => a.localeCompare(b, 'ru'))
   const visible = filter ? ideas.filter((i) => i.category === filter) : ideas
@@ -98,6 +102,24 @@ export function IdeasTab() {
     setToExpense({ idea })
   }
 
+  const deleteIdea = (idea: Idea) => {
+    idea.images.forEach((url) => void deleteImage(code, url))
+    dispatch(A.deleteIdea(idea.id))
+    setDeleteId(null)
+    toast('Идея убрана')
+  }
+
+  const menuItems = (idea: Idea): CtxEntry[] => [
+    { icon: idea.pinned ? '☆' : '★', label: idea.pinned ? 'Открепить' : 'Закрепить наверху', onClick: () => dispatch(A.toggleIdeaPin(idea.id)) },
+    { icon: '✎', label: 'Редактировать', onClick: () => setEditing({ idea }) },
+    { icon: '✔', label: idea.done ? 'Вернуть в работу' : 'Воплощена', onClick: () => dispatch(A.saveIdea({ ...idea, done: !idea.done })) },
+    'sep',
+    { icon: '⇥', label: 'В «Книги»', onClick: () => toBook(idea) },
+    { icon: '⇥', label: 'В расходы', onClick: () => openToExpense(idea) },
+    'sep',
+    { icon: '🗑', label: 'Удалить', danger: true, confirm: 'Точно удалить?', onClick: () => deleteIdea(idea) },
+  ]
+
   return (
     <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10, flexWrap: 'wrap' }}>
@@ -130,6 +152,8 @@ export function IdeasTab() {
             <div
               key={idea.id}
               data-drag-id={idea.id}
+              className="ctx-target"
+              {...menu.bind(idea)}
               style={{
                 // сама карточка остаётся в потоке и держит высоту, но пока её
                 // тянут — она бледная, а «настоящая» едет за пальцем призраком
@@ -155,12 +179,7 @@ export function IdeasTab() {
               onToExpense={() => openToExpense(idea)}
               onAskDelete={() => setDeleteId(idea.id)}
               onCancelDelete={() => setDeleteId(null)}
-              onDelete={() => {
-                idea.images.forEach((url) => void deleteImage(code, url))
-                dispatch(A.deleteIdea(idea.id))
-                setDeleteId(null)
-                toast('Идея убрана')
-              }}
+              onDelete={() => deleteIdea(idea)}
             />
             </div>
           ))}
@@ -200,6 +219,15 @@ export function IdeasTab() {
           />
         </div>
       )}
+
+      {menu.state &&
+        (() => {
+          // см. WatchTab: пункты действуют по свежей записи, а не по снимку
+          const fresh = ideas.find((x) => x.id === menu.state!.data.id)
+          return fresh ? (
+            <ContextMenu x={menu.state.x} y={menu.state.y} items={menuItems(fresh)} onClose={menu.close} />
+          ) : null
+        })()}
 
       {editing && (
         <IdeaModal

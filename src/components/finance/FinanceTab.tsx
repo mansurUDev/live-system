@@ -7,6 +7,7 @@ import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
+import { useContextMenu } from '../../hooks/useContextMenu'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import {
   btnAccent,
@@ -18,13 +19,16 @@ import {
   plainCard,
   sectionLabel,
 } from '../../theme'
+import { ContextMenu } from '../ContextMenu'
+import type { CtxEntry } from '../ContextMenu'
 import { FocusFlash } from '../FocusFlash'
 import { ExpenseModal, type ExpenseDraft } from '../modals/ExpenseModal'
 import { MoneyField } from './MoneyField'
-import type { CurrencyCode, OneTimeExpense, Rates } from '../../types'
+import type { CurrencyCode, MandatoryExpense, OneTimeExpense, Rates } from '../../types'
 
 /** Что открыто в модалке: вид расхода и id — либо null у нового */
 type ExpenseForm = { kind: 'mandatory' | 'oneTime'; id: string | null; draft: ExpenseDraft | null } | null
+type MenuTarget = { kind: 'mandatory'; exp: MandatoryExpense } | { kind: 'oneTime'; exp: OneTimeExpense }
 
 export function FinanceTab({ focus }: { focus?: string | null }) {
   const { state, dispatch } = useData()
@@ -39,6 +43,7 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
   const months = goalHistory(fin, isMobile ? 8 : 12, now)
 
   const [expenseForm, setExpenseForm] = useState<ExpenseForm>(null)
+  const menu = useContextMenu<MenuTarget>()
   const [incomeText, setIncomeText] = useState('')
   const [incomeOpen, setIncomeOpen] = useState(false)
   const [incomeCurrency, setIncomeCurrency] = useState<CurrencyCode>(currency)
@@ -97,6 +102,41 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
     dispatch(A.payOneTime(o.id))
     toast(`«${o.name}» оплачено — вычтено ${money(deducted, currency)} с «На руках»`)
   }
+
+  const menuItems = (t: MenuTarget): CtxEntry[] =>
+    t.kind === 'mandatory'
+      ? [
+          {
+            icon: '✎',
+            label: 'Редактировать',
+            onClick: () =>
+              setExpenseForm({
+                kind: 'mandatory',
+                id: t.exp.id,
+                draft: { name: t.exp.name, amount: t.exp.amount, currency: t.exp.currency, date: '', day: t.exp.day },
+              }),
+          },
+          'sep',
+          {
+            icon: '🗑',
+            label: 'Удалить',
+            danger: true,
+            confirm: 'Точно удалить?',
+            onClick: () => { dispatch(A.deleteMandatory(t.exp.id)); toast('Расход удалён') },
+          },
+        ]
+      : [
+          { icon: '✔', label: 'Оплачено', onClick: () => payExpense(t.exp) },
+          { icon: '✎', label: 'Редактировать', onClick: () => setExpenseForm({ kind: 'oneTime', id: t.exp.id, draft: toDraft(t.exp) }) },
+          'sep',
+          {
+            icon: '🗑',
+            label: 'Удалить',
+            danger: true,
+            confirm: 'Точно удалить?',
+            onClick: () => { dispatch(A.deleteOneTime(t.exp.id)); toast('Расход удалён') },
+          },
+        ]
 
   return (
     <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -371,6 +411,7 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
           {fin.mandatory.map((m) => (
             <FocusFlash key={m.id} active={focus === m.id}>
+            <div className="ctx-target" {...menu.bind({ kind: 'mandatory', exp: m })}>
             <button
               className="h-row-soft"
               onClick={() =>
@@ -404,6 +445,7 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
               </span>
               <Amount amount={m.amount} from={m.currency} to={currency} rates={rates} />
             </button>
+            </div>
             </FocusFlash>
           ))}
           {!fin.mandatory.length && (
@@ -429,6 +471,7 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
           {calc.upcoming.map((o, i) => (
             <FocusFlash key={o.id} active={focus === o.id}>
+              <div className="ctx-target" {...menu.bind({ kind: 'oneTime', exp: o })}>
               <ExpenseRow
                 item={o}
                 now={now}
@@ -439,10 +482,12 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
                 onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
                 onPay={() => payExpense(o)}
               />
+              </div>
             </FocusFlash>
           ))}
           {calc.past.map((o) => (
             <FocusFlash key={o.id} active={focus === o.id}>
+              <div className="ctx-target" {...menu.bind({ kind: 'oneTime', exp: o })}>
               <ExpenseRow
                 item={o}
                 now={now}
@@ -452,6 +497,7 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
                 onEdit={() => setExpenseForm({ kind: 'oneTime', id: o.id, draft: toDraft(o) })}
                 onPay={() => payExpense(o)}
               />
+              </div>
             </FocusFlash>
           ))}
           {!fin.oneTime.length && (
@@ -469,6 +515,21 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
           + Добавить
         </button>
       </div>
+
+      {menu.state &&
+        (() => {
+          // см. WatchTab: пункты действуют по свежей записи, а не по снимку
+          const t = menu.state.data
+          const fresh: MenuTarget | null =
+            t.kind === 'mandatory'
+              ? ((m) => (m ? { kind: 'mandatory' as const, exp: m } : null))(
+                  fin.mandatory.find((x) => x.id === t.exp.id),
+                )
+              : ((o) => (o ? { kind: 'oneTime' as const, exp: o } : null))(fin.oneTime.find((x) => x.id === t.exp.id))
+          return fresh ? (
+            <ContextMenu x={menu.state.x} y={menu.state.y} items={menuItems(fresh)} onClose={menu.close} />
+          ) : null
+        })()}
 
       {expenseForm && (
         <ExpenseModal

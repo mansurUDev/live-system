@@ -213,6 +213,31 @@ textarea {
   background: rgba(34, 211, 238, 0.12);
 }
 
+/* Контекстное меню: подсветка пунктов; у целей меню глушится системное
+   выделение — иначе долгое нажатие на iOS тянет callout вместо нашего меню. */
+.ctx-item:hover {
+  background: rgba(148, 163, 184, 0.1);
+}
+.ctx-item-danger:hover {
+  background: rgba(248, 113, 113, 0.12);
+}
+.ctx-target {
+  -webkit-touch-callout: none;
+}
+/* выделение глушится только на таче: там оно спорит с долгим нажатием, а
+   мышью текст карточек по-прежнему выделяется и копируется */
+@media (hover: none) {
+  .ctx-target {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .ctx-target input,
+  .ctx-target textarea {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+}
+
 /* «Не хочу смотреть»: крестик появляется при наведении на строку, чтобы не
    засорять список; на таче ховера нет — там кнопка видна всегда. */
 @media (hover: hover) {

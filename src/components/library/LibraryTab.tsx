@@ -5,18 +5,22 @@ import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
+import { useContextMenu } from '../../hooks/useContextMenu'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { pageStyle } from '../../theme'
+import { ContextMenu } from '../ContextMenu'
+import type { CtxEntry } from '../ContextMenu'
 import { CourseModal } from '../modals/CourseModal'
 import { FinishModal } from '../modals/FinishModal'
 import { VideoModal } from '../modals/VideoModal'
 import { CourseCard } from './CourseCard'
 import { VideoCard } from './VideoCard'
 import { DoneShelf, Empty, Shelf } from './LibraryParts'
-import type { Video } from '../../types'
+import type { Course, Video } from '../../types'
 
 type Finishing = { kind: 'course' | 'video'; id: string; title: string } | null
 type VideoForm = { video: Video | null } | null
+type MenuTarget = { kind: 'course'; course: Course } | { kind: 'video'; video: Video }
 
 /** Учёба — курсы и очередь видео; книгам своя вкладка, фильмам — «Смотреть» */
 export function LibraryTab() {
@@ -31,6 +35,7 @@ export function LibraryTab() {
   const [videoForm, setVideoForm] = useState<VideoForm>(null)
   const [deleteVideoId, setDeleteVideoId] = useState<string | null>(null)
   const [finishing, setFinishing] = useState<Finishing>(null)
+  const menu = useContextMenu<MenuTarget>()
 
   // цвета делятся со всей библиотекой, чтобы карточки не повторялись между вкладками
   const usedColors = [...lib.books, ...lib.courses, ...lib.videos, ...lib.shows].map((x) => x.color)
@@ -59,6 +64,33 @@ export function LibraryTab() {
     setVideoForm({ video: null })
   }
 
+  const deleteCourse = (c: Course) => {
+    dispatch(A.deleteLibItem('course', c.id))
+    setOpenId(null)
+    toast('Убрано из учёбы')
+  }
+
+  const deleteVideo = (v: Video) => {
+    dispatch(A.deleteLibItem('video', v.id))
+    setDeleteVideoId(null)
+    toast('Убрано из очереди')
+  }
+
+  const menuItems = (t: MenuTarget): CtxEntry[] =>
+    t.kind === 'course'
+      ? [
+          { icon: '✔', label: 'Прошёл', onClick: () => setFinishing({ kind: 'course', id: t.course.id, title: t.course.title }) },
+          'sep',
+          { icon: '🗑', label: 'Убрать', danger: true, confirm: 'Точно убрать?', onClick: () => deleteCourse(t.course) },
+        ]
+      : [
+          { icon: '✎', label: 'Редактировать', onClick: () => setVideoForm({ video: t.video }) },
+          { icon: '✔', label: 'Просмотрено', onClick: () => setFinishing({ kind: 'video', id: t.video.id, title: t.video.title }) },
+          { icon: '⧉', label: 'Скопировать ссылку', onClick: () => copyLink(t.video.url) },
+          'sep',
+          { icon: '🗑', label: 'Убрать', danger: true, confirm: 'Точно убрать?', onClick: () => deleteVideo(t.video) },
+        ]
+
   return (
     <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: 14 }}>
       {/* ── курсы ── */}
@@ -66,8 +98,8 @@ export function LibraryTab() {
       {lib.courses.length ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lib.courses.map((c) => (
+            <div key={c.id} className="ctx-target" {...menu.bind({ kind: 'course', course: c })}>
             <CourseCard
-              key={c.id}
               course={c}
               open={openId === c.id}
               onToggle={() => toggleOpen(c.id)}
@@ -75,12 +107,9 @@ export function LibraryTab() {
               onToggleSection={(sid) => dispatch(A.toggleSection(c.id, sid))}
               onNote={(text) => dispatch(A.addNote('course', c.id, text))}
               onFinish={() => setFinishing({ kind: 'course', id: c.id, title: c.title })}
-              onDelete={() => {
-                dispatch(A.deleteLibItem('course', c.id))
-                setOpenId(null)
-                toast('Убрано из учёбы')
-              }}
+              onDelete={() => deleteCourse(c)}
             />
+            </div>
           ))}
         </div>
       ) : (
@@ -92,8 +121,8 @@ export function LibraryTab() {
       {lib.videos.length ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {lib.videos.map((v) => (
+            <div key={v.id} className="ctx-target" {...menu.bind({ kind: 'video', video: v })}>
             <VideoCard
-              key={v.id}
               video={v}
               confirmingDelete={deleteVideoId === v.id}
               onFinish={() => setFinishing({ kind: 'video', id: v.id, title: v.title })}
@@ -101,12 +130,9 @@ export function LibraryTab() {
               onCopyLink={() => copyLink(v.url)}
               onAskDelete={() => setDeleteVideoId(v.id)}
               onCancelDelete={() => setDeleteVideoId(null)}
-              onDelete={() => {
-                dispatch(A.deleteLibItem('video', v.id))
-                setDeleteVideoId(null)
-                toast('Убрано из очереди')
-              }}
+              onDelete={() => deleteVideo(v)}
             />
+            </div>
           ))}
         </div>
       ) : (
@@ -114,6 +140,23 @@ export function LibraryTab() {
       )}
 
       <DoneShelf items={done} title="Изучено" now={now} />
+
+      {menu.state &&
+        (() => {
+          // см. WatchTab: пункты действуют по свежей записи, а не по снимку
+          const t = menu.state.data
+          const fresh: MenuTarget | null =
+            t.kind === 'course'
+              ? ((c) => (c ? { kind: 'course' as const, course: c } : null))(
+                  lib.courses.find((x) => x.id === t.course.id),
+                )
+              : ((v) => (v ? { kind: 'video' as const, video: v } : null))(
+                  lib.videos.find((x) => x.id === t.video.id),
+                )
+          return fresh ? (
+            <ContextMenu x={menu.state.x} y={menu.state.y} items={menuItems(fresh)} onClose={menu.close} />
+          ) : null
+        })()}
 
       {addingCourse && (
         <CourseModal

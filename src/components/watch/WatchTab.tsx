@@ -6,8 +6,11 @@ import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
 import { A } from '../../state/actions'
+import { useContextMenu } from '../../hooks/useContextMenu'
 import { useIsMobile } from '../../hooks/useIsMobile'
 import { C, chipBtn, input, pageStyle } from '../../theme'
+import { ContextMenu } from '../ContextMenu'
+import type { CtxEntry } from '../ContextMenu'
 import { FinishModal } from '../modals/FinishModal'
 import { ShowModal } from '../modals/ShowModal'
 import { DoneShelf, Empty, Shelf } from '../library/LibraryParts'
@@ -34,7 +37,9 @@ export function WatchTab() {
 
   const [openId, setOpenId] = useState<string | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [editing, setEditing] = useState<Show | null>(null)
   const [finishing, setFinishing] = useState<Finishing>(null)
+  const menu = useContextMenu<Show>()
   const [query, setQuery] = useState('')
   // вкладка открывается на категории последнего изменения — обычно возвращаешься
   // к тому, что смотрел вчера; при коротком списке фильтров нет и выбирать нечего
@@ -83,23 +88,39 @@ export function WatchTab() {
     toast(dropped ? 'Вернул в очередь' : 'Уехало на полку «Не буду смотреть»')
   }
 
+  const deleteShow = (s: Show) => {
+    dispatch(A.deleteLibItem('show', s.id))
+    setOpenId(null)
+    toast('Убрано из очереди')
+  }
+
   const card = (s: Show) => (
-    <ShowCard
-      key={s.id}
-      show={s}
-      open={openId === s.id}
-      onToggle={() => setOpenId((cur) => (cur === s.id ? null : s.id))}
-      onSave={(next) => dispatch(A.saveShow(next))}
-      onCopyLink={() => copyLink(s.link)}
-      onFinish={() => setFinishing({ id: s.id, title: s.title })}
-      onDrop={() => toggleDrop(s)}
-      onDelete={() => {
-        dispatch(A.deleteLibItem('show', s.id))
-        setOpenId(null)
-        toast('Убрано из очереди')
-      }}
-    />
+    <div key={s.id} className="ctx-target" {...menu.bind(s)}>
+      <ShowCard
+        show={s}
+        open={openId === s.id}
+        onToggle={() => setOpenId((cur) => (cur === s.id ? null : s.id))}
+        onSave={(next) => dispatch(A.saveShow(next))}
+        onCopyLink={() => copyLink(s.link)}
+        onFinish={() => setFinishing({ id: s.id, title: s.title })}
+        onDrop={() => toggleDrop(s)}
+        onDelete={() => deleteShow(s)}
+      />
+    </div>
   )
+
+  const menuItems = (s: Show): CtxEntry[] => [
+    { icon: '✎', label: 'Редактировать', onClick: () => setEditing(s) },
+    { icon: '✔', label: 'Досмотрел', onClick: () => setFinishing({ id: s.id, title: s.title }) },
+    ...(s.link ? [{ icon: '⧉', label: 'Скопировать ссылку', onClick: () => copyLink(s.link) }] : []),
+    {
+      icon: s.dropped ? '↩' : '✕',
+      label: s.dropped ? 'Вернуть в очередь' : 'Не хочу смотреть',
+      onClick: () => toggleDrop(s),
+    },
+    'sep',
+    { icon: '🗑', label: 'Убрать', danger: true, confirm: 'Точно убрать?', onClick: () => deleteShow(s) },
+  ]
 
   return (
     <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -201,13 +222,46 @@ export function WatchTab() {
 
       <DoneShelf items={done} title="Просмотрено" now={now} />
 
+      {menu.state &&
+        (() => {
+          // меню держит снимок записи с момента открытия; действовать надо по
+          // свежей — пока меню открыто, запись могла измениться или исчезнуть
+          // при синхронизации, и старое тело затёрло бы чужие правки
+          const fresh = lib.shows.find((x) => x.id === menu.state!.data.id)
+          return fresh ? (
+            <ContextMenu x={menu.state.x} y={menu.state.y} items={menuItems(fresh)} onClose={menu.close} />
+          ) : null
+        })()}
+
       {showForm && (
         <ShowModal
           usedColors={usedColors}
           onCancel={() => setShowForm(false)}
-          onCreate={(show) => {
+          onSave={(show) => {
             dispatch(A.saveShow(show))
             setShowForm(false)
+          }}
+        />
+      )}
+
+      {editing && (
+        <ShowModal
+          usedColors={usedColors}
+          initial={editing}
+          onCancel={() => setEditing(null)}
+          onSave={(edited) => {
+            // модалка могла провисеть долго: позиция и рейтинг берутся из
+            // свежей записи, из формы приходят только название, вид, цвет и ссылка
+            const cur = lib.shows.find((x) => x.id === edited.id)
+            dispatch(
+              A.saveShow(
+                cur
+                  ? { ...cur, title: edited.title, kind: edited.kind, color: edited.color, link: edited.link }
+                  : edited,
+              ),
+            )
+            setEditing(null)
+            toast('Сохранено')
           }}
         />
       )}

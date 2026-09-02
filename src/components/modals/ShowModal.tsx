@@ -8,17 +8,24 @@ import type { Show } from '../../types'
 
 interface Props {
   usedColors: string[]
+  /** запись для правки; без неё модалка создаёт новую */
+  initial?: Show
   onCancel: () => void
-  onCreate: (show: Show) => void
+  onSave: (show: Show) => void
 }
 
-export function ShowModal({ usedColors, onCancel, onCreate }: Props) {
-  const [title, setTitle] = useState('')
-  const [kind, setKind] = useState<string>('film')
+export function ShowModal({ usedColors, initial, onCancel, onSave }: Props) {
+  const builtinInitial = initial !== undefined && (SHOW_KINDS as readonly string[]).includes(initial.kind)
+  const [title, setTitle] = useState(initial?.title ?? '')
+  const [kind, setKind] = useState<string>(builtinInitial ? initial!.kind : 'film')
   // null — выбран встроенный вид; строка — включён режим своей категории
-  const [custom, setCustom] = useState<string | null>(null)
-  const [color, setColor] = useState(PAL.find((c) => !usedColors.includes(c)) ?? PAL[8]!)
-  const [link, setLink] = useState('')
+  const [custom, setCustom] = useState<string | null>(
+    initial !== undefined && !builtinInitial ? initial.kind : null,
+  )
+  const [color, setColor] = useState(
+    initial?.color ?? (PAL.find((c) => !usedColors.includes(c)) ?? PAL[8]!),
+  )
+  const [link, setLink] = useState(initial?.link ?? '')
   const [error, setError] = useState('')
 
   const submit = () => {
@@ -26,12 +33,13 @@ export function ShowModal({ usedColors, onCancel, onCreate }: Props) {
     if (!t) return setError('Напиши название')
     if (custom !== null && !custom.trim()) return setError('Напиши свою категорию')
     const k = custom !== null ? custom.trim().slice(0, MAX_SHOW_KIND) : kind
-    onCreate(A.newShow(t, k, color, link.trim() ? cleanShareUrl(link.trim()) : ''))
+    const cleanLink = link.trim() ? cleanShareUrl(link.trim()) : ''
+    onSave(initial ? { ...initial, title: t, kind: k, color, link: cleanLink } : A.newShow(t, k, color, cleanLink))
   }
 
   return (
     <Modal
-      title="Новое в очереди"
+      title={initial ? 'Изменить' : 'Новое в очереди'}
       width={440}
       onClose={onCancel}
       footer={
@@ -40,7 +48,7 @@ export function ShowModal({ usedColors, onCancel, onCreate }: Props) {
             Отмена
           </button>
           <button className="h-accent" style={btnAccent} onClick={submit}>
-            Добавить
+            {initial ? 'Сохранить' : 'Добавить'}
           </button>
         </div>
       }

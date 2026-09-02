@@ -23,8 +23,10 @@ export function useLongPress(fire: (x: number, y: number) => void, enabled = tru
   return {
     handlers: {
       onPointerDown: (e: ReactPointerEvent) => {
-        if (!enabled) return
+        // сброс раньше проверки enabled: иначе флаг от правого клика залипает
+        // и первый клик в режиме настройки проглатывается
         fired.current = false
+        if (!enabled) return
         const { clientX, clientY } = e
         timer.current = setTimeout(() => {
           fired.current = true
@@ -34,7 +36,15 @@ export function useLongPress(fire: (x: number, y: number) => void, enabled = tru
       onPointerUp: cancel,
       onPointerLeave: cancel,
       onPointerCancel: cancel,
-      onContextMenu: (e: ReactMouseEvent) => e.preventDefault(),
+      // правый клик — то же меню сразу: на десктопе ждать долгое нажатие незачем
+      onContextMenu: (e: ReactMouseEvent) => {
+        e.preventDefault()
+        if (!enabled) return
+        cancel()
+        if (fired.current) return
+        fired.current = true
+        fire(e.clientX, e.clientY)
+      },
     },
     /** true — обычный клик надо проглотить, меню уже показано */
     swallowClick: () => {
