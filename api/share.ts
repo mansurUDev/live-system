@@ -1,13 +1,7 @@
-import pg from 'pg'
+import type { Pool } from 'pg'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { applyShare, classifyShare, SHARE_MAX_TITLE, SHARE_MAX_URL, type ShareDoc, type ShareHint } from './shareLogic'
 
-/**
- * Именованный импорт `{ Pool } from 'pg'` в ESM-сборке функций (в package.json
- * "type": "module") падает при инициализации: пакет отдаёт CommonJS-объект.
- */
-const { Pool } = pg
-type Pool = pg.Pool
 
 
 /**
@@ -38,8 +32,20 @@ const DATABASE_URL = databaseUrl()
 
 let pool: Pool | null = null
 
-function db(): Pool {
-  if (!pool) pool = new Pool({ connectionString: DATABASE_URL, max: 3, ssl: { rejectUnauthorized: false } })
+/**
+ * Пул соединений. Модуль `pg` подгружается лениво: он собран как CommonJS, и
+ * статический импорт в ESM-функции падает на старте — с Node 24 это стоило
+ * пятисотых на всех эндпоинтах, ходящих в базу.
+ */
+async function db(): Promise<Pool> {
+  if (!pool) {
+    const { default: pg } = await import('pg')
+    pool = new pg.Pool({
+      connectionString: DATABASE_URL,
+      max: 3,
+      ssl: { rejectUnauthorized: false },
+    })
+  }
   return pool
 }
 
@@ -144,7 +150,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       meta.title ||
       (target.kind === 'show' ? await fetchPageTitle(rawUrl) : '')
 
-    const pg = db()
+    const pg = await db()
     let message = ''
     let kind = target.kind
 

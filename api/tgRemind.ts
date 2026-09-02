@@ -1,13 +1,7 @@
-import pg from 'pg'
+import type { Pool } from 'pg'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { pruneSentKeys, remindPlan, tashkentNow, type RemindDoc } from './tgRemindLogic'
 
-/**
- * Именованный импорт `{ Pool } from 'pg'` в ESM-сборке функций (в package.json
- * "type": "module") падает при инициализации: пакет отдаёт CommonJS-объект.
- */
-const { Pool } = pg
-type Pool = pg.Pool
 
 
 /**
@@ -46,15 +40,18 @@ function databaseUrl(): string {
 const DATABASE_URL = databaseUrl()
 
 let pool: Pool | null = null
-function db(): Pool {
+/**
+ * Пул соединений. Модуль `pg` подгружается лениво: он собран как CommonJS, и
+ * статический импорт в ESM-функции падает на старте — с Node 24 это стоило
+ * пятисотых на всех эндпоинтах, ходящих в базу.
+ */
+async function db(): Promise<Pool> {
   if (!pool) {
-    pool = new Pool({
+    const { default: pg } = await import('pg')
+    pool = new pg.Pool({
       connectionString: DATABASE_URL,
       max: 3,
       ssl: { rejectUnauthorized: false },
-    })
-    pool.on('error', () => {
-      pool = null
     })
   }
   return pool
@@ -100,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const stateUser = docUser + ':remind'
 
   try {
-    const pg = db()
+    const pg = await db()
     const rows = (
       await pg.query<{ user_id: string; doc: unknown; version: number }>(
         'select user_id, doc, version from docs where user_id = any($1)',
