@@ -1,6 +1,6 @@
 import type { Pool } from 'pg'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { pruneSentKeys, remindPlan, tashkentNow, type RemindDoc } from './tgRemindLogic'
+import { pruneSentKeys, remindPlan, tashkentNow, type RemindDoc } from './tgRemindLogic.js'
 
 
 

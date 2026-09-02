@@ -1,6 +1,6 @@
 import type { Pool } from 'pg'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { applyAction, classify, type TgDoc } from './tgLogic'
+import { applyAction, classify, type TgDoc } from './tgLogic.js'
 
 
 

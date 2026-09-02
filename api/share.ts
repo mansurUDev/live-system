@@ -1,6 +1,6 @@
 import type { Pool } from 'pg'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import { applyShare, classifyShare, SHARE_MAX_TITLE, SHARE_MAX_URL, type ShareDoc, type ShareHint } from './shareLogic'
+import { applyShare, classifyShare, SHARE_MAX_TITLE, SHARE_MAX_URL, type ShareDoc, type ShareHint } from './shareLogic.js'
 
 
 
