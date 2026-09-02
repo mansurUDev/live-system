@@ -56,12 +56,12 @@ export function BottomNav({ tab, onGo, moreOpen, onToggleMore }: Props) {
       ))}
       <button
         onClick={onToggleMore}
-        aria-label="Ещё разделы"
+        aria-label="Меню разделов"
         aria-expanded={moreOpen}
         style={btnStyle(!BAR_TABS.includes(tab) || moreOpen)}
       >
         <IconBurger />
-        <span style={labelStyle}>Ещё</span>
+        <span style={labelStyle}>Меню</span>
       </button>
     </nav>
   )

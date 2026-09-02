@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './state/AuthProvider'
 import { DataProvider, useData } from './state/DataProvider'
 import { NowProvider } from './state/NowProvider'
 import { ToastProvider } from './state/ToastProvider'
+import { useEdgeSwipe } from './hooks/useEdgeSwipe'
 import { useIsMobile } from './hooks/useIsMobile'
 import { NAV_H } from './theme'
 import { useBackup } from './hooks/useBackup'
@@ -12,7 +13,7 @@ import { BottomNav } from './components/BottomNav'
 import { Header } from './components/Header'
 import { LandingScreen } from './components/LandingScreen'
 import { LoginScreen } from './components/LoginScreen'
-import { MoreMenu } from './components/MoreMenu'
+import { Drawer } from './components/Drawer'
 import { PullToRefresh } from './components/PullToRefresh'
 import { InstallPrompt } from './components/InstallPrompt'
 import { Tabs } from './components/Tabs'
@@ -80,6 +81,9 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
 
   const focusFor = (t: Tab) => (focus && focus.tab === t ? focus.id : null)
 
+  // свайп от левого края — привычный способ открыть боковую панель
+  useEdgeSwipe(isMobile && !moreOpen, () => setMoreOpen(true))
+
   return (
     <div style={{ position: 'relative', minHeight: '100vh', overflowX: 'clip' }}>
       <div style={gridLayer} />
@@ -117,12 +121,14 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
         <BottomNav tab={tab} onGo={go} moreOpen={moreOpen} onToggleMore={() => setMoreOpen((v) => !v)} />
       )}
       {isMobile && moreOpen && (
-        <MoreMenu
+        <Drawer
           tab={tab}
           archiveCount={state.doc.archive.length}
           hideWatch={state.doc.hideWatch}
+          sync={sync}
           onGo={go}
           onClose={() => setMoreOpen(false)}
+          onSecret={() => go('watch')}
           onExport={() => {
             setMoreOpen(false)
             backup.onExport()
