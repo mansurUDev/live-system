@@ -20,6 +20,7 @@ interface Props {
   onImport: () => void
   onChangeCode: () => void
   onSettings: () => void
+  onHistory: () => void
   onLogout: () => void
 }
 
@@ -43,6 +44,7 @@ export function Drawer({
   onImport,
   onChangeCode,
   onSettings,
+  onHistory,
   onLogout,
 }: Props) {
   const start = useRef<{ x: number; y: number } | null>(null)
@@ -117,6 +119,11 @@ export function Drawer({
         <button onClick={onImport} style={dimRowStyle}>
           Импорт из JSON
         </button>
+        {sync !== 'off' && sync !== 'denied' && (
+          <button onClick={onHistory} style={dimRowStyle}>
+            История версий
+          </button>
+        )}
         <button onClick={onChangeCode} style={dimRowStyle}>
           Сменить код
         </button>

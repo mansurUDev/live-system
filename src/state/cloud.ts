@@ -88,3 +88,37 @@ export async function push(code: string, doc: Doc, version: number): Promise<Pus
     return { ok: false, conflict: false, error: 'offline' }
   }
 }
+
+export interface VersionInfo {
+  version: number
+  savedAt: string
+  bytes: number
+}
+
+/**
+ * Список версий документа. Таблицы истории может не быть — пользователь
+ * подключил облако раньше, чем она появилась; тогда приходит enabled:false,
+ * и приложение показывает, что нужно сделать, а не пустой список.
+ */
+export async function fetchHistory(code: string): Promise<{ enabled: boolean; versions: VersionInfo[] } | null> {
+  try {
+    const res = await fetch('/api/doc?history=1', { headers: headers(code) })
+    if (!res.ok) return null
+    const body = (await res.json()) as { enabled?: boolean; versions?: VersionInfo[] }
+    return { enabled: !!body.enabled, versions: Array.isArray(body.versions) ? body.versions : [] }
+  } catch {
+    return null
+  }
+}
+
+/** Тело одной версии — уже нормализованное, как и всё, что приходит из облака */
+export async function fetchVersion(code: string, version: number, now: number = Date.now()): Promise<Doc | null> {
+  try {
+    const res = await fetch(`/api/doc?version=${version}`, { headers: headers(code) })
+    if (!res.ok) return null
+    const body = (await res.json()) as { doc?: unknown }
+    return body.doc ? normalize(body.doc, now) : null
+  } catch {
+    return null
+  }
+}

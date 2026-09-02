@@ -70,10 +70,11 @@ interface Props {
   onImport: () => void
   onChangeCode: () => void
   onSettings: () => void
+  onHistory: () => void
   onLogout: () => void
 }
 
-export function Header({ sync, onSecret, onExport, onImport, onChangeCode, onSettings, onLogout }: Props) {
+export function Header({ sync, onSecret, onExport, onImport, onChangeCode, onSettings, onHistory, onLogout }: Props) {
   const isMobile = useIsMobile()
 
   return (
@@ -121,6 +122,11 @@ export function Header({ sync, onSecret, onExport, onImport, onChangeCode, onSet
           <button className="h-ghost" style={ioBtn} onClick={onImport}>
             Импорт из JSON
           </button>
+          {sync !== 'off' && sync !== 'denied' && (
+            <button className="h-ghost" style={{ ...ioBtn, color: C.muted }} onClick={onHistory}>
+              История версий
+            </button>
+          )}
           <button className="h-ghost" style={{ ...ioBtn, color: C.muted }} onClick={onChangeCode}>
             Сменить код
           </button>

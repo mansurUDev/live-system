@@ -20,6 +20,7 @@ import { Tabs } from './components/Tabs'
 import { Toasts } from './components/Toasts'
 import { ChangeCodeModal } from './components/modals/ChangeCodeModal'
 import { SettingsModal } from './components/modals/SettingsModal'
+import { VersionsModal } from './components/modals/VersionsModal'
 import { BriefTab } from './components/brief/BriefTab'
 import { WheelTab } from './components/wheel/WheelTab'
 import { TrackerTab } from './components/tracker/TrackerTab'
@@ -60,6 +61,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
   const [moreOpen, setMoreOpen] = useState(false)
   const [changingCode, setChangingCode] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [versionsOpen, setVersionsOpen] = useState(false)
 
   // Куда именно нажали в сводке: вкладка открывается целиком, и без подсветки
   // человек оказывается перед общим списком, не понимая, зачем его сюда привели.
@@ -97,6 +99,7 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
           onImport={backup.onImport}
           onChangeCode={() => setChangingCode(true)}
           onSettings={() => setSettingsOpen(true)}
+          onHistory={() => setVersionsOpen(true)}
           onLogout={logout}
         />
         <Tabs tab={tab} onChange={go} archiveCount={state.doc.archive.length} hideWatch={state.doc.hideWatch} />
@@ -145,12 +148,17 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
             setMoreOpen(false)
             setSettingsOpen(true)
           }}
+          onHistory={() => {
+            setMoreOpen(false)
+            setVersionsOpen(true)
+          }}
           onLogout={logout}
         />
       )}
 
       {changingCode && <ChangeCodeModal onClose={() => setChangingCode(false)} />}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {versionsOpen && <VersionsModal onClose={() => setVersionsOpen(false)} />}
       {backup.elements}
       <Toasts />
     </div>

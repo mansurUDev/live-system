@@ -1,5 +1,6 @@
 import { Pool } from 'pg'
 import type { VercelRequest, VercelResponse } from '@vercel/node'
+import { planRetention, shouldCoalesce, type VersionRow } from './docHistoryLogic'
 
 /**
  * Хранилище документа в облаке.
@@ -39,6 +40,14 @@ function databaseUrl(): string {
 }
 
 const DATABASE_URL = databaseUrl()
+
+/**
+ * Таблица истории появилась позже основной, и её может не быть: пользователь
+ * подключил облако раньше. Первая же ошибка «нет такой таблицы» переводит
+ * историю в выключенное состояние до следующего холодного старта — иначе
+ * каждый PUT платил бы за неудачный запрос.
+ */
+let historyOff = false
 
 // Пул переиспользуется между вызовами: соединения переживают тёплый старт,
 // и каждый запрос не платит за рукопожатие заново.
@@ -84,6 +93,59 @@ function userFor(req: VercelRequest): string | null {
   return map.get(code) ?? null
 }
 
+/** Postgres: «отношение не существует» — таблицы истории просто нет */
+function isMissingTable(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && (e as { code?: string }).code === '42P01'
+}
+
+/**
+ * Записать версию в историю. Никогда не мешает основному сохранению: документ
+ * уже сохранён, и любая беда с историей — повод промолчать, а не потерять
+ * правку. Отдельными запросами, а не транзакцией: пул работает через pgbouncer
+ * в режиме транзакций, где BEGIN требует отдельного соединения.
+ */
+async function saveVersion(pg: Pool, user: string, version: number, doc: string): Promise<void> {
+  if (historyOff) return
+  try {
+    const last = await pg.query<{ id: string; saved_at: string }>(
+      'select id, saved_at from doc_versions where user_id = $1 order by version desc limit 1',
+      [user],
+    )
+    const row = last.rows[0]
+    if (row && shouldCoalesce(new Date(row.saved_at).toISOString(), Date.now())) {
+      await pg.query('update doc_versions set doc = $1::jsonb, version = $2, saved_at = now() where id = $3', [
+        doc,
+        version,
+        row.id,
+      ])
+    } else {
+      await pg.query('insert into doc_versions (user_id, doc, version) values ($1, $2::jsonb, $3)', [
+        user,
+        doc,
+        version,
+      ])
+    }
+
+    const all = await pg.query<{ id: string; version: number; saved_at: string }>(
+      'select id, version, saved_at from doc_versions where user_id = $1 order by version desc',
+      [user],
+    )
+    const rows: VersionRow[] = all.rows.map((r) => ({
+      id: Number(r.id),
+      version: r.version,
+      savedAt: new Date(r.saved_at).toISOString(),
+    }))
+    const drop = planRetention(rows, Date.now())
+    if (drop.length) await pg.query('delete from doc_versions where id = any($1::bigint[])', [drop])
+  } catch (e) {
+    if (isMissingTable(e)) {
+      historyOff = true
+      return
+    }
+    console.error('История версий не записана:', e)
+  }
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store')
 
@@ -100,6 +162,58 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const pg = db()
+
+    if (req.method === 'GET' && req.query.history) {
+      if (historyOff) {
+        res.status(200).json({ enabled: false, versions: [] })
+        return
+      }
+      try {
+        const list = await pg.query<{ version: number; saved_at: string; bytes: number }>(
+          `select version, saved_at, pg_column_size(doc) as bytes
+             from doc_versions where user_id = $1 order by version desc`,
+          [user],
+        )
+        res.status(200).json({
+          enabled: true,
+          versions: list.rows.map((r) => ({
+            version: r.version,
+            savedAt: new Date(r.saved_at).toISOString(),
+            bytes: Number(r.bytes) || 0,
+          })),
+        })
+      } catch (e) {
+        if (!isMissingTable(e)) throw e
+        historyOff = true
+        res.status(200).json({ enabled: false, versions: [] })
+      }
+      return
+    }
+
+    if (req.method === 'GET' && req.query.version) {
+      const wanted = Number(req.query.version)
+      if (!Number.isFinite(wanted)) {
+        res.status(400).json({ error: 'Версия не разобрана' })
+        return
+      }
+      try {
+        const one = await pg.query<{ doc: unknown; version: number }>(
+          'select doc, version from doc_versions where user_id = $1 and version = $2',
+          [user, wanted],
+        )
+        const row = one.rows[0]
+        if (!row) {
+          res.status(404).json({ error: 'Такой версии нет' })
+          return
+        }
+        res.status(200).json({ doc: row.doc, version: row.version })
+      } catch (e) {
+        if (!isMissingTable(e)) throw e
+        historyOff = true
+        res.status(404).json({ error: 'История выключена' })
+      }
+      return
+    }
 
     if (req.method === 'GET') {
       const result = await pg.query<{ doc: unknown; version: number }>(
@@ -147,7 +261,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         return
       }
 
-      res.status(200).json({ ok: true, version: upsert.rows[0]!.version })
+      const version = upsert.rows[0]!.version
+      await saveVersion(pg, user, version, JSON.stringify(body.doc))
+      res.status(200).json({ ok: true, version })
       return
     }
 
@@ -155,6 +271,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // иначе прежний код так и остался бы рабочим ключом к ним.
     if (req.method === 'DELETE') {
       await pg.query('delete from docs where user_id = $1', [user])
+      // историю тоже: иначе старый код остался бы ключом к прежним версиям
+      try {
+        await pg.query('delete from doc_versions where user_id = $1', [user])
+      } catch (e) {
+        if (!isMissingTable(e)) throw e
+        historyOff = true
+      }
       res.status(200).json({ ok: true })
       return
     }
