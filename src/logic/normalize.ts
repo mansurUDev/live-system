@@ -1,6 +1,7 @@
 import {
   CURRENCY_CODES,
   DEFAULT_CURRENCY,
+  DEFAULT_PREMIUM,
   DEFAULT_QUICK_AMOUNTS,
   HEX_RE,
   HOT_MAX,
@@ -20,6 +21,7 @@ import {
   MAX_UNIT,
   PAL,
   CATS,
+  PREMIUM_IDS,
 } from '../constants'
 import { defaultDoc } from './defaults'
 import { normFinance, normHabits, normIdeas, normLibrary, normReminders } from './normalizeModules'
@@ -328,6 +330,10 @@ export function normalize(input: unknown, now: number = Date.now()): Doc {
     // отличить такой false от осознанного выбора нельзя, поэтому чиним разом:
     // до v11 прячем всегда, начиная с v11 — уважаем сохранённое значение.
     hideWatch: version < 11 ? true : d.hideWatch === undefined ? true : !!d.hideWatch,
+    premiumStyle:
+      typeof d.premiumStyle === 'string' && PREMIUM_IDS.includes(d.premiumStyle)
+        ? d.premiumStyle
+        : DEFAULT_PREMIUM,
     sectors: normSectors(d.sectors, nowIso),
     acts: normActs(d.acts, defaultDoc(now).acts),
     entries: normEntries(d.entries),

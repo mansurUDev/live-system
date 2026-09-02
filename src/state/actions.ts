@@ -92,7 +92,7 @@ export const A = {
     archiveId: uid('ar'),
     now: Date.now(),
   }),
-  patchDoc: (patch: Partial<Pick<Doc, 'currency' | 'rates' | 'hideWatch'>>): Action => ({
+  patchDoc: (patch: Partial<Pick<Doc, 'currency' | 'rates' | 'hideWatch' | 'premiumStyle'>>): Action => ({
     type: 'patchDoc',
     patch,
     now: Date.now(),

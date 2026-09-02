@@ -83,20 +83,45 @@ export interface ShowShelves {
 }
 
 /**
- * Что показывать в списке «Смотреть»: по категории, по названию, и по желанию
- * смотреть. Приоритет 10 уезжает в отсек «в первую очередь»; у остальных
- * приоритет сортирует сверху вниз, а при равном — свежее обновление выше:
- * отметка позиции обновляет `updatedAt`, и «досмотрел вчера серию» поднимает
- * запись — так проще найти то, чем занят сейчас, среди давно заброшенного.
+ * Чем сейчас занят список: обычной категорией (null — все) или виртуальной
+ * полкой. Виртуальные отдельным полем, а не строкой-категорией: свои категории
+ * пользователь называет как угодно, и «Смотрю» могло бы совпасть с настоящей.
  */
-export function visibleShows(shows: Show[], query: string, kind: string | null): ShowShelves {
+export type WatchFilter = { kind: string | null } | { virtual: 'top' | 'watching' }
+
+/** Уже начал смотреть — есть хоть какая-то позиция. Брошенное не считается. */
+export function isStarted(s: Show): boolean {
+  return !s.dropped && (s.season > 0 || s.episode > 0 || s.minute > 0)
+}
+
+/** «Мой топ» — то, что хочется больше всего; полка неудаляемая, она из приоритета */
+export function isTop(s: Show): boolean {
+  return !s.dropped && s.priority === 10
+}
+
+const byFreshness = (a: Show, b: Show) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0)
+
+/**
+ * Что показывать в списке «Смотреть»: по категории или по виртуальной полке,
+ * плюс поиск по названию. Приоритет 10 уезжает в отсек «в первую очередь»;
+ * у остальных приоритет сортирует сверху вниз, а при равном — свежее
+ * обновление выше: отметка позиции обновляет `updatedAt`, и «досмотрел вчера
+ * серию» поднимает запись — так проще найти то, чем занят сейчас, среди давно
+ * заброшенного.
+ *
+ * Виртуальные полки — плоский список по свежести: они и так собраны по одному
+ * признаку, делить их ещё и на отсеки значит прятать то, ради чего открывали.
+ */
+export function visibleShows(shows: Show[], query: string, filter: WatchFilter): ShowShelves {
   const q = query.trim().toLowerCase()
-  const matches = shows
-    .filter((s) => kind === null || s.kind === kind)
-    .filter((s) => !q || s.title.toLowerCase().includes(q))
+  const found = (list: Show[]) => list.filter((s) => !q || s.title.toLowerCase().includes(q))
 
-  const byFreshness = (a: Show, b: Show) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0)
+  if ('virtual' in filter) {
+    const picked = shows.filter(filter.virtual === 'top' ? isTop : isStarted)
+    return { top: [], rest: found(picked).sort(byFreshness), dropped: [] }
+  }
 
+  const matches = found(shows.filter((s) => filter.kind === null || s.kind === filter.kind))
   const alive = matches.filter((s) => !s.dropped)
   return {
     top: alive.filter((s) => s.priority === 10).sort(byFreshness),
@@ -105,6 +130,15 @@ export function visibleShows(shows: Show[], query: string, kind: string | null):
       .sort((a, b) => b.priority - a.priority || byFreshness(a, b)),
     dropped: matches.filter((s) => s.dropped).sort(byFreshness),
   }
+}
+
+/**
+ * С чего открывается вкладка: с «Смотрю» — обычно возвращаешься досмотреть
+ * начатое. Если ничего не начато, показывается категория последней правки.
+ */
+export function defaultWatchFilter(shows: Show[]): WatchFilter {
+  if (shows.some(isStarted)) return { virtual: 'watching' }
+  return { kind: lastUpdatedKind(shows) }
 }
 
 /** Категория самой свежей записи — с неё открывается вкладка «Смотреть» */

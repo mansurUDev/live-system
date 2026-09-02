@@ -492,6 +492,7 @@ export function mergeDoc(base: Doc, local: Doc, cloud: Doc, now: number = Date.n
     currency: pick3(base.currency, local.currency, cloud.currency),
     rates: mapMerge<number>(base.rates, local.rates, cloud.rates, (bb, lv, cv) => pick3(bb as number, lv, cv)) as Rates,
     hideWatch: pick3(base.hideWatch, local.hideWatch, cloud.hideWatch),
+    premiumStyle: pick3(base.premiumStyle, local.premiumStyle, cloud.premiumStyle),
     sectors: mergeById<Sector>(base.sectors, local.sectors, cloud.sectors, mergeSector).list,
     acts: mergeById<Activity>(base.acts, local.acts, cloud.acts, (x, y, z) => mergeFields(x, y, z)).list,
     entries: mergeEntries(base.entries, local.entries, cloud.entries),

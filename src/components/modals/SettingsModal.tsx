@@ -1,13 +1,13 @@
 import { Modal } from './Modal'
 import { MoneyField } from '../finance/MoneyField'
-import { CURRENCIES } from '../../constants'
+import { CURRENCIES, PREMIUM_STYLES } from '../../constants'
 import { useData } from '../../state/DataProvider'
 import { A } from '../../state/actions'
 import { btnGhost, C, chipBtn, fieldLabel } from '../../theme'
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const { state, dispatch } = useData()
-  const { currency, rates, hideWatch } = state.doc
+  const { currency, rates, hideWatch, premiumStyle } = state.doc
 
   return (
     <Modal
@@ -57,6 +57,24 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           Полка с фильмами спрятана по умолчанию: её не видно ни в панели, ни в меню. Открыть —
           нажатием на точку слева от заголовка «Система жизни», а на большом экране ещё и на слово
           «баланса» под ним. Книг и учёбы (курсы, видео) это не затрагивает: они видны всегда.
+        </div>
+      </div>
+
+      <div style={{ marginTop: 16 }}>
+        <div style={fieldLabel}>Обводка «В первую очередь»</div>
+        <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginTop: 6 }}>
+          {PREMIUM_STYLES.map((p) => (
+            <button
+              key={p.id}
+              style={chipBtn(premiumStyle === p.id, p.a)}
+              onClick={() => dispatch(A.patchDoc({ premiumStyle: p.id }))}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 12.5, color: C.faint, marginTop: 7, lineHeight: 1.5 }}>
+          Рамка карточек «Смотреть», у которых «хочу: 10». Цвет чипа — сам стиль.
         </div>
       </div>
 

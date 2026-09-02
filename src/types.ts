@@ -352,6 +352,8 @@ export interface Doc {
   rates: Rates
   /** убрать «Смотреть» из навигации — раздел остаётся доступен по скрытому переходу из шапки */
   hideWatch: boolean
+  /** id обводки приоритетных карточек «Смотреть» — см. PREMIUM_STYLES */
+  premiumStyle: string
   sectors: Sector[]
   acts: Activity[]
   entries: TimeEntry[]

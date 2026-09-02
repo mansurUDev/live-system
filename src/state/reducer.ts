@@ -80,7 +80,7 @@ export type Action =
   | { type: 'addSector'; sector: Sector; now: number }
   | { type: 'removeSector'; id: string; now: number }
   | { type: 'archiveSector'; id: string; archiveId: string; now: number }
-  | { type: 'patchDoc'; patch: Partial<Pick<Doc, 'currency' | 'rates' | 'hideWatch'>>; now: number }
+  | { type: 'patchDoc'; patch: Partial<Pick<Doc, 'currency' | 'rates' | 'hideWatch' | 'premiumStyle'>>; now: number }
   | { type: 'dismissCelebration' }
   | { type: 'pressAct'; actId: string; entryId: string; now: number }
   | { type: 'stopTrack'; now: number }

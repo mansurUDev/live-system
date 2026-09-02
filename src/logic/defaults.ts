@@ -1,4 +1,4 @@
-import { CURRENCY_CODES, DEFAULT_CURRENCY, DEFAULT_QUICK_AMOUNTS } from '../constants'
+import { CURRENCY_CODES, DEFAULT_CURRENCY, DEFAULT_PREMIUM, DEFAULT_QUICK_AMOUNTS } from '../constants'
 import { emptyFinance, emptyLibrary } from './normalizeModules'
 import { pct } from './pct'
 import { uid } from './uid'
@@ -59,6 +59,7 @@ export function defaultDoc(now: number = Date.now()): Doc {
     currency: DEFAULT_CURRENCY,
     rates: neutralRates(),
     hideWatch: true,
+    premiumStyle: DEFAULT_PREMIUM,
     sectors: [
       makeSector(
         { id: 's1', name: 'Накопить 1000 $', color: '#fbbf24', kind: 'number', target: 1000, unit: '$', current: 0 },

@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react'
+import { premiumStyle } from './constants'
 
 /** Токены дизайн-мока «Система жизни» */
 export const C = {
@@ -47,6 +48,24 @@ export function plainCard(extra?: CSSProperties): CSSProperties {
     borderRadius: 16,
     boxSizing: 'border-box',
     ...extra,
+  }
+}
+
+/**
+ * Градиентная рамка «в первую очередь» — накладывается поверх plainCard.
+ *
+ * Рамка нарисована двумя слоями фона (padding-box под содержимым, border-box
+ * под рамкой), потому что border-image ломает скруглённые углы, а обычная
+ * border одним цветом градиента не бывает.
+ */
+export function premiumCard(id: string): CSSProperties {
+  const p = premiumStyle(id)
+  return {
+    border: '1.5px solid transparent',
+    background:
+      `linear-gradient(165deg, rgba(22,32,58,.92), rgba(10,16,32,.96)) padding-box,` +
+      ` linear-gradient(135deg, ${p.a}, ${p.b}) border-box`,
+    boxShadow: `0 0 18px ${p.a}26`,
   }
 }
 

@@ -430,6 +430,17 @@ describe('слияние — настройки и служебное', () => {
     expect(merged.rates.UZS).toBe(12600)
   })
 
+  it('стиль обводки, выбранный на одном устройстве, доезжает до второго', () => {
+    const base = doc()
+    const local = doc((d) => {
+      d.premiumStyle = 'gold'
+    })
+    const cloud = doc()
+    expect(mergeDoc(base, local, cloud, NOW).premiumStyle).toBe('gold')
+    // и обратно: выбор пришёл из облака, локально не трогали
+    expect(mergeDoc(base, cloud, local, NOW).premiumStyle).toBe('gold')
+  })
+
   it('пустая база складывает обе стороны, ничего не удаляя', () => {
     const local = doc(withShow)
     const cloud = doc(withBotVideo)

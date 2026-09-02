@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { MAX_SHOWS, SHOW_KINDS, showKindLabel } from '../../constants'
+import { MAX_SHOWS, SHOW_KINDS, premiumStyle, showKindLabel } from '../../constants'
 import { copyText } from '../../logic/clipboard'
-import { lastUpdatedKind, visibleShows } from '../../logic/library'
+import { defaultWatchFilter, isStarted, isTop, visibleShows } from '../../logic/library'
+import type { WatchFilter } from '../../logic/library'
 import { useData } from '../../state/DataProvider'
 import { useNow } from '../../state/NowProvider'
 import { useToast } from '../../state/ToastProvider'
@@ -41,10 +42,10 @@ export function WatchTab() {
   const [finishing, setFinishing] = useState<Finishing>(null)
   const menu = useContextMenu<Show>()
   const [query, setQuery] = useState('')
-  // вкладка открывается на категории последнего изменения — обычно возвращаешься
-  // к тому, что смотрел вчера; при коротком списке фильтров нет и выбирать нечего
-  const [kind, setKind] = useState<string | null>(() =>
-    lib.shows.length >= FILTERS_FROM ? lastUpdatedKind(lib.shows) : null,
+  // вкладка открывается на «Смотрю» — обычно возвращаешься досмотреть начатое;
+  // при коротком списке фильтров нет и выбирать нечего
+  const [filter, setFilter] = useState<WatchFilter>(() =>
+    lib.shows.length >= FILTERS_FROM ? defaultWatchFilter(lib.shows) : { kind: null },
   )
   const [droppedOpen, setDroppedOpen] = useState(false)
 
@@ -63,9 +64,27 @@ export function WatchTab() {
     return [...builtin, ...custom]
   }, [lib.shows])
 
-  // выбранная категория могла исчезнуть (последнюю запись удалили) — тогда «Все»
-  const activeKind = kind !== null && presentKinds.includes(kind) ? kind : null
-  const shelves = useMemo(() => visibleShows(lib.shows, query, activeKind), [lib.shows, query, activeKind])
+  // полки «Смотрю» и «Мой топ» неудаляемые, но пустыми не показываются
+  const hasStarted = lib.shows.some(isStarted)
+  const hasTop = lib.shows.some(isTop)
+  const premium = premiumStyle(state.doc.premiumStyle)
+
+  // выбранная полка могла опустеть (последнюю запись удалили) — тогда «Все»
+  const active: WatchFilter = useMemo(
+    () =>
+      'virtual' in filter
+        ? (filter.virtual === 'watching' ? hasStarted : hasTop)
+          ? filter
+          : { kind: null }
+        : filter.kind !== null && !presentKinds.includes(filter.kind)
+          ? { kind: null }
+          : filter,
+    [filter, hasStarted, hasTop, presentKinds],
+  )
+  const isActive = (f: WatchFilter) =>
+    'virtual' in f ? 'virtual' in active && active.virtual === f.virtual : !('virtual' in active) && active.kind === f.kind
+
+  const shelves = useMemo(() => visibleShows(lib.shows, query, active), [lib.shows, query, active])
   const showFilters = lib.shows.length >= FILTERS_FROM
   const nothingFound = !shelves.top.length && !shelves.rest.length && !shelves.dropped.length
 
@@ -98,6 +117,7 @@ export function WatchTab() {
     <div key={s.id} className="ctx-target" {...menu.bind(s)}>
       <ShowCard
         show={s}
+        premium={s.priority === 10 ? state.doc.premiumStyle : null}
         open={openId === s.id}
         onToggle={() => setOpenId((cur) => (cur === s.id ? null : s.id))}
         onSave={(next) => dispatch(A.saveShow(next))}
@@ -146,15 +166,36 @@ export function WatchTab() {
                 aria-label="Поиск по названию"
                 style={{ ...input, marginTop: 0 }}
               />
-              {presentKinds.length > 1 && (
+              {(presentKinds.length > 1 || hasStarted || hasTop) && (
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {/* полки идут первыми: к начатому возвращаешься чаще, чем к виду */}
+                  {hasStarted && (
+                    <button
+                      style={chipBtn(isActive({ virtual: 'watching' }), premium.a)}
+                      onClick={() => setFilter({ virtual: 'watching' })}
+                    >
+                      Смотрю
+                    </button>
+                  )}
+                  {hasTop && (
+                    <button
+                      style={chipBtn(isActive({ virtual: 'top' }), premium.a)}
+                      onClick={() => setFilter({ virtual: 'top' })}
+                    >
+                      Мой топ
+                    </button>
+                  )}
                   {presentKinds.map((k) => (
-                    <button key={k} style={chipBtn(activeKind === k, '#fbbf24')} onClick={() => setKind(k)}>
+                    <button
+                      key={k}
+                      style={chipBtn(isActive({ kind: k }), '#fbbf24')}
+                      onClick={() => setFilter({ kind: k })}
+                    >
                       {showKindLabel(k)}
                     </button>
                   ))}
                   {/* «Все» — последним: сначала выбор конкретного вида, сброс — в конце ряда */}
-                  <button style={chipBtn(activeKind === null, '#fbbf24')} onClick={() => setKind(null)}>
+                  <button style={chipBtn(isActive({ kind: null }), '#fbbf24')} onClick={() => setFilter({ kind: null })}>
                     Все
                   </button>
                 </div>
@@ -172,12 +213,12 @@ export function WatchTab() {
                     style={{
                       fontSize: 11.5,
                       letterSpacing: '2px',
-                      color: '#fbbf24',
+                      color: premium.a,
                       textTransform: 'uppercase',
                       marginBottom: 8,
                     }}
                   >
-                    ‼ В первую очередь
+                    В первую очередь
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {shelves.top.map(card)}

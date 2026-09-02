@@ -13,6 +13,7 @@ import {
   input,
   MONO,
   plainCard,
+  premiumCard,
 } from '../../theme'
 import type { Show } from '../../types'
 
@@ -26,9 +27,11 @@ interface Props {
   onDelete: () => void
   /** «не хочу смотреть» — запись уезжает на нижнюю полку, не удаляясь */
   onDrop: () => void
+  /** id стиля обводки, если запись «в первую очередь»; null — обычная карточка */
+  premium?: string | null
 }
 
-export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, onDelete, onDrop }: Props) {
+export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, onDelete, onDrop, premium }: Props) {
   const now = useNow()
   const [season, setSeason] = useState(String(show.season || ''))
   const [episode, setEpisode] = useState(String(show.episode || ''))
@@ -61,10 +64,14 @@ export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, o
       : 'ещё не начал'
     : show.season > 0 || show.episode > 0
       ? `s${show.season}e${show.episode}` + (show.minute > 0 ? `, ${show.minute} мин` : '')
-      : 'ещё не начал'
+      : // одна минута без серии — тоже начало: иначе запись висит в «Смотрю»
+        // с подписью «ещё не начал»
+        show.minute > 0
+        ? `на ${show.minute} мин`
+        : 'ещё не начал'
 
   return (
-    <div style={plainCard({ padding: '13px 15px' })}>
+    <div style={{ ...plainCard({ padding: '13px 15px' }), ...(premium ? premiumCard(premium) : null) }}>
       <div
         className="show-row"
         onClick={onToggle}
@@ -73,7 +80,6 @@ export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, o
         <span style={chipSquare(show.color)} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 600, color: C.textBright, overflowWrap: 'anywhere' }}>
-            {show.priority === 10 && <span style={{ color: '#fbbf24' }}>‼ </span>}
             {show.title}
           </div>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 1 }}>
@@ -81,7 +87,7 @@ export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, o
             {show.rating > 0 && (
               <span style={{ color: '#fbbf24', marginLeft: 7 }}>★ {show.rating}</span>
             )}
-            {show.priority > 0 && show.priority < 10 && (
+            {show.priority > 0 && (
               <span style={{ fontFamily: MONO, color: C.faint, marginLeft: 7 }}>хочу: {show.priority}</span>
             )}
           </div>

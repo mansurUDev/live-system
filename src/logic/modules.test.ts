@@ -16,7 +16,17 @@ import {
   toggleToday,
 } from './habits'
 import { financeCalc, goalHistory, goalProgress, rollMonth, type Conv } from './finance'
-import { bookProgress, courseProgress, fmtAudio, lastUpdatedKind, parseAudio, readingPlan, visibleShows } from './library'
+import {
+  bookProgress,
+  courseProgress,
+  defaultWatchFilter,
+  fmtAudio,
+  isStarted,
+  lastUpdatedKind,
+  parseAudio,
+  readingPlan,
+  visibleShows,
+} from './library'
 import { nextSteps, pickPriority } from './briefing'
 import { convert, money } from './currency'
 import { agenda } from './agenda'
@@ -528,6 +538,18 @@ describe('библиотека', () => {
     expect(normalize({ sectors: [], hideWatch: false }, NOW).hideWatch).toBe(true)
     // выбор «показывать», сделанный уже на новой версии, переживает нормализацию
     expect(normalize({ sectors: [], v: DOC_VERSION, hideWatch: false }, NOW).hideWatch).toBe(false)
+  })
+
+  it('стиль обводки: мусор и пропуск чинятся дефолтом, свой выбор уважается', () => {
+    expect(normalize({ sectors: [] }, NOW).premiumStyle).toBe('royal')
+    expect(normalize({ sectors: [], premiumStyle: 'нет-такого' }, NOW).premiumStyle).toBe('royal')
+    expect(normalize({ sectors: [], premiumStyle: 42 }, NOW).premiumStyle).toBe('royal')
+    expect(normalize({ sectors: [], premiumStyle: 'gold' }, NOW).premiumStyle).toBe('gold')
+  })
+
+  it('стиль обводки переживает второй проход normalize без изменений', () => {
+    const once = normalize({ sectors: [], premiumStyle: 'emerald' }, NOW)
+    expect(normalize(once, NOW).premiumStyle).toBe(once.premiumStyle)
   })
 
   it('починка hideWatch идемпотентна: второй проход ничего не меняет', () => {
@@ -1064,20 +1086,20 @@ describe('visibleShows — поиск, фильтр по виду, свежее 
       sh('b', { updatedAt: '2026-03-01T00:00:00.000Z' }),
       sh('c', { updatedAt: '2026-02-01T00:00:00.000Z' }),
     ]
-    expect(visibleShows(list, '', null).rest.map((s) => s.id)).toEqual(['b', 'c', 'a'])
+    expect(visibleShows(list, '', { kind: null }).rest.map((s) => s.id)).toEqual(['b', 'c', 'a'])
   })
 
   it('поиск по названию, без учёта регистра', () => {
     const list = [sh('a', { title: 'Игра престолов' }), sh('b', { title: 'Отдых' })]
-    expect(visibleShows(list, 'ИГРА', null).rest.map((s) => s.id)).toEqual(['a'])
-    expect(visibleShows(list, 'престол', null).rest.map((s) => s.id)).toEqual(['a'])
+    expect(visibleShows(list, 'ИГРА', { kind: null }).rest.map((s) => s.id)).toEqual(['a'])
+    expect(visibleShows(list, 'престол', { kind: null }).rest.map((s) => s.id)).toEqual(['a'])
   })
 
   it('фильтр по категории; null — все; своя строка — тоже категория', () => {
     const list = [sh('a', { kind: 'dorama' }), sh('b', { kind: 'anime' }), sh('c', { kind: 'Стендапы' })]
-    expect(visibleShows(list, '', 'dorama').rest.map((s) => s.id)).toEqual(['a'])
-    expect(visibleShows(list, '', 'Стендапы').rest.map((s) => s.id)).toEqual(['c'])
-    expect(visibleShows(list, '', null).rest).toHaveLength(3)
+    expect(visibleShows(list, '', { kind: 'dorama' }).rest.map((s) => s.id)).toEqual(['a'])
+    expect(visibleShows(list, '', { kind: 'Стендапы' }).rest.map((s) => s.id)).toEqual(['c'])
+    expect(visibleShows(list, '', { kind: null }).rest).toHaveLength(3)
   })
 
   it('поиск и фильтр действуют вместе', () => {
@@ -1085,7 +1107,7 @@ describe('visibleShows — поиск, фильтр по виду, свежее 
       sh('a', { title: 'Наруто', kind: 'anime' }),
       sh('b', { title: 'Наруто', kind: 'dorama' }),
     ]
-    expect(visibleShows(list, 'наруто', 'anime').rest.map((s) => s.id)).toEqual(['a'])
+    expect(visibleShows(list, 'наруто', { kind: 'anime' }).rest.map((s) => s.id)).toEqual(['a'])
   })
 
   it('приоритет 10 уезжает в отсек, остальные сортируются по приоритету, затем по свежести', () => {
@@ -1096,17 +1118,69 @@ describe('visibleShows — поиск, фильтр по виду, свежее 
       sh('none', { updatedAt: '2026-03-01T00:00:00.000Z' }),
       sh('p3', { priority: 3, updatedAt: '2026-01-01T00:00:00.000Z' }),
     ]
-    const v = visibleShows(list, '', null)
+    const v = visibleShows(list, '', { kind: null })
     expect(v.top.map((s) => s.id)).toEqual(['urgent'])
     expect(v.rest.map((s) => s.id)).toEqual(['p9fresh', 'p9', 'p3', 'none'])
   })
 
   it('«не хочу смотреть» уходит на отдельную полку и не мешается в списке', () => {
     const list = [sh('a'), sh('b', { dropped: true }), sh('c', { priority: 10, dropped: true })]
-    const v = visibleShows(list, '', null)
+    const v = visibleShows(list, '', { kind: null })
     expect(v.rest.map((s) => s.id)).toEqual(['a'])
     expect(v.top).toHaveLength(0)
     expect(v.dropped.map((s) => s.id).sort()).toEqual(['b', 'c'])
+  })
+
+  it('«Смотрю» — только начатое, свежее сверху; брошенное не считается', () => {
+    const list = [
+      sh('started-old', { episode: 2, updatedAt: '2026-01-01T00:00:00.000Z' }),
+      sh('started-new', { minute: 15, updatedAt: '2026-03-01T00:00:00.000Z' }),
+      sh('untouched'),
+      sh('dropped-started', { season: 1, dropped: true }),
+    ]
+    const v = visibleShows(list, '', { virtual: 'watching' })
+    expect(v.rest.map((s) => s.id)).toEqual(['started-new', 'started-old'])
+    // полка плоская: отсека и брошенных внутри неё нет
+    expect(v.top).toHaveLength(0)
+    expect(v.dropped).toHaveLength(0)
+  })
+
+  it('«Мой топ» — только приоритет 10, свежее сверху, без брошенных', () => {
+    const list = [
+      sh('top-old', { priority: 10, updatedAt: '2026-01-01T00:00:00.000Z' }),
+      sh('top-new', { priority: 10, updatedAt: '2026-02-01T00:00:00.000Z' }),
+      sh('p9', { priority: 9 }),
+      sh('top-dropped', { priority: 10, dropped: true }),
+    ]
+    const v = visibleShows(list, '', { virtual: 'top' })
+    expect(v.rest.map((s) => s.id)).toEqual(['top-new', 'top-old'])
+    expect(v.top).toHaveLength(0)
+    expect(v.dropped).toHaveLength(0)
+  })
+
+  it('поиск работает и внутри виртуальных полок', () => {
+    const list = [sh('a', { title: 'Наруто', episode: 3 }), sh('b', { title: 'Блич', episode: 1 })]
+    expect(visibleShows(list, 'нару', { virtual: 'watching' }).rest.map((s) => s.id)).toEqual(['a'])
+  })
+
+  it('isStarted — прогресс по любому полю, кроме брошенного', () => {
+    expect(isStarted(sh('a', { season: 1 }))).toBe(true)
+    expect(isStarted(sh('b', { episode: 4 }))).toBe(true)
+    expect(isStarted(sh('c', { minute: 5 }))).toBe(true)
+    expect(isStarted(sh('d'))).toBe(false)
+    expect(isStarted(sh('e', { episode: 4, dropped: true }))).toBe(false)
+  })
+
+  it('defaultWatchFilter — «Смотрю», если есть начатое; иначе категория последней правки', () => {
+    const started = [sh('a', { kind: 'anime' }), sh('b', { kind: 'dorama', episode: 2 })]
+    expect(defaultWatchFilter(started)).toEqual({ virtual: 'watching' })
+
+    const nothingStarted = [
+      sh('a', { kind: 'anime', updatedAt: '2026-01-01T00:00:00.000Z' }),
+      sh('b', { kind: 'dorama', updatedAt: '2026-02-01T00:00:00.000Z' }),
+    ]
+    expect(defaultWatchFilter(nothingStarted)).toEqual({ kind: 'dorama' })
+    expect(defaultWatchFilter([])).toEqual({ kind: null })
   })
 
   it('lastUpdatedKind — категория самой свежей живой записи', () => {

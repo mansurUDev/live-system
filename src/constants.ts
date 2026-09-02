@@ -143,6 +143,37 @@ export const DEFAULT_CURRENCY: CurrencyCode = 'UZS'
 
 export const MAX_RATE = 1e9
 
+export interface PremiumStyle {
+  id: string
+  label: string
+  /** основной цвет: начало градиента, свечение и подсветка чипов полок */
+  a: string
+  /** второй цвет градиента */
+  b: string
+}
+
+/**
+ * Обводка карточек «в первую очередь» — градиентная рамка вместо значка.
+ * Вкус дело личное, поэтому не один стиль, а выбор в настройках.
+ */
+export const PREMIUM_STYLES: PremiumStyle[] = [
+  { id: 'royal', label: 'Фиолет', a: '#a855f7', b: '#6366f1' },
+  { id: 'gold', label: 'Золото', a: '#f5d76e', b: '#d97706' },
+  { id: 'aurora', label: 'Аврора', a: '#22d3ee', b: '#a78bfa' },
+  { id: 'sunset', label: 'Закат', a: '#fb923c', b: '#f472b6' },
+  { id: 'emerald', label: 'Изумруд', a: '#34d399', b: '#22d3ee' },
+  { id: 'ice', label: 'Лёд', a: '#e2e8f0', b: '#60a5fa' },
+]
+
+export const PREMIUM_IDS = PREMIUM_STYLES.map((s) => s.id)
+
+export const DEFAULT_PREMIUM = 'royal'
+
+/** Стиль по id; неизвестный id — дефолтный, а не пустая рамка */
+export function premiumStyle(id: string): PremiumStyle {
+  return PREMIUM_STYLES.find((s) => s.id === id) ?? PREMIUM_STYLES[0]!
+}
+
 /** Ключ, под которым лежит код доступа текущей сессии */
 export const CODE_KEY = 'sistema-zhizni-code'
 
