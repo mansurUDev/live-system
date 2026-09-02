@@ -1,21 +1,25 @@
 import { useState } from 'react'
 import { Modal } from './Modal'
 import { MAX_SECTIONS, PAL } from '../../constants'
+import { mergeSectionLines } from '../../logic/course'
+import { uid } from '../../logic/uid'
 import { A } from '../../state/actions'
 import { btnAccent, btnGhost, errText, fieldLabel, input, swatch } from '../../theme'
 import type { Course } from '../../types'
 
 interface Props {
+  /** null — заводим новый курс */
+  course: Course | null
   usedColors: string[]
   onCancel: () => void
-  onCreate: (course: Course) => void
+  onSave: (course: Course) => void
 }
 
-export function CourseModal({ usedColors, onCancel, onCreate }: Props) {
-  const [title, setTitle] = useState('')
-  const [by, setBy] = useState('')
-  const [color, setColor] = useState(PAL.find((c) => !usedColors.includes(c)) ?? PAL[2]!)
-  const [sections, setSections] = useState('')
+export function CourseModal({ course, usedColors, onCancel, onSave }: Props) {
+  const [title, setTitle] = useState(course?.title ?? '')
+  const [by, setBy] = useState(course?.platform ?? '')
+  const [color, setColor] = useState(course?.color ?? PAL.find((c) => !usedColors.includes(c)) ?? PAL[2]!)
+  const [sections, setSections] = useState(course ? course.sections.map((s) => s.text).join('\n') : '')
   const [error, setError] = useState('')
 
   const submit = () => {
@@ -26,13 +30,27 @@ export function CourseModal({ usedColors, onCancel, onCreate }: Props) {
       .split('\n')
       .map((s) => s.trim())
       .filter(Boolean)
-    if (!list.length) return setError('Добавь разделы — по одному на строку')
-    onCreate(A.newCourse(t, by.trim(), color, list.slice(0, MAX_SECTIONS)))
+      .slice(0, MAX_SECTIONS)
+
+    if (!course) {
+      if (!list.length) return setError('Добавь разделы — по одному на строку')
+      onSave(A.newCourse(t, by.trim(), color, list))
+      return
+    }
+
+    // на правке пустой список допустим: разделы могли оказаться лишними
+    onSave({
+      ...course,
+      title: t,
+      platform: by.trim(),
+      color,
+      sections: mergeSectionLines(course.sections, list, (i) => uid('cs' + i + '-')),
+    })
   }
 
   return (
     <Modal
-      title="Новый курс"
+      title={course ? 'Курс' : 'Новый курс'}
       width={460}
       onClose={onCancel}
       footer={
@@ -41,7 +59,7 @@ export function CourseModal({ usedColors, onCancel, onCreate }: Props) {
             Отмена
           </button>
           <button className="h-accent" style={btnAccent} onClick={submit}>
-            Добавить
+            {course ? 'Сохранить' : 'Добавить'}
           </button>
         </div>
       }

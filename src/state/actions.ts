@@ -1,7 +1,7 @@
 import type { MoveTarget } from '../logic/actLayout'
 import { uid } from '../logic/uid'
 import type { Action, RestoreTarget, RestoreTargets } from './reducer'
-import { DEFAULT_REMINDER_INTERVAL_DAYS } from '../constants'
+import { DEFAULT_REMINDER_INTERVAL_DAYS, showKindFromLabel } from '../constants'
 import type {
   Activity,
   Book,
@@ -11,6 +11,7 @@ import type {
   Finance,
   Habit,
   HistoryRec,
+  LibDone,
   HabitType,
   Idea,
   IdeaCheck,
@@ -228,6 +229,36 @@ export const A = {
     id,
     now: Date.now(),
   }),
+
+  deleteDone: (id: string): Action => ({ type: 'deleteDone', id, now: Date.now() }),
+
+  /**
+   * Вернуть завершённое обратно в список.
+   *
+   * На полке от записи остались только название, подпись и цвет — позиция,
+   * ссылка и разделы теряются при завершении, поэтому возвращается «чистая»
+   * запись, которую можно заполнить заново. Видео вернуть нельзя: без ссылки
+   * от него не осталось ничего, ради чего оно лежало в очереди.
+   */
+  returnDone: (d: LibDone): Action | null => {
+    const now = Date.now()
+    if (d.kind === 'book') {
+      return { type: 'returnDone', doneId: d.id, target: 'books', item: A.newBook(d.title, d.byline, d.color, 0, 0), now }
+    }
+    if (d.kind === 'course') {
+      return { type: 'returnDone', doneId: d.id, target: 'courses', item: A.newCourse(d.title, d.byline, d.color, []), now }
+    }
+    if (d.kind === 'show') {
+      return {
+        type: 'returnDone',
+        doneId: d.id,
+        target: 'shows',
+        item: A.newShow(d.title, showKindFromLabel(d.byline), d.color, ''),
+        now,
+      }
+    }
+    return null
+  },
 
   /** Вернуть удалённое на прежнее место — «Отменить» в тосте */
   restore: <K extends RestoreTarget>(target: K, item: RestoreTargets[K], index: number): Action =>

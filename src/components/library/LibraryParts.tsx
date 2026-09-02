@@ -1,6 +1,9 @@
 import { useState } from 'react'
 import { fmtD } from '../../logic/time'
+import { useContextMenu } from '../../hooks/useContextMenu'
 import { btnAccent, btnGhostSm, C, chipSquare, input, MONO, plainCard } from '../../theme'
+import { ContextMenu } from '../ContextMenu'
+import type { CtxEntry } from '../ContextMenu'
 import type { LibDone, LibNote } from '../../types'
 
 /** Заголовок полки с кнопкой добавления — общий для «Книг», «Учёбы» и «Смотреть» */
@@ -35,8 +38,28 @@ const DONE_LABELS: Record<LibDone['kind'], string> = {
  * каждая вкладка показывает только своё: книги — в «Книгах», курсы и видео —
  * в «Учёбе», фильмы и сериалы — в «Смотреть».
  */
-export function DoneShelf({ items, title, now }: { items: LibDone[]; title: string; now: number }) {
+export function DoneShelf({
+  items,
+  title,
+  now,
+  onReturn,
+  onDelete,
+}: {
+  items: LibDone[]
+  title: string
+  now: number
+  /** вернуть в список — у видео невозможно: ссылка при завершении теряется */
+  onReturn: (d: LibDone) => void
+  onDelete: (d: LibDone) => void
+}) {
+  const menu = useContextMenu<LibDone>()
   if (!items.length) return null
+
+  const menuItems = (d: LibDone): CtxEntry[] => [
+    ...(d.kind === 'video' ? [] : [{ icon: '↩', label: 'Вернуть в список', onClick: () => onReturn(d) }]),
+    'sep' as const,
+    { icon: '🗑', label: 'Убрать с полки', danger: true, onClick: () => onDelete(d) },
+  ]
 
   return (
     <>
@@ -46,7 +69,12 @@ export function DoneShelf({ items, title, now }: { items: LibDone[]; title: stri
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {items.map((d) => (
-          <div key={d.id} style={plainCard({ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start' })}>
+          <div
+            key={d.id}
+            className="ctx-target"
+            {...menu.bind(d)}
+            style={plainCard({ padding: '14px 16px', display: 'flex', gap: 12, alignItems: 'flex-start' })}
+          >
             <span style={chipSquare(d.color)} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 16, fontWeight: 600, color: C.textBright, overflowWrap: 'anywhere' }}>
@@ -80,6 +108,15 @@ export function DoneShelf({ items, title, now }: { items: LibDone[]; title: stri
           </div>
         ))}
       </div>
+
+      {menu.state &&
+        (() => {
+          // за время открытого меню запись могли убрать с другого устройства
+          const fresh = items.find((x) => x.id === menu.state!.data.id)
+          return fresh ? (
+            <ContextMenu x={menu.state.x} y={menu.state.y} items={menuItems(fresh)} onClose={menu.close} />
+          ) : null
+        })()}
     </>
   )
 }

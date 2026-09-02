@@ -15,7 +15,7 @@ import { FinishModal } from '../modals/FinishModal'
 import { DoneShelf, Empty, Shelf } from '../library/LibraryParts'
 import { FocusFlash } from '../FocusFlash'
 import { BookCard } from './BookCard'
-import type { Book } from '../../types'
+import type { Book, LibDone } from '../../types'
 
 type BookForm = { book: Book | null } | null
 type Finishing = { id: string; title: string } | null
@@ -72,6 +72,21 @@ export function BooksTab({ focus }: { focus?: string | null }) {
     { icon: '🗑', label: 'Убрать', danger: true, onClick: () => deleteBook(b) },
   ]
 
+  const returnDone = (d: LibDone) => {
+    const act = A.returnDone(d)
+    if (!act) return
+    dispatch(act)
+    toast('Снова в книгах — отметь, на какой странице')
+  }
+
+  const deleteDone = (d: LibDone) => {
+    const index = lib.done.findIndex((x) => x.id === d.id)
+    dispatch(A.deleteDone(d.id))
+    toast('Убрано с полки', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('done', d, index)) },
+    })
+  }
+
   return (
     <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Shelf title="Книги" subtitle="страница и минута аудио — обе позиции одной книги" onAdd={openAdd} />
@@ -99,7 +114,7 @@ export function BooksTab({ focus }: { focus?: string | null }) {
         <Empty text="Добавь книгу — и позиция всегда будет под рукой" />
       )}
 
-      <DoneShelf items={done} title="Прочитано" now={now} />
+      <DoneShelf items={done} title="Прочитано" now={now} onReturn={returnDone} onDelete={deleteDone} />
 
       {menu.state &&
         (() => {

@@ -162,6 +162,10 @@ export type Action =
       now: number
     }
   | { type: 'deleteLibItem'; kind: 'book' | 'course' | 'video' | 'show'; id: string; now: number }
+  /** убрать запись с полки завершённого */
+  | { type: 'deleteDone'; id: string; now: number }
+  /** вернуть завершённое обратно в список: запись собирает креатор действия */
+  | ({ type: 'returnDone'; doneId: string; now: number } & RestorePayload)
   // возврат удалённого — «Отменить» в тосте
   | ({ type: 'restore'; index: number; now: number } & RestorePayload)
   | { type: 'restoreHistory'; sectorId: string; item: HistoryRec; index: number; now: number }
@@ -712,6 +716,27 @@ function coreReducer(doc: Doc, action: Action): Doc {
           shows: action.kind === 'show' ? doc.lib.shows.filter((s) => s.id !== action.id) : doc.lib.shows,
           done: [rec, ...doc.lib.done].slice(0, MAX_LIB_DONE),
         },
+      }
+    }
+
+    case 'deleteDone':
+      return { ...doc, lib: { ...doc.lib, done: doc.lib.done.filter((d) => d.id !== action.id) } }
+
+    case 'returnDone': {
+      // одним действием: с полки убрали, в список вернули — иначе между двумя
+      // диспатчами запись повисла бы нигде и уехала бы такой в облако
+      const lib = { ...doc.lib, done: doc.lib.done.filter((d) => d.id !== action.doneId) }
+      switch (action.target) {
+        case 'books':
+          return { ...doc, lib: { ...lib, books: [...lib.books, action.item].slice(0, MAX_BOOKS) } }
+        case 'courses':
+          return { ...doc, lib: { ...lib, courses: [...lib.courses, action.item].slice(0, MAX_COURSES) } }
+        case 'videos':
+          return { ...doc, lib: { ...lib, videos: [...lib.videos, action.item].slice(0, MAX_VIDEOS) } }
+        case 'shows':
+          return { ...doc, lib: { ...lib, shows: [...lib.shows, action.item].slice(0, MAX_SHOWS) } }
+        default:
+          return doc
       }
     }
 

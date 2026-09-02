@@ -16,10 +16,11 @@ import { VideoModal } from '../modals/VideoModal'
 import { CourseCard } from './CourseCard'
 import { VideoCard } from './VideoCard'
 import { DoneShelf, Empty, Shelf } from './LibraryParts'
-import type { Course, Video } from '../../types'
+import type { Course, LibDone, Video } from '../../types'
 
 type Finishing = { kind: 'course' | 'video'; id: string; title: string } | null
 type VideoForm = { video: Video | null } | null
+type CourseForm = { course: Course | null } | null
 type MenuTarget = { kind: 'course'; course: Course } | { kind: 'video'; video: Video }
 
 /** Учёба — курсы и очередь видео; книгам своя вкладка, фильмам — «Смотреть» */
@@ -31,7 +32,7 @@ export function LibraryTab() {
   const lib = state.doc.lib
 
   const [openId, setOpenId] = useState<string | null>(null)
-  const [addingCourse, setAddingCourse] = useState(false)
+  const [courseForm, setCourseForm] = useState<CourseForm>(null)
   const [videoForm, setVideoForm] = useState<VideoForm>(null)
   const [deleteVideoId, setDeleteVideoId] = useState<string | null>(null)
   const [finishing, setFinishing] = useState<Finishing>(null)
@@ -53,7 +54,7 @@ export function LibraryTab() {
       toast('Слишком много активных — заверши или убери лишние')
       return
     }
-    setAddingCourse(true)
+    setCourseForm({ course: null })
   }
 
   const openAddVideo = () => {
@@ -85,6 +86,7 @@ export function LibraryTab() {
   const menuItems = (t: MenuTarget): CtxEntry[] =>
     t.kind === 'course'
       ? [
+          { icon: '✎', label: 'Редактировать', onClick: () => setCourseForm({ course: t.course }) },
           { icon: '✔', label: 'Прошёл', onClick: () => setFinishing({ kind: 'course', id: t.course.id, title: t.course.title }) },
           'sep',
           { icon: '🗑', label: 'Убрать', danger: true, onClick: () => deleteCourse(t.course) },
@@ -96,6 +98,21 @@ export function LibraryTab() {
           'sep',
           { icon: '🗑', label: 'Убрать', danger: true, onClick: () => deleteVideo(t.video) },
         ]
+
+  const returnDone = (d: LibDone) => {
+    const act = A.returnDone(d)
+    if (!act) return
+    dispatch(act)
+    toast('Снова в учёбе — заполни разделы и позицию')
+  }
+
+  const deleteDone = (d: LibDone) => {
+    const index = lib.done.findIndex((x) => x.id === d.id)
+    dispatch(A.deleteDone(d.id))
+    toast('Убрано с полки', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('done', d, index)) },
+    })
+  }
 
   return (
     <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -110,6 +127,7 @@ export function LibraryTab() {
               open={openId === c.id}
               onToggle={() => toggleOpen(c.id)}
               onSave={(next) => dispatch(A.saveCourse(next))}
+              onEdit={() => setCourseForm({ course: c })}
               onToggleSection={(sid) => dispatch(A.toggleSection(c.id, sid))}
               onNote={(text) => dispatch(A.addNote('course', c.id, text))}
               onFinish={() => setFinishing({ kind: 'course', id: c.id, title: c.title })}
@@ -145,7 +163,7 @@ export function LibraryTab() {
         <Empty text="Нашёл видео для саморазвития, но занят — сохрани ссылку сюда" />
       )}
 
-      <DoneShelf items={done} title="Изучено" now={now} />
+      <DoneShelf items={done} title="Изучено" now={now} onReturn={returnDone} onDelete={deleteDone} />
 
       {menu.state &&
         (() => {
@@ -164,13 +182,14 @@ export function LibraryTab() {
           ) : null
         })()}
 
-      {addingCourse && (
+      {courseForm && (
         <CourseModal
+          course={courseForm.course}
           usedColors={usedColors}
-          onCancel={() => setAddingCourse(false)}
-          onCreate={(course) => {
+          onCancel={() => setCourseForm(null)}
+          onSave={(course) => {
             dispatch(A.saveCourse(course))
-            setAddingCourse(false)
+            setCourseForm(null)
           }}
         />
       )}

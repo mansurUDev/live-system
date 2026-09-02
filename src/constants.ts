@@ -106,6 +106,15 @@ export function showKindLabel(kind: string): string {
   return (SHOW_KIND_LABELS as Record<string, string>)[kind] ?? kind
 }
 
+/**
+ * Обратно из подписи в категорию — для возврата с полки «Просмотрено»:
+ * там хранится только человекочитаемая метка, а своя категория и была строкой.
+ */
+export function showKindFromLabel(label: string): string {
+  const found = SHOW_KINDS.find((k) => SHOW_KIND_LABELS[k] === label)
+  return found ?? label
+}
+
 export const MAX_IDEAS = 100
 export const MAX_IDEA_TITLE = 80
 export const MAX_IDEA_CATEGORY = 24

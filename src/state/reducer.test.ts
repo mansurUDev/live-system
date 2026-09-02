@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { initialState, reducer, type Action, type AppState } from './reducer'
+import { A } from './actions'
 import { defaultDoc, makeSector } from '../logic/defaults'
 import { normalize } from '../logic/normalize'
 import { runningEntry } from '../logic/segs'
@@ -958,5 +959,51 @@ describe('«Отменить» — возврат удалённого на пр
     expect(gone.doc.sectors[0]!.history).toHaveLength(0)
     const back = run(gone, { type: 'restoreHistory', sectorId: sector.id, item: rec, index: 0, ...A_NOW })
     expect(back.doc.sectors[0]!.history).toEqual([rec])
+  })
+})
+
+describe('полка завершённого — вернуть или убрать', () => {
+  const A_NOW = { now: NOW }
+
+  const doneRec = (patch: Partial<import('../types').LibDone> = {}): import('../types').LibDone => ({
+    id: 'ld1',
+    kind: 'book',
+    title: 'Атомные привычки',
+    byline: 'Джеймс Клир',
+    color: '#22d3ee',
+    startedAt: '2026-01-01T00:00:00.000Z',
+    finishedAt: '2026-02-01T00:00:00.000Z',
+    quote: '',
+    ...patch,
+  })
+
+  it('запись убирается с полки и возвращается «Отменить» на своё место', () => {
+    const rec = doneRec()
+    const start = stateWith({ lib: { ...defaultDoc(NOW).lib, done: [rec] } })
+    const gone = run(start, { type: 'deleteDone', id: 'ld1', ...A_NOW })
+    expect(gone.doc.lib.done).toHaveLength(0)
+    const back = run(gone, { type: 'restore', target: 'done', item: rec, index: 0, ...A_NOW })
+    expect(back.doc.lib.done).toEqual([rec])
+  })
+
+  it('книга возвращается в список и уходит с полки одним действием', () => {
+    const rec = doneRec()
+    const start = stateWith({ lib: { ...defaultDoc(NOW).lib, done: [rec] } })
+    const book = A.newBook(rec.title, rec.byline, rec.color, 0, 0)
+    const back = run(start, { type: 'returnDone', doneId: rec.id, target: 'books', item: book, ...A_NOW })
+    expect(back.doc.lib.done).toHaveLength(0)
+    expect(back.doc.lib.books.map((b) => b.title)).toEqual(['Атомные привычки'])
+    expect(back.doc.lib.books[0]!.author).toBe('Джеймс Клир')
+  })
+
+  it('у «Смотреть» подпись превращается обратно в категорию, в том числе свою', () => {
+    const builtin = A.returnDone(doneRec({ id: 'l1', kind: 'show', byline: 'Дорама' }))
+    const custom = A.returnDone(doneRec({ id: 'l2', kind: 'show', byline: 'Стендапы' }))
+    expect(builtin && 'item' in builtin ? (builtin.item as Show).kind : null).toBe('dorama')
+    expect(custom && 'item' in custom ? (custom.item as Show).kind : null).toBe('Стендапы')
+  })
+
+  it('видео вернуть нельзя — без ссылки от записи ничего не осталось', () => {
+    expect(A.returnDone(doneRec({ kind: 'video' }))).toBeNull()
   })
 })

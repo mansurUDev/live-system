@@ -16,7 +16,7 @@ import { FinishModal } from '../modals/FinishModal'
 import { ShowModal } from '../modals/ShowModal'
 import { DoneShelf, Empty, Shelf } from '../library/LibraryParts'
 import { ShowCard } from '../library/ShowCard'
-import type { Show } from '../../types'
+import type { LibDone, Show } from '../../types'
 
 type Finishing = { id: string; title: string } | null
 
@@ -145,6 +145,21 @@ export function WatchTab() {
     { icon: '🗑', label: 'Убрать', danger: true, onClick: () => deleteShow(s) },
   ]
 
+  const returnDone = (d: LibDone) => {
+    const act = A.returnDone(d)
+    if (!act) return
+    dispatch(act)
+    toast('Снова в очереди — отметь позицию')
+  }
+
+  const deleteDone = (d: LibDone) => {
+    const index = lib.done.findIndex((x) => x.id === d.id)
+    dispatch(A.deleteDone(d.id))
+    toast('Убрано с полки', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('done', d, index)) },
+    })
+  }
+
   return (
     <main style={{ ...pageStyle(isMobile), display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Shelf
@@ -264,7 +279,7 @@ export function WatchTab() {
         <Empty text="Сохрани название — посмотришь, когда будет время" />
       )}
 
-      <DoneShelf items={done} title="Просмотрено" now={now} />
+      <DoneShelf items={done} title="Просмотрено" now={now} onReturn={returnDone} onDelete={deleteDone} />
 
       {menu.state &&
         (() => {

@@ -7,6 +7,7 @@ import {
   btnCancelSm,
   btnDeleteConfirm,
   btnDeleteLink,
+  btnEdit,
   C,
   chipSquare,
   fieldLabel,
@@ -24,6 +25,7 @@ interface Props {
   onSave: (course: Course) => void
   onToggleSection: (sectionId: string) => void
   onNote: (text: string) => void
+  onEdit: () => void
   onFinish: () => void
   onDelete: () => void
 }
@@ -35,6 +37,7 @@ export function CourseCard({
   onSave,
   onToggleSection,
   onNote,
+  onEdit,
   onFinish,
   onDelete,
 }: Props) {
@@ -169,6 +172,9 @@ export function CourseCard({
             </button>
             <button className="h-ghost-bright" style={btnCancelSm} onClick={onFinish}>
               Прошёл
+            </button>
+            <button className="h-edit" onClick={onEdit} aria-label="Изменить курс" style={btnEdit}>
+              ✎
             </button>
             <div style={{ flex: 1 }} />
             {confirmDelete ? (
