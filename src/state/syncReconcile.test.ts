@@ -23,6 +23,8 @@ const withShow = (): Doc => {
     episode: 1,
     minute: 0,
     link: 'https://doramy.club/x',
+    rating: 0,
+    priority: 0,
     startedAt: '2026-03-14T10:00:00.000Z',
     updatedAt: '2026-03-14T10:00:00.000Z',
   })

@@ -19,7 +19,6 @@ import type {
   Reminder,
   Sector,
   Show,
-  ShowKind,
   TimeEntry,
   Video,
 } from '../types'
@@ -271,7 +270,7 @@ export const A = {
     note,
     addedAt: new Date().toISOString(),
   }),
-  newShow: (title: string, kind: ShowKind, color: string, link: string): Show => ({
+  newShow: (title: string, kind: string, color: string, link: string): Show => ({
     id: uid('sh'),
     title,
     kind,
@@ -280,6 +279,8 @@ export const A = {
     episode: 0,
     minute: 0,
     link,
+    rating: 0,
+    priority: 0,
     startedAt: new Date().toISOString(),
     // редьюсер сам штампует актуальный updatedAt при saveShow — это значение
     // на случай если объект где-то прочитают до диспатча

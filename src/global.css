@@ -213,6 +213,23 @@ textarea {
   background: rgba(34, 211, 238, 0.12);
 }
 
+/* «Не хочу смотреть»: крестик появляется при наведении на строку, чтобы не
+   засорять список; на таче ховера нет — там кнопка видна всегда. */
+@media (hover: hover) {
+  .show-row-x {
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .show-row:hover .show-row-x,
+  .show-row-x:focus-visible {
+    opacity: 1;
+  }
+}
+.show-row-x:hover {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.5);
+}
+
 /* Плитка активности: цвет ховера зависит от цвета кнопки — приходит через CSS-переменные. */
 .h-tile:hover {
   border-color: var(--tile-hov-border);

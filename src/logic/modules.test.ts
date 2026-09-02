@@ -16,7 +16,7 @@ import {
   toggleToday,
 } from './habits'
 import { financeCalc, goalHistory, goalProgress, rollMonth, type Conv } from './finance'
-import { bookProgress, courseProgress, fmtAudio, parseAudio, readingPlan, visibleShows } from './library'
+import { bookProgress, courseProgress, fmtAudio, lastUpdatedKind, parseAudio, readingPlan, visibleShows } from './library'
 import { nextSteps, pickPriority } from './briefing'
 import { convert, money } from './currency'
 import { agenda } from './agenda'
@@ -1051,6 +1051,8 @@ describe('visibleShows — поиск, фильтр по виду, свежее 
     episode: 0,
     minute: 0,
     link: '',
+    rating: 0,
+    priority: 0,
     startedAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z',
     ...over,
@@ -1062,19 +1064,20 @@ describe('visibleShows — поиск, фильтр по виду, свежее 
       sh('b', { updatedAt: '2026-03-01T00:00:00.000Z' }),
       sh('c', { updatedAt: '2026-02-01T00:00:00.000Z' }),
     ]
-    expect(visibleShows(list, '', null).map((s) => s.id)).toEqual(['b', 'c', 'a'])
+    expect(visibleShows(list, '', null).rest.map((s) => s.id)).toEqual(['b', 'c', 'a'])
   })
 
   it('поиск по названию, без учёта регистра', () => {
     const list = [sh('a', { title: 'Игра престолов' }), sh('b', { title: 'Отдых' })]
-    expect(visibleShows(list, 'ИГРА', null).map((s) => s.id)).toEqual(['a'])
-    expect(visibleShows(list, 'престол', null).map((s) => s.id)).toEqual(['a'])
+    expect(visibleShows(list, 'ИГРА', null).rest.map((s) => s.id)).toEqual(['a'])
+    expect(visibleShows(list, 'престол', null).rest.map((s) => s.id)).toEqual(['a'])
   })
 
-  it('фильтр по виду; null — все виды', () => {
-    const list = [sh('a', { kind: 'dorama' }), sh('b', { kind: 'anime' })]
-    expect(visibleShows(list, '', 'dorama').map((s) => s.id)).toEqual(['a'])
-    expect(visibleShows(list, '', null)).toHaveLength(2)
+  it('фильтр по категории; null — все; своя строка — тоже категория', () => {
+    const list = [sh('a', { kind: 'dorama' }), sh('b', { kind: 'anime' }), sh('c', { kind: 'Стендапы' })]
+    expect(visibleShows(list, '', 'dorama').rest.map((s) => s.id)).toEqual(['a'])
+    expect(visibleShows(list, '', 'Стендапы').rest.map((s) => s.id)).toEqual(['c'])
+    expect(visibleShows(list, '', null).rest).toHaveLength(3)
   })
 
   it('поиск и фильтр действуют вместе', () => {
@@ -1082,12 +1085,38 @@ describe('visibleShows — поиск, фильтр по виду, свежее 
       sh('a', { title: 'Наруто', kind: 'anime' }),
       sh('b', { title: 'Наруто', kind: 'dorama' }),
     ]
-    expect(visibleShows(list, 'наруто', 'anime').map((s) => s.id)).toEqual(['a'])
+    expect(visibleShows(list, 'наруто', 'anime').rest.map((s) => s.id)).toEqual(['a'])
   })
 
-  it('пустой поиск — ничего не отфильтровывает по тексту', () => {
-    const list = [sh('a'), sh('b')]
-    expect(visibleShows(list, '   ', null)).toHaveLength(2)
+  it('приоритет 10 уезжает в отсек, остальные сортируются по приоритету, затем по свежести', () => {
+    const list = [
+      sh('urgent', { priority: 10, updatedAt: '2026-01-05T00:00:00.000Z' }),
+      sh('p9', { priority: 9, updatedAt: '2026-01-01T00:00:00.000Z' }),
+      sh('p9fresh', { priority: 9, updatedAt: '2026-02-01T00:00:00.000Z' }),
+      sh('none', { updatedAt: '2026-03-01T00:00:00.000Z' }),
+      sh('p3', { priority: 3, updatedAt: '2026-01-01T00:00:00.000Z' }),
+    ]
+    const v = visibleShows(list, '', null)
+    expect(v.top.map((s) => s.id)).toEqual(['urgent'])
+    expect(v.rest.map((s) => s.id)).toEqual(['p9fresh', 'p9', 'p3', 'none'])
+  })
+
+  it('«не хочу смотреть» уходит на отдельную полку и не мешается в списке', () => {
+    const list = [sh('a'), sh('b', { dropped: true }), sh('c', { priority: 10, dropped: true })]
+    const v = visibleShows(list, '', null)
+    expect(v.rest.map((s) => s.id)).toEqual(['a'])
+    expect(v.top).toHaveLength(0)
+    expect(v.dropped.map((s) => s.id).sort()).toEqual(['b', 'c'])
+  })
+
+  it('lastUpdatedKind — категория самой свежей живой записи', () => {
+    const list = [
+      sh('a', { kind: 'anime', updatedAt: '2026-01-01T00:00:00.000Z' }),
+      sh('b', { kind: 'series', updatedAt: '2026-03-01T00:00:00.000Z' }),
+      sh('c', { kind: 'dorama', updatedAt: '2026-04-01T00:00:00.000Z', dropped: true }),
+    ]
+    expect(lastUpdatedKind(list)).toBe('series')
+    expect(lastUpdatedKind([])).toBeNull()
   })
 })
 
@@ -1120,11 +1149,28 @@ describe('полка «Смотреть»', () => {
     expect(d.lib.shows[0]!.updatedAt).toBe('2026-02-15T12:00:00.000Z')
   })
 
-  it('kind-фолбэк на film, обрезка по MAX_SHOWS', () => {
-    const many = Array.from({ length: MAX_SHOWS + 5 }, (_, i) => ({ title: 'Шоу ' + i, kind: 'мусор' }))
+  it('обрезка по MAX_SHOWS; своя строка — категория, пусто и не-строка — «фильм»', () => {
+    const many = Array.from({ length: MAX_SHOWS + 5 }, (_, i) => ({ title: 'Шоу ' + i, kind: 'Стендапы' }))
     const d = normalize({ sectors: [], lib: { shows: many } }, NOW)
     expect(d.lib.shows).toHaveLength(MAX_SHOWS)
-    expect(d.lib.shows[0]!.kind).toBe('film')
+    // произвольная категория сохраняется как есть
+    expect(d.lib.shows[0]!.kind).toBe('Стендапы')
+
+    const junk = normalize(
+      { sectors: [], lib: { shows: [{ title: 'А', kind: '' }, { title: 'Б', kind: 42 }, { title: 'В' }] } },
+      NOW,
+    )
+    // а вот пустота и мусор нечитаемых типов — «фильм»... кроме числа: str() его строкует
+    expect(junk.lib.shows[0]!.kind).toBe('film')
+    expect(junk.lib.shows[2]!.kind).toBe('film')
+  })
+
+  it('слишком длинная своя категория обрезается', () => {
+    const d = normalize(
+      { sectors: [], lib: { shows: [{ title: 'X', kind: 'о'.repeat(60) }] } },
+      NOW,
+    )
+    expect(d.lib.shows[0]!.kind.length).toBeLessThanOrEqual(24)
   })
 
   it('дорама и документальный проходят наравне со старыми видами', () => {

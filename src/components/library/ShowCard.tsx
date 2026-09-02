@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { SHOW_KIND_LABELS } from '../../constants'
+import { showKindLabel } from '../../constants'
 import { fmtD } from '../../logic/time'
 import { useNow } from '../../state/NowProvider'
 import {
@@ -24,13 +24,17 @@ interface Props {
   onCopyLink: () => void
   onFinish: () => void
   onDelete: () => void
+  /** «не хочу смотреть» — запись уезжает на нижнюю полку, не удаляясь */
+  onDrop: () => void
 }
 
-export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, onDelete }: Props) {
+export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, onDelete, onDrop }: Props) {
   const now = useNow()
   const [season, setSeason] = useState(String(show.season || ''))
   const [episode, setEpisode] = useState(String(show.episode || ''))
   const [minute, setMinute] = useState(String(show.minute || ''))
+  const [ratingText, setRatingText] = useState(show.rating ? String(show.rating) : '')
+  const [priorityText, setPriorityText] = useState(show.priority ? String(show.priority) : '')
   const [confirmDelete, setConfirmDelete] = useState(false)
 
   const isFilm = show.kind === 'film'
@@ -39,11 +43,15 @@ export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, o
     const s = parseInt(season.replace(/\s/g, ''), 10)
     const e = parseInt(episode.replace(/\s/g, ''), 10)
     const m = parseInt(minute.replace(/\s/g, ''), 10)
+    const r = parseFloat(ratingText.replace(',', '.'))
+    const p = parseInt(priorityText, 10)
     onSave({
       ...show,
       season: isFilm ? 0 : Number.isFinite(s) ? Math.max(0, s) : show.season,
       episode: isFilm ? 0 : Number.isFinite(e) ? Math.max(0, e) : show.episode,
       minute: Number.isFinite(m) ? Math.max(0, m) : show.minute,
+      rating: Number.isFinite(r) && r > 0 ? Math.min(10, Math.round(r * 10) / 10) : 0,
+      priority: Number.isInteger(p) && p >= 1 && p <= 10 ? p : 0,
     })
   }
 
@@ -57,16 +65,50 @@ export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, o
 
   return (
     <div style={plainCard({ padding: '13px 15px' })}>
-      <div onClick={onToggle} style={{ display: 'flex', gap: 12, alignItems: 'flex-start', cursor: 'pointer' }}>
+      <div
+        className="show-row"
+        onClick={onToggle}
+        style={{ display: 'flex', gap: 12, alignItems: 'flex-start', cursor: 'pointer' }}
+      >
         <span style={chipSquare(show.color)} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 16, fontWeight: 600, color: C.textBright, overflowWrap: 'anywhere' }}>
+            {show.priority === 10 && <span style={{ color: '#fbbf24' }}>‼ </span>}
             {show.title}
           </div>
           <div style={{ fontSize: 13, color: C.muted, marginTop: 1 }}>
-            {SHOW_KIND_LABELS[show.kind]} · {positionText}
+            {showKindLabel(show.kind)} · {positionText}
+            {show.rating > 0 && (
+              <span style={{ color: '#fbbf24', marginLeft: 7 }}>★ {show.rating}</span>
+            )}
+            {show.priority > 0 && show.priority < 10 && (
+              <span style={{ fontFamily: MONO, color: C.faint, marginLeft: 7 }}>хочу: {show.priority}</span>
+            )}
           </div>
         </div>
+        <button
+          className="show-row-x"
+          aria-label={show.dropped ? 'Вернуть в очередь' : 'Не хочу смотреть'}
+          title={show.dropped ? 'Вернуть в очередь' : 'Не хочу смотреть — уедет на нижнюю полку'}
+          onClick={(e) => {
+            e.stopPropagation()
+            onDrop()
+          }}
+          style={{
+            flex: 'none',
+            width: 26,
+            height: 26,
+            border: '1px solid rgba(148,163,184,.3)',
+            borderRadius: 7,
+            background: 'none',
+            color: C.faint,
+            fontSize: 13,
+            cursor: 'pointer',
+            padding: 0,
+          }}
+        >
+          {show.dropped ? '↩' : '✕'}
+        </button>
       </div>
 
       {open && (
@@ -103,6 +145,28 @@ export function ShowCard({ show, open, onToggle, onSave, onCopyLink, onFinish, o
                 onChange={(e) => setMinute(e.target.value)}
                 inputMode="numeric"
                 placeholder="12"
+                style={{ ...input, fontFamily: MONO }}
+              />
+            </div>
+            <div style={{ flex: '1 1 90px' }}>
+              <div style={fieldLabel}>Рейтинг</div>
+              <input
+                value={ratingText}
+                onChange={(e) => setRatingText(e.target.value)}
+                inputMode="decimal"
+                placeholder="8.4"
+                aria-label="Внешний рейтинг, 0–10"
+                style={{ ...input, fontFamily: MONO }}
+              />
+            </div>
+            <div style={{ flex: '1 1 90px' }}>
+              <div style={fieldLabel}>Хочу (1–10)</div>
+              <input
+                value={priorityText}
+                onChange={(e) => setPriorityText(e.target.value)}
+                inputMode="numeric"
+                placeholder="7"
+                aria-label="Приоритет просмотра, 1–10; 10 — в первую очередь"
                 style={{ ...input, fontFamily: MONO }}
               />
             </div>

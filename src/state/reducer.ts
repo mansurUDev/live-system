@@ -14,7 +14,7 @@ import {
   MAX_REMINDERS,
   MAX_SHOWS,
   MAX_VIDEOS,
-  SHOW_KIND_LABELS,
+  showKindLabel,
 } from '../constants'
 import { moveActTo, type MoveTarget } from '../logic/actLayout'
 import { convert, money } from '../logic/currency'
@@ -633,7 +633,7 @@ function coreReducer(doc: Doc, action: Action): Doc {
             ? (item as Course).platform
             : action.kind === 'video'
               ? (item as Video).channel
-              : SHOW_KIND_LABELS[(item as Show).kind]
+              : showKindLabel((item as Show).kind)
       // у видео и шоу нет startedAt-до-начала — очередь на посмотреть начинается с момента добавления
       const startedAt =
         action.kind === 'video' ? (item as Video).addedAt : (item as Book | Course | Show).startedAt

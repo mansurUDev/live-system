@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Modal } from './Modal'
-import { PAL, SHOW_KIND_LABELS, SHOW_KINDS } from '../../constants'
+import { MAX_SHOW_KIND, PAL, SHOW_KIND_LABELS, SHOW_KINDS } from '../../constants'
 import { cleanShareUrl } from '../../logic/links'
 import { A } from '../../state/actions'
 import { btnAccent, btnGhost, C, chipBtn, errText, fieldLabel, input, swatch } from '../../theme'
-import type { Show, ShowKind } from '../../types'
+import type { Show } from '../../types'
 
 interface Props {
   usedColors: string[]
@@ -14,7 +14,9 @@ interface Props {
 
 export function ShowModal({ usedColors, onCancel, onCreate }: Props) {
   const [title, setTitle] = useState('')
-  const [kind, setKind] = useState<ShowKind>('film')
+  const [kind, setKind] = useState<string>('film')
+  // null — выбран встроенный вид; строка — включён режим своей категории
+  const [custom, setCustom] = useState<string | null>(null)
   const [color, setColor] = useState(PAL.find((c) => !usedColors.includes(c)) ?? PAL[8]!)
   const [link, setLink] = useState('')
   const [error, setError] = useState('')
@@ -22,7 +24,9 @@ export function ShowModal({ usedColors, onCancel, onCreate }: Props) {
   const submit = () => {
     const t = title.trim()
     if (!t) return setError('Напиши название')
-    onCreate(A.newShow(t, kind, color, link.trim() ? cleanShareUrl(link.trim()) : ''))
+    if (custom !== null && !custom.trim()) return setError('Напиши свою категорию')
+    const k = custom !== null ? custom.trim().slice(0, MAX_SHOW_KIND) : kind
+    onCreate(A.newShow(t, k, color, link.trim() ? cleanShareUrl(link.trim()) : ''))
   }
 
   return (
@@ -59,11 +63,35 @@ export function ShowModal({ usedColors, onCancel, onCreate }: Props) {
         <div style={fieldLabel}>Вид</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 6 }}>
           {SHOW_KINDS.map((k) => (
-            <button key={k} style={chipBtn(kind === k, '#60a5fa')} onClick={() => setKind(k)}>
+            <button
+              key={k}
+              style={chipBtn(custom === null && kind === k, '#60a5fa')}
+              onClick={() => {
+                setKind(k)
+                setCustom(null)
+              }}
+            >
               {SHOW_KIND_LABELS[k]}
             </button>
           ))}
+          <button style={chipBtn(custom !== null, '#60a5fa')} onClick={() => setCustom((c) => c ?? '')}>
+            Своя…
+          </button>
         </div>
+        {custom !== null && (
+          <input
+            value={custom}
+            onChange={(e) => {
+              setCustom(e.target.value)
+              setError('')
+            }}
+            autoFocus
+            maxLength={MAX_SHOW_KIND}
+            placeholder="Стендапы"
+            aria-label="Своя категория"
+            style={input}
+          />
+        )}
       </div>
 
       <div style={{ marginTop: 13 }}>

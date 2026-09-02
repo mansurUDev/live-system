@@ -253,13 +253,14 @@ export interface Video {
   addedAt: string
 }
 
-/** Фильм / сериал / аниме / мультфильм — очередь на посмотреть с позицией */
+/** Встроенные виды; категория записи — любая строка, эти шесть просто с готовыми подписями */
 export type ShowKind = 'film' | 'series' | 'dorama' | 'anime' | 'cartoon' | 'documentary'
 
 export interface Show {
   id: string
   title: string
-  kind: ShowKind
+  /** категория: встроенный вид или своя строка («Стендапы», «Лекции»…) */
+  kind: string
   color: string
   /** для сериалов/аниме/мультфильмов; у фильма всегда 0 */
   season: number
@@ -267,6 +268,12 @@ export interface Show {
   minute: number
   /** где смотрю — необязательно */
   link: string
+  /** внешний рейтинг (Кинопоиск/IMDb/MAL), 0–10 с шагом 0.1; 0 — не указан */
+  rating: number
+  /** насколько хочется посмотреть, 1–10; 10 уезжает в отсек «в первую очередь»; 0 — не задан */
+  priority: number
+  /** «не хочу смотреть»: хранится только как true — запись уезжает на нижнюю полку */
+  dropped?: boolean
   startedAt: string
   /** момент последнего сохранения — по нему список сортируется, свежее сверху */
   updatedAt: string

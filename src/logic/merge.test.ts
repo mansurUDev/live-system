@@ -24,6 +24,8 @@ function show(id: string, over: Partial<Show> = {}): Show {
     episode: 1,
     minute: 0,
     link: '',
+    rating: 0,
+    priority: 0,
     startedAt: '2026-08-18T10:00:00.000Z',
     updatedAt: '2026-08-18T10:00:00.000Z',
     ...over,
@@ -215,6 +217,31 @@ describe('слияние — правки одной и той же записи
       d.lib.shows.push(show('sh1', { episode: 7, updatedAt: '2026-08-12T00:00:00.000Z' })),
     )
     expect(mergeDoc(base, local, cloud, NOW).lib.shows[0]!.updatedAt).toBe('2026-08-15T00:00:00.000Z')
+  })
+
+  it('рейтинг и приоритет, проставленные на одном устройстве, доезжают до другого', () => {
+    const base = doc((d) => d.lib.shows.push(show('sh1')))
+    const local = doc((d) => d.lib.shows.push(show('sh1', { rating: 8.4 })))
+    const cloud = doc((d) => d.lib.shows.push(show('sh1', { priority: 10 })))
+    expect(mergeDoc(base, local, cloud, NOW).lib.shows[0]).toMatchObject({ rating: 8.4, priority: 10 })
+  })
+
+  it('«не хочу смотреть» с одного устройства не воскресает при слиянии', () => {
+    const base = doc((d) => d.lib.shows.push(show('sh1')))
+    const local = doc((d) => d.lib.shows.push(show('sh1', { dropped: true })))
+    const cloud = doc((d) => d.lib.shows.push(show('sh1')))
+    expect(mergeDoc(base, local, cloud, NOW).lib.shows[0]!.dropped).toBe(true)
+  })
+
+  it('возврат в очередь стирает флаг и переживает эхо облака', () => {
+    const base = doc((d) => d.lib.shows.push(show('sh1', { dropped: true })))
+    const local = doc((d) => d.lib.shows.push(show('sh1')))
+    const cloud = doc((d) => d.lib.shows.push(show('sh1', { dropped: true })))
+    const merged = mergeDoc(base, local, cloud, NOW)
+    expect(merged.lib.shows[0]!.dropped).toBeUndefined()
+    // эхо: свой же результат вернулся из облака — ничего не меняется
+    const echoed = mergeDoc(base, clone(merged), clone(merged), NOW)
+    expect(echoed.lib.shows[0]!.dropped).toBeUndefined()
   })
 })
 

@@ -73,16 +73,46 @@ export function readingPlan(b: Book, now: number = Date.now()): ReadingPlan {
   return { kind: 'ok', pagesLeft, daysLeft, perDay: Math.ceil(pagesLeft / daysLeft) }
 }
 
+export interface ShowShelves {
+  /** приоритет 10 — «в первую очередь», отдельный отсек над списком */
+  top: Show[]
+  /** остальные: приоритет по убыванию, внутри одинакового — свежее обновление выше */
+  rest: Show[]
+  /** «не хочу смотреть» — нижняя полка, в top/rest не попадают */
+  dropped: Show[]
+}
+
 /**
- * Что показывать в списке «Смотреть»: по виду, по названию, свежее обновление
- * сверху. Отметка позиции обновляет `updatedAt`, поэтому «досмотрел вчера
- * серию» поднимает запись наверх — так проще найти то, чем занят сейчас, среди
- * давно заброшенного.
+ * Что показывать в списке «Смотреть»: по категории, по названию, и по желанию
+ * смотреть. Приоритет 10 уезжает в отсек «в первую очередь»; у остальных
+ * приоритет сортирует сверху вниз, а при равном — свежее обновление выше:
+ * отметка позиции обновляет `updatedAt`, и «досмотрел вчера серию» поднимает
+ * запись — так проще найти то, чем занят сейчас, среди давно заброшенного.
  */
-export function visibleShows(shows: Show[], query: string, kind: Show['kind'] | null): Show[] {
+export function visibleShows(shows: Show[], query: string, kind: string | null): ShowShelves {
   const q = query.trim().toLowerCase()
-  return shows
+  const matches = shows
     .filter((s) => kind === null || s.kind === kind)
     .filter((s) => !q || s.title.toLowerCase().includes(q))
-    .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0))
+
+  const byFreshness = (a: Show, b: Show) => (a.updatedAt < b.updatedAt ? 1 : a.updatedAt > b.updatedAt ? -1 : 0)
+
+  const alive = matches.filter((s) => !s.dropped)
+  return {
+    top: alive.filter((s) => s.priority === 10).sort(byFreshness),
+    rest: alive
+      .filter((s) => s.priority < 10)
+      .sort((a, b) => b.priority - a.priority || byFreshness(a, b)),
+    dropped: matches.filter((s) => s.dropped).sort(byFreshness),
+  }
+}
+
+/** Категория самой свежей записи — с неё открывается вкладка «Смотреть» */
+export function lastUpdatedKind(shows: Show[]): string | null {
+  let best: Show | null = null
+  for (const s of shows) {
+    if (s.dropped) continue
+    if (!best || s.updatedAt > best.updatedAt) best = s
+  }
+  return best ? best.kind : null
 }

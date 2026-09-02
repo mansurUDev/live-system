@@ -48,6 +48,8 @@ function show(patch: Partial<Show> = {}): Show {
     episode: 3,
     minute: 12,
     link: '',
+    rating: 0,
+    priority: 0,
     startedAt: new Date(NOW).toISOString(),
     updatedAt: new Date(NOW).toISOString(),
     ...patch,

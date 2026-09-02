@@ -86,6 +86,8 @@ export const MAX_EXCERPT = 400
 export const MAX_QUOTE = 300
 
 export const MAX_SHOWS = 50
+/** длина своей категории в «Смотреть» — как категория идеи */
+export const MAX_SHOW_KIND = 24
 /** для сериала/аниме/мультфильма — с большим запасом на нестандартную нумерацию */
 export const MAX_SHOW_NUMBER = 99999
 
@@ -98,6 +100,11 @@ export const SHOW_KIND_LABELS: Record<'film' | 'series' | 'dorama' | 'anime' | '
   documentary: 'Документальный',
 }
 export const SHOW_KINDS = Object.keys(SHOW_KIND_LABELS) as (keyof typeof SHOW_KIND_LABELS)[]
+
+/** Подпись категории «Смотреть»: у встроенных видов — из словаря, своя строка — как есть */
+export function showKindLabel(kind: string): string {
+  return (SHOW_KIND_LABELS as Record<string, string>)[kind] ?? kind
+}
 
 export const MAX_IDEAS = 100
 export const MAX_IDEA_TITLE = 80

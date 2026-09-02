@@ -30,6 +30,7 @@ import {
   MAX_REMINDER_NAME,
   MAX_REMINDERS,
   MAX_SECTIONS,
+  MAX_SHOW_KIND,
   MAX_SHOW_NUMBER,
   MAX_SHOWS,
   MAX_SLIPS,
@@ -368,15 +369,25 @@ export function normLibrary(x: unknown, nowIso: string): Library {
     ? l.shows.slice(0, MAX_SHOWS).map((raw, i) => {
         const s = obj(raw)
         const startedAt = iso(s.startedAt, nowIso)
+        // рейтинг 0–10 с шагом 0.1; всё кривое схлопывается в «не указан»
+        const rawRating = Number(s.rating)
+        const rating = Number.isFinite(rawRating) ? Math.round(Math.min(10, Math.max(0, rawRating)) * 10) / 10 : 0
+        const rawPriority = Number(s.priority)
+        const priority = Number.isInteger(rawPriority) && rawPriority >= 1 && rawPriority <= 10 ? rawPriority : 0
         return {
           id: str(s.id, 60, 'sh' + i),
           title: str(s.title, MAX_TITLE, 'Без названия'),
-          kind: (SHOW_KINDS as string[]).includes(s.kind as string) ? (s.kind as Show['kind']) : 'film',
+          // встроенный вид или своя категория текстом; пусто/мусор → «фильм»
+          kind: (SHOW_KINDS as string[]).includes(s.kind as string) ? (s.kind as string) : str(s.kind, MAX_SHOW_KIND) || 'film',
           color: color(s.color, i + 9),
           season: showNumber(s.season),
           episode: showNumber(s.episode),
           minute: showNumber(s.minute),
           link: safeUrl(s.link, MAX_VIDEO_URL),
+          rating,
+          priority,
+          // поле только когда осмысленно — как pinned у кнопок трекера
+          ...(s.dropped === true ? { dropped: true as const } : null),
           startedAt,
           // документы до этой правки поля не знают — свежесть = дате добавления
           updatedAt: iso(s.updatedAt, startedAt),
