@@ -1,11 +1,14 @@
 import pg from 'pg'
-
-// именованный импорт из 'pg' в ESM-сборке (в package.json "type": "module")
-// падает при инициализации функции: пакет отдаёт CommonJS-объект
-const { Pool } = pg
-type Pool = pg.Pool
 import type { VercelRequest, VercelResponse } from '@vercel/node'
 import { applyAction, classify, type TgDoc } from './tgLogic'
+
+/**
+ * Именованный импорт `{ Pool } from 'pg'` в ESM-сборке функций (в package.json
+ * "type": "module") падает при инициализации: пакет отдаёт CommonJS-объект.
+ */
+const { Pool } = pg
+type Pool = pg.Pool
+
 
 /**
  * Вебхук телеграм-бота: сообщение из группы-«избранного» превращается в запись
