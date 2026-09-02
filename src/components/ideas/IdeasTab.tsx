@@ -103,10 +103,21 @@ export function IdeasTab() {
   }
 
   const deleteIdea = (idea: Idea) => {
-    idea.images.forEach((url) => void deleteImage(code, url))
+    const index = ideas.findIndex((x) => x.id === idea.id)
     dispatch(A.deleteIdea(idea.id))
     setDeleteId(null)
-    toast('Идея убрана')
+    // фото удаляем не сразу: пока висит «Отменить», картинки должны быть живы,
+    // иначе вернувшаяся идея показывала бы битые ссылки
+    const wipe = window.setTimeout(() => idea.images.forEach((url) => void deleteImage(code, url)), 6500)
+    toast('Идея убрана', {
+      action: {
+        label: 'Отменить',
+        onClick: () => {
+          window.clearTimeout(wipe)
+          dispatch(A.restore('ideas', idea, index))
+        },
+      },
+    })
   }
 
   const menuItems = (idea: Idea): CtxEntry[] => [
@@ -117,7 +128,7 @@ export function IdeasTab() {
     { icon: '⇥', label: 'В «Книги»', onClick: () => toBook(idea) },
     { icon: '⇥', label: 'В расходы', onClick: () => openToExpense(idea) },
     'sep',
-    { icon: '🗑', label: 'Удалить', danger: true, confirm: 'Точно удалить?', onClick: () => deleteIdea(idea) },
+    { icon: '🗑', label: 'Удалить', danger: true, onClick: () => deleteIdea(idea) },
   ]
 
   return (

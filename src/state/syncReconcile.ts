@@ -58,3 +58,16 @@ export function planSync(
 export function shouldPullOnResume(opts: { enabled: boolean; busy: boolean }): boolean {
   return opts.enabled && !opts.busy
 }
+
+/**
+ * Пропускать ли отправку, когда документ совпал с базой.
+ *
+ * Обычно совпадение значит «в облаке ровно это и лежит» — отправлять нечего.
+ * Но если последняя отправка была keepalive при уходе со страницы, ответ никто
+ * не читал и точка согласования не сдвинулась: в облаке уже другое тело, а
+ * база осталась прежней. Тогда молчание стирает откат — например «Отменить»
+ * сразу после удаления, — и запись исчезает во второй раз, уже насовсем.
+ */
+export function shouldSkipPush(sameAsBase: boolean, flushedUnconfirmed: boolean): boolean {
+  return sameAsBase && !flushedUnconfirmed
+}

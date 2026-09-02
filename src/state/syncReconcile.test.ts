@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { defaultDoc } from '../logic/defaults'
 import { normalize } from '../logic/normalize'
-import { planSync, shouldPullOnResume } from './syncReconcile'
+import { planSync, shouldPullOnResume, shouldSkipPush } from './syncReconcile'
 import type { Doc } from '../types'
 
 const NOW = new Date('2026-03-15T14:00:00').getTime()
@@ -101,5 +101,22 @@ describe('shouldPullOnResume', () => {
 
   it('вернулись на вкладку, ничего не летит — перечитываем', () => {
     expect(shouldPullOnResume({ enabled: true, busy: false })).toBe(true)
+  })
+})
+
+describe('shouldSkipPush — когда совпадение с базой обманчиво', () => {
+  it('документ равен базе, всё подтверждено — отправлять нечего', () => {
+    expect(shouldSkipPush(true, false)).toBe(true)
+  })
+
+  it('после неподтверждённого keepalive отправляем даже совпадение с базой', () => {
+    // облако ушло вперёд молча: иначе «Отменить» сразу после удаления
+    // не уехало бы, и запись исчезла бы во второй раз — уже насовсем
+    expect(shouldSkipPush(true, true)).toBe(false)
+  })
+
+  it('документ отличается от базы — отправляем всегда', () => {
+    expect(shouldSkipPush(false, false)).toBe(false)
+    expect(shouldSkipPush(false, true)).toBe(false)
   })
 })

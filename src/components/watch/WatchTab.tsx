@@ -108,9 +108,12 @@ export function WatchTab() {
   }
 
   const deleteShow = (s: Show) => {
+    const index = lib.shows.findIndex((x) => x.id === s.id)
     dispatch(A.deleteLibItem('show', s.id))
     setOpenId(null)
-    toast('Убрано из очереди')
+    toast('Убрано из очереди', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('shows', s, index)) },
+    })
   }
 
   const card = (s: Show) => (
@@ -139,7 +142,7 @@ export function WatchTab() {
       onClick: () => toggleDrop(s),
     },
     'sep',
-    { icon: '🗑', label: 'Убрать', danger: true, confirm: 'Точно убрать?', onClick: () => deleteShow(s) },
+    { icon: '🗑', label: 'Убрать', danger: true, onClick: () => deleteShow(s) },
   ]
 
   return (

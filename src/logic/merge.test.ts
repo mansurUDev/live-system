@@ -245,6 +245,24 @@ describe('слияние — правки одной и той же записи
   })
 })
 
+describe('слияние — «Отменить» после удаления', () => {
+  it('возврат записи переживает слияние: удаление уже уехало в облако', () => {
+    // база = облако без записи (удаление подтвердилось), локально её вернули
+    const base = doc()
+    const local = doc(withShow)
+    const cloud = doc()
+    const merged = mergeDoc(base, local, cloud, NOW)
+    expect(merged.lib.shows.map((s) => s.id)).toEqual(['sh1'])
+  })
+
+  it('возвращённая запись не удваивается, вернувшись из облака эхом', () => {
+    const base = doc()
+    const local = doc(withShow)
+    const echoed = mergeDoc(base, local, clone(local), NOW)
+    expect(echoed.lib.shows).toHaveLength(1)
+  })
+})
+
 describe('слияние — чек-лист идеи', () => {
   it('отметка с двух устройств складывается', () => {
     const base = doc((d) => d.ideas.push(idea({ checklist: [ideaCheck({ id: 'a' }), ideaCheck({ id: 'b', text: 'купить энкодер' })] })))

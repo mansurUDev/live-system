@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { CATS, HOT_MAX, MAX_ACTS } from '../../constants'
 import { actBy, actTotals } from '../../logic/analytics'
 import { canPin, hotDockHeight, moveActTo, splitActs, type MoveTarget } from '../../logic/actLayout'
+import { findConflict } from '../../logic/overlap'
 import { prevEnded, segs, runningEntry } from '../../logic/segs'
 import { addDays, fmtDur, fmtHm, hhmm, minuteOf, startOfDay } from '../../logic/time'
 import { useData } from '../../state/DataProvider'
@@ -130,6 +131,48 @@ export function TrackerTab() {
     toast(act.pinned ? `«${act.name}» вернулась в полосу` : `«${act.name}» — в горячем ряду`)
   }
 
+  // «Отменить» срабатывает через секунды: список к тому моменту другой,
+  // поэтому проверять пересечение надо по свежему, а не по замыканию
+  const latestEntries = useRef(entries)
+  latestEntries.current = entries
+
+  const deleteEntry = (entry: TimeEntry) => {
+    const index = entries.findIndex((e) => e.id === entry.id)
+    dispatch(A.deleteEntry(entry.id))
+    toast('Запись удалена', {
+      action: {
+        label: 'Отменить',
+        onClick: () => {
+          // за время тоста место могли занять правкой соседней записи
+          const conflict = findConflict(
+            latestEntries.current,
+            { start: new Date(entry.start).getTime(), end: entry.end ? new Date(entry.end).getTime() : null },
+            entry.id,
+          )
+          if (conflict) {
+            toast('Это время уже занято — вернуть не получилось')
+            return
+          }
+          dispatch(A.restore('entries', entry, index))
+        },
+      },
+    })
+  }
+
+  const deleteAct = (id: string) => {
+    const act = acts.find((a) => a.id === id)
+    if (!act) return
+    const index = acts.findIndex((a) => a.id === id)
+    // удаление стирает «дальше → эта» у соседей и закрывает идущую запись —
+    // чтобы «Отменить» вернуло кнопку целиком, обе связи запоминаем заранее
+    const relink = acts.filter((a) => a.nextId === id).map((a) => a.id)
+    const reopenEntryId = entries.find((e) => e.actId === id && !e.end)?.id ?? null
+    dispatch(A.deleteAct(id))
+    toast('Кнопка удалена — старые записи остались', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restoreAct(act, index, relink, reopenEntryId)) },
+    })
+  }
+
   return (
     <main
       ref={mainRef}
@@ -231,10 +274,7 @@ export function TrackerTab() {
         onPrevDay={() => setDayOffset((d) => d - 1)}
         onNextDay={() => setDayOffset((d) => Math.min(0, d + 1))}
         onEditEntry={(entry) => setEntryForm({ entry })}
-        onDeleteEntry={(entry) => {
-          dispatch(A.deleteEntry(entry.id))
-          toast('Запись удалена')
-        }}
+        onDeleteEntry={deleteEntry}
         onAddBackdated={() => {
           if (!acts.length) {
             toast('Сначала добавь хотя бы одну кнопку активности')
@@ -259,9 +299,8 @@ export function TrackerTab() {
             setActForm(null)
           }}
           onDelete={(id) => {
-            dispatch(A.deleteAct(id))
             setActForm(null)
-            toast('Кнопка удалена — старые записи остались')
+            deleteAct(id)
           }}
         />
       )}
@@ -278,9 +317,9 @@ export function TrackerTab() {
             setEntryForm(null)
           }}
           onDelete={(id) => {
-            dispatch(A.deleteEntry(id))
+            const entry = entries.find((e) => e.id === id)
             setEntryForm(null)
-            toast('Запись удалена')
+            if (entry) deleteEntry(entry)
           }}
         />
       )}

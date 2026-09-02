@@ -56,9 +56,12 @@ export function BooksTab({ focus }: { focus?: string | null }) {
   }
 
   const deleteBook = (b: Book) => {
+    const index = lib.books.findIndex((x) => x.id === b.id)
     dispatch(A.deleteLibItem('book', b.id))
     setOpenId(null)
-    toast('Убрано из книг')
+    toast('Убрано из книг', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('books', b, index)) },
+    })
   }
 
   const menuItems = (b: Book): CtxEntry[] => [
@@ -66,7 +69,7 @@ export function BooksTab({ focus }: { focus?: string | null }) {
     { icon: '✔', label: 'Дочитал', onClick: () => setFinishing({ id: b.id, title: b.title }) },
     ...(b.audioLink ? [{ icon: '⧉', label: 'Скопировать ссылку', onClick: () => copyLink(b.audioLink) }] : []),
     'sep',
-    { icon: '🗑', label: 'Убрать', danger: true, confirm: 'Точно убрать?', onClick: () => deleteBook(b) },
+    { icon: '🗑', label: 'Убрать', danger: true, onClick: () => deleteBook(b) },
   ]
 
   return (

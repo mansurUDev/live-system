@@ -31,7 +31,7 @@ interface Props {
 }
 
 export function SectorPanel({ sector, isMobile, onClose }: Props) {
-  const { dispatch } = useData()
+  const { state, dispatch } = useData()
   const toast = useToast()
   const [amount, setAmount] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -97,8 +97,11 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
   }
 
   const remove = () => {
+    const index = state.doc.sectors.findIndex((x) => x.id === sector.id)
     dispatch(A.removeSector(sector.id))
-    toast('Убрано с колеса')
+    toast('Убрано с колеса', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('sectors', sector, index)) },
+    })
     onClose()
   }
 
@@ -445,8 +448,15 @@ export function SectorPanel({ sector, isMobile, onClose }: Props) {
                     <button
                       style={{ ...btnDeleteConfirm, fontSize: 11, padding: '2px 8px' }}
                       onClick={() => {
+                        const index = sector.history.findIndex((x) => x.id === h.id)
                         dispatch(A.deleteHistoryEntry(sector.id, h.id))
                         setConfirmHistoryId(null)
+                        toast('Запись истории удалена', {
+                          action: {
+                            label: 'Отменить',
+                            onClick: () => dispatch(A.restoreHistory(sector.id, h, index)),
+                          },
+                        })
                       }}
                     >
                       ✓

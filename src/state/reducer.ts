@@ -1,5 +1,6 @@
 import {
   HOT_MAX,
+  MAX_ACTS,
   MAX_ARCHIVE,
   MAX_BOOKS,
   MAX_COURSES,
@@ -12,6 +13,7 @@ import {
   MAX_NOTES,
   MAX_ONETIME,
   MAX_REMINDERS,
+  MAX_SECTORS,
   MAX_SHOWS,
   MAX_VIDEOS,
   showKindLabel,
@@ -56,6 +58,27 @@ export interface AppState {
   /** цель, только что взявшая 100% — показывается поздравление */
   celebratingId: string | null
 }
+
+/** Списки, куда можно вернуть удалённое; значение — тип записи списка */
+export interface RestoreTargets {
+  habits: Habit
+  reminders: Reminder
+  ideas: Idea
+  entries: TimeEntry
+  sectors: Sector
+  mandatory: MandatoryExpense
+  oneTime: OneTimeExpense
+  books: Book
+  courses: Course
+  videos: Video
+  shows: Show
+  done: LibDone
+}
+
+export type RestoreTarget = keyof RestoreTargets
+
+/** Пара «куда» и «что» согласована: в habits нельзя вернуть книгу */
+type RestorePayload = { [K in RestoreTarget]: { target: K; item: RestoreTargets[K] } }[RestoreTarget]
 
 export type Action =
   | { type: 'replaceDoc'; doc: Doc; now: number }
@@ -139,6 +162,36 @@ export type Action =
       now: number
     }
   | { type: 'deleteLibItem'; kind: 'book' | 'course' | 'video' | 'show'; id: string; now: number }
+  // возврат удалённого — «Отменить» в тосте
+  | ({ type: 'restore'; index: number; now: number } & RestorePayload)
+  | { type: 'restoreHistory'; sectorId: string; item: HistoryRec; index: number; now: number }
+  | {
+      type: 'restoreAct'
+      act: Activity
+      index: number
+      /** кнопки, у которых удаление стёрло «дальше → эта» */
+      relink: readonly string[]
+      /** идущая запись, закрытая удалением кнопки */
+      reopenEntryId: string | null
+      now: number
+    }
+
+/**
+ * Вставка вернувшейся записи на её прежнее место.
+ *
+ * Запись с тем же id заменяется на месте — «Отменить» идемпотентно, если
+ * удаление уже успело вернуться из облака. Полный список не трогаем вовсе:
+ * `save*` в такой ситуации срезают хвост, но там теряется добавляемая запись,
+ * а здесь потерялась бы чужая.
+ */
+function insertAt<T extends { id: string }>(list: T[], item: T, index: number, cap: number): T[] {
+  const at = list.findIndex((x) => x.id === item.id)
+  if (at >= 0) return list.map((x, i) => (i === at ? item : x))
+  if (list.length >= cap) return list
+  const copy = [...list]
+  copy.splice(Math.max(0, Math.min(index, copy.length)), 0, item)
+  return copy
+}
 
 function isoAtLeast(now: number, notBefore: string): string {
   const start = new Date(notBefore).getTime()
@@ -660,6 +713,89 @@ function coreReducer(doc: Doc, action: Action): Doc {
           done: [rec, ...doc.lib.done].slice(0, MAX_LIB_DONE),
         },
       }
+    }
+
+    case 'restore': {
+      const t = action
+      switch (t.target) {
+        case 'habits':
+          return { ...doc, habits: insertAt(doc.habits, t.item, action.index, MAX_HABITS) }
+        case 'reminders':
+          return { ...doc, reminders: insertAt(doc.reminders, t.item, action.index, MAX_REMINDERS) }
+        case 'ideas':
+          return { ...doc, ideas: insertAt(doc.ideas, t.item, action.index, MAX_IDEAS) }
+        case 'sectors':
+          return { ...doc, sectors: insertAt(doc.sectors, t.item, action.index, MAX_SECTORS) }
+        case 'entries': {
+          // за время тоста могли запустить другую активность: вторая идущая
+          // запись невозможна, поэтому возвращаемую закрываем началом следующей
+          const running = runningEntry(doc.entries)
+          let item = t.item
+          if (!item.end && running) {
+            const next = [...doc.entries]
+              .filter((e) => e.start > t.item.start)
+              .sort((a, b) => (a.start < b.start ? -1 : 1))[0]
+            item = { ...item, end: next ? next.start : isoAtLeast(action.now, item.start) }
+          }
+          const entries = insertAt(doc.entries, item, action.index, MAX_ENTRIES)
+          if (entries === doc.entries) return doc
+          const sorted = [...entries].sort((a, b) => (a.start < b.start ? -1 : a.start > b.start ? 1 : 0))
+          return { ...doc, entries: sorted.slice(-MAX_ENTRIES) }
+        }
+        case 'mandatory':
+          return {
+            ...doc,
+            fin: { ...doc.fin, mandatory: insertAt(doc.fin.mandatory, t.item, action.index, MAX_MANDATORY) },
+          }
+        case 'oneTime':
+          return {
+            ...doc,
+            fin: { ...doc.fin, oneTime: insertAt(doc.fin.oneTime, t.item, action.index, MAX_ONETIME) },
+          }
+        case 'books':
+          return { ...doc, lib: { ...doc.lib, books: insertAt(doc.lib.books, t.item, action.index, MAX_BOOKS) } }
+        case 'courses':
+          return { ...doc, lib: { ...doc.lib, courses: insertAt(doc.lib.courses, t.item, action.index, MAX_COURSES) } }
+        case 'videos':
+          return { ...doc, lib: { ...doc.lib, videos: insertAt(doc.lib.videos, t.item, action.index, MAX_VIDEOS) } }
+        case 'shows':
+          // без штампа updatedAt, в отличие от saveShow: возврат — не обновление,
+          // и запись не должна всплывать наверх очереди «Смотреть»
+          return { ...doc, lib: { ...doc.lib, shows: insertAt(doc.lib.shows, t.item, action.index, MAX_SHOWS) } }
+        case 'done':
+          return { ...doc, lib: { ...doc.lib, done: insertAt(doc.lib.done, t.item, action.index, MAX_LIB_DONE) } }
+      }
+      return doc
+    }
+
+    case 'restoreHistory':
+      return {
+        ...doc,
+        sectors: doc.sectors.map((s) =>
+          s.id === action.sectorId
+            ? { ...s, history: insertAt(s.history, action.item, action.index, MAX_HISTORY) }
+            : s,
+        ),
+      }
+
+    case 'restoreAct': {
+      if (doc.acts.some((a) => a.id === action.act.id) || doc.acts.length >= MAX_ACTS) return doc
+      const act = { ...action.act }
+      // за время тоста горячий ряд мог заполниться, а «дальше» — указывать в никуда
+      if (act.pinned && doc.acts.filter((a) => a.pinned).length >= HOT_MAX) delete act.pinned
+      if (act.nextId && !doc.acts.some((a) => a.id === act.nextId)) delete act.nextId
+
+      const acts = [...doc.acts]
+      acts.splice(Math.max(0, Math.min(action.index, acts.length)), 0, act)
+      // цепочку возвращаем только тем, кому её с тех пор не переназначили
+      const relinked = acts.map((a) =>
+        action.relink.includes(a.id) && !a.nextId ? { ...a, nextId: act.id } : a,
+      )
+      const entries =
+        action.reopenEntryId && !runningEntry(doc.entries)
+          ? doc.entries.map((e) => (e.id === action.reopenEntryId ? { ...e, end: null } : e))
+          : doc.entries
+      return { ...doc, acts: relinked, entries }
     }
 
     case 'deleteLibItem':

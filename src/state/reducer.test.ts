@@ -810,3 +810,153 @@ describe('«задержался»', () => {
     expect(e2.start).toBe('2026-03-15T11:20:00.000Z')
   })
 })
+
+describe('«Отменить» — возврат удалённого на прежнее место', () => {
+  const A_NOW = { now: NOW }
+
+  it('идея возвращается ровно туда, откуда её удалили: порядок — это приоритет', () => {
+    const list = [idea({ id: 'i1' }), idea({ id: 'i2' }), idea({ id: 'i3' })]
+    const start = stateWith({ ideas: list })
+    const gone = run(start, { type: 'deleteIdea', id: 'i2', ...A_NOW })
+    const back = run(gone, { type: 'restore', target: 'ideas', item: list[1]!, index: 1, ...A_NOW })
+    expect(back.doc.ideas.map((i) => i.id)).toEqual(['i1', 'i2', 'i3'])
+    expect(back.doc.ideas).toEqual(start.doc.ideas)
+  })
+
+  it('повторное «Отменить» ничего не удваивает — запись узнаётся по id', () => {
+    const it1 = idea({ id: 'i1' })
+    const start = stateWith({ ideas: [it1] })
+    const gone = run(start, { type: 'deleteIdea', id: 'i1', ...A_NOW })
+    const twice = run(
+      gone,
+      { type: 'restore', target: 'ideas', item: it1, index: 0, ...A_NOW },
+      { type: 'restore', target: 'ideas', item: it1, index: 0, ...A_NOW },
+    )
+    expect(twice.doc.ideas).toEqual([it1])
+  })
+
+  it('полный список не режется: возврат отменяется, чужая запись не выбрасывается', () => {
+    const many = Array.from({ length: 100 }, (_, i) => idea({ id: 'i' + i }))
+    const start = stateWith({ ideas: many })
+    const back = run(start, {
+      type: 'restore',
+      target: 'ideas',
+      item: idea({ id: 'lost' }),
+      index: 0,
+      ...A_NOW,
+    })
+    // редьюсер всегда обновляет снимок дня, поэтому сравниваем сам список
+    expect(back.doc.ideas).toEqual(start.doc.ideas)
+  })
+
+  it('запись «Смотреть» возвращается без штампа updatedAt — очередь не перетасовывается', () => {
+    const s1 = show({ id: 'sh1', updatedAt: '2026-01-01T00:00:00.000Z' })
+    const start = stateWith({ lib: { ...defaultDoc(NOW).lib, shows: [s1] } })
+    const gone = run(start, { type: 'deleteLibItem', kind: 'show', id: 'sh1', ...A_NOW })
+    const back = run(gone, { type: 'restore', target: 'shows', item: s1, index: 0, ...A_NOW })
+    expect(back.doc.lib.shows[0]!.updatedAt).toBe('2026-01-01T00:00:00.000Z')
+  })
+
+  it('запись трекера возвращается в порядке по времени', () => {
+    const entries: Doc['entries'] = [
+      { id: 'e1', actId: 'a1', start: '2026-03-15T08:00:00.000Z', end: '2026-03-15T09:00:00.000Z' },
+      { id: 'e2', actId: 'a2', start: '2026-03-15T09:00:00.000Z', end: '2026-03-15T10:00:00.000Z' },
+      { id: 'e3', actId: 'a1', start: '2026-03-15T10:00:00.000Z', end: '2026-03-15T11:00:00.000Z' },
+    ]
+    const start = stateWith({ entries })
+    const gone = run(start, { type: 'deleteEntry', id: 'e2', ...A_NOW })
+    const back = run(gone, { type: 'restore', target: 'entries', item: entries[1]!, index: 1, ...A_NOW })
+    expect(back.doc.entries.map((e) => e.id)).toEqual(['e1', 'e2', 'e3'])
+  })
+
+  it('идущая запись возвращается закрытой, если за это время запустили другую', () => {
+    const running: Doc['entries'][number] = {
+      id: 'e1',
+      actId: 'a1',
+      start: '2026-03-15T08:00:00.000Z',
+      end: null,
+    }
+    const other: Doc['entries'][number] = {
+      id: 'e2',
+      actId: 'a2',
+      start: '2026-03-15T09:00:00.000Z',
+      end: null,
+    }
+    const start = stateWith({ entries: [other] })
+    const back = run(start, { type: 'restore', target: 'entries', item: running, index: 0, ...A_NOW })
+    // двух идущих быть не может: вернувшаяся закрывается началом следующей
+    expect(runningEntry(back.doc.entries)!.id).toBe('e2')
+    expect(back.doc.entries.find((e) => e.id === 'e1')!.end).toBe('2026-03-15T09:00:00.000Z')
+  })
+
+  it('кнопка трекера возвращается вместе с цепочкой и идущей записью', () => {
+    const list = defaultDoc(NOW).acts.slice(0, 3)
+    const target = list[1]!
+    const prev = { ...list[0]!, nextId: target.id }
+    const entries: Doc['entries'] = [
+      { id: 'e1', actId: target.id, start: '2026-03-15T08:00:00.000Z', end: null },
+    ]
+    const start = stateWith({ acts: [prev, target, list[2]!], entries })
+    const gone = run(start, { type: 'deleteAct', id: target.id, ...A_NOW })
+    expect(gone.doc.acts.find((a) => a.id === prev.id)!.nextId).toBeUndefined()
+    expect(gone.doc.entries[0]!.end).not.toBeNull()
+
+    const back = run(gone, {
+      type: 'restoreAct',
+      act: target,
+      index: 1,
+      relink: [prev.id],
+      reopenEntryId: 'e1',
+      ...A_NOW,
+    })
+    expect(back.doc.acts.map((a) => a.id)).toEqual([prev.id, target.id, list[2]!.id])
+    expect(back.doc.acts.find((a) => a.id === prev.id)!.nextId).toBe(target.id)
+    expect(back.doc.entries[0]!.end).toBeNull()
+  })
+
+  it('цепочку не навязываем тем, кому её успели переназначить', () => {
+    const list = defaultDoc(NOW).acts.slice(0, 3)
+    const target = list[1]!
+    const prev = { ...list[0]!, nextId: list[2]!.id }
+    const start = stateWith({ acts: [prev, list[2]!] })
+    const back = run(start, {
+      type: 'restoreAct',
+      act: target,
+      index: 1,
+      relink: [prev.id],
+      reopenEntryId: null,
+      ...A_NOW,
+    })
+    expect(back.doc.acts.find((a) => a.id === prev.id)!.nextId).toBe(list[2]!.id)
+  })
+
+  it('идущую запись не переоткрываем, если уже идёт другая', () => {
+    const list = defaultDoc(NOW).acts.slice(0, 2)
+    const target = list[0]!
+    const entries: Doc['entries'] = [
+      { id: 'e1', actId: target.id, start: '2026-03-15T08:00:00.000Z', end: '2026-03-15T09:00:00.000Z' },
+      { id: 'e2', actId: list[1]!.id, start: '2026-03-15T09:00:00.000Z', end: null },
+    ]
+    const start = stateWith({ acts: [list[1]!], entries })
+    const back = run(start, {
+      type: 'restoreAct',
+      act: target,
+      index: 0,
+      relink: [],
+      reopenEntryId: 'e1',
+      ...A_NOW,
+    })
+    expect(back.doc.entries.find((e) => e.id === 'e1')!.end).toBe('2026-03-15T09:00:00.000Z')
+    expect(runningEntry(back.doc.entries)!.id).toBe('e2')
+  })
+
+  it('запись истории сектора возвращается на своё место', () => {
+    const sector = goalAt(0, 1000)
+    const start = stateWith({ sectors: [sector] })
+    const rec = start.doc.sectors[0]!.history[0]!
+    const gone = run(start, { type: 'deleteHistoryEntry', id: sector.id, historyId: rec.id, ...A_NOW })
+    expect(gone.doc.sectors[0]!.history).toHaveLength(0)
+    const back = run(gone, { type: 'restoreHistory', sectorId: sector.id, item: rec, index: 0, ...A_NOW })
+    expect(back.doc.sectors[0]!.history).toEqual([rec])
+  })
+})

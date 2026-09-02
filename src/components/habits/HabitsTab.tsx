@@ -76,6 +76,22 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
     setReminderForm({ reminder: null })
   }
 
+  const deleteHabit = (h: Habit) => {
+    const index = habits.findIndex((x) => x.id === h.id)
+    dispatch(A.deleteHabit(h.id))
+    toast('Привычка удалена', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('habits', h, index)) },
+    })
+  }
+
+  const deleteReminder = (r: Reminder) => {
+    const index = reminders.findIndex((x) => x.id === r.id)
+    dispatch(A.deleteReminder(r.id))
+    toast('Напоминание удалено', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('reminders', r, index)) },
+    })
+  }
+
   const menuItems = (t: MenuTarget): CtxEntry[] => {
     if (t.kind === 'reminder') {
       const r = t.reminder
@@ -83,7 +99,7 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
         { icon: '✔', label: 'Готово', onClick: () => { dispatch(A.markReminderDone(r.id)); toast('Отмечено — отсчёт пошёл заново') } },
         { icon: '✎', label: 'Редактировать', onClick: () => setReminderForm({ reminder: r }) },
         'sep',
-        { icon: '🗑', label: 'Удалить', danger: true, confirm: 'Точно удалить?', onClick: () => { dispatch(A.deleteReminder(r.id)); toast('Напоминание удалено') } },
+        { icon: '🗑', label: 'Удалить', danger: true, onClick: () => deleteReminder(r) },
       ]
     }
     const h = t.habit
@@ -95,7 +111,7 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
       ...(h.type === 'quit' ? [{ icon: '✕', label: 'Сорвался…', onClick: () => setConfirmId(h.id) }] : []),
       { icon: '✎', label: 'Редактировать', onClick: () => setForm({ habit: h }) },
       'sep',
-      { icon: '🗑', label: 'Удалить', danger: true, confirm: 'Точно удалить?', onClick: () => { dispatch(A.deleteHabit(h.id)); toast('Привычка удалена') } },
+      { icon: '🗑', label: 'Удалить', danger: true, onClick: () => deleteHabit(h) },
     ]
   }
 
@@ -259,9 +275,9 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
             setForm(null)
           }}
           onDelete={(id) => {
-            dispatch(A.deleteHabit(id))
+            const h = habits.find((x) => x.id === id)
             setForm(null)
-            toast('Привычка удалена')
+            if (h) deleteHabit(h)
           }}
         />
       )}
@@ -275,9 +291,9 @@ export function HabitsTab({ focus }: { focus?: string | null }) {
             setReminderForm(null)
           }}
           onDelete={(id) => {
-            dispatch(A.deleteReminder(id))
+            const r = reminders.find((x) => x.id === id)
             setReminderForm(null)
-            toast('Напоминание удалено')
+            if (r) deleteReminder(r)
           }}
         />
       )}

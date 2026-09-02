@@ -1,6 +1,6 @@
 import type { MoveTarget } from '../logic/actLayout'
 import { uid } from '../logic/uid'
-import type { Action } from './reducer'
+import type { Action, RestoreTarget, RestoreTargets } from './reducer'
 import { DEFAULT_REMINDER_INTERVAL_DAYS } from '../constants'
 import type {
   Activity,
@@ -10,6 +10,7 @@ import type {
   Doc,
   Finance,
   Habit,
+  HistoryRec,
   HabitType,
   Idea,
   IdeaCheck,
@@ -227,6 +228,27 @@ export const A = {
     id,
     now: Date.now(),
   }),
+
+  /** Вернуть удалённое на прежнее место — «Отменить» в тосте */
+  restore: <K extends RestoreTarget>(target: K, item: RestoreTargets[K], index: number): Action =>
+    ({ type: 'restore', target, item, index, now: Date.now() }) as Action,
+  restoreHistory: (sectorId: string, item: HistoryRec, index: number): Action => ({
+    type: 'restoreHistory',
+    sectorId,
+    item,
+    index,
+    now: Date.now(),
+  }),
+  /**
+   * Кнопка трекера возвращается не одна: удаление стёрло «дальше → эта» у
+   * соседей и закрыло идущую запись, поэтому обе связи чинятся тем же действием.
+   */
+  restoreAct: (
+    act: Activity,
+    index: number,
+    relink: readonly string[],
+    reopenEntryId: string | null,
+  ): Action => ({ type: 'restoreAct', act, index, relink, reopenEntryId, now: Date.now() }),
   newBook: (
     title: string,
     author: string,

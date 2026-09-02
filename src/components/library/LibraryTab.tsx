@@ -65,15 +65,21 @@ export function LibraryTab() {
   }
 
   const deleteCourse = (c: Course) => {
+    const index = lib.courses.findIndex((x) => x.id === c.id)
     dispatch(A.deleteLibItem('course', c.id))
     setOpenId(null)
-    toast('Убрано из учёбы')
+    toast('Убрано из учёбы', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('courses', c, index)) },
+    })
   }
 
   const deleteVideo = (v: Video) => {
+    const index = lib.videos.findIndex((x) => x.id === v.id)
     dispatch(A.deleteLibItem('video', v.id))
     setDeleteVideoId(null)
-    toast('Убрано из очереди')
+    toast('Убрано из очереди', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('videos', v, index)) },
+    })
   }
 
   const menuItems = (t: MenuTarget): CtxEntry[] =>
@@ -81,14 +87,14 @@ export function LibraryTab() {
       ? [
           { icon: '✔', label: 'Прошёл', onClick: () => setFinishing({ kind: 'course', id: t.course.id, title: t.course.title }) },
           'sep',
-          { icon: '🗑', label: 'Убрать', danger: true, confirm: 'Точно убрать?', onClick: () => deleteCourse(t.course) },
+          { icon: '🗑', label: 'Убрать', danger: true, onClick: () => deleteCourse(t.course) },
         ]
       : [
           { icon: '✎', label: 'Редактировать', onClick: () => setVideoForm({ video: t.video }) },
           { icon: '✔', label: 'Просмотрено', onClick: () => setFinishing({ kind: 'video', id: t.video.id, title: t.video.title }) },
           { icon: '⧉', label: 'Скопировать ссылку', onClick: () => copyLink(t.video.url) },
           'sep',
-          { icon: '🗑', label: 'Убрать', danger: true, confirm: 'Точно убрать?', onClick: () => deleteVideo(t.video) },
+          { icon: '🗑', label: 'Убрать', danger: true, onClick: () => deleteVideo(t.video) },
         ]
 
   return (

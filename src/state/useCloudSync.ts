@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { emptyBase, sameDoc } from '../logic/merge'
 import { pull, push } from './cloud'
 import { loadBase, loadCloudVersion, saveSyncPoint, versionKey } from './storage'
-import { planSync, shouldPullOnResume } from './syncReconcile'
+import { planSync, shouldPullOnResume, shouldSkipPush } from './syncReconcile'
 import type { Action } from './reducer'
 import type { Doc } from '../types'
 
@@ -76,6 +76,8 @@ export function useCloudSync(
   // последнее отправленное тело: по нему узнаём в облаке свою же запись,
   // ответ на которую не дошёл (keepalive при закрытии вкладки ответа не читает)
   const lastSent = useRef<Doc | null>(null)
+  /** keepalive ушёл, ответ не прочитан: облако могло уйти вперёд без нашего ведома */
+  const flushedUnconfirmed = useRef(false)
   const conflicts = useRef(0)
   const warnedNoBase = useRef(false)
   const pendingPoint = useRef<{ version: number; doc: Doc } | null>(null)
@@ -96,6 +98,7 @@ export function useCloudSync(
    */
   const commit = useCallback(
     (v: number, next: Doc) => {
+      flushedUnconfirmed.current = false
       version.current = v
       baseCache.current = { version: v, doc: next }
       saveSyncPoint(code, v, next)
@@ -135,8 +138,9 @@ export function useCloudSync(
   const attemptSend = useCallback(
     async (payload: Doc) => {
       const base = getBase()
-      // отправлять нечего: в облаке ровно это и лежит
-      if (base && sameDoc(payload, base)) {
+      // отправлять нечего: в облаке ровно это и лежит. Исключение — неподтверждённый
+      // keepalive: там облако ушло вперёд молча, и совпадение с базой обманчиво
+      if (shouldSkipPush(!!base && sameDoc(payload, base), flushedUnconfirmed.current)) {
         setStatus('idle')
         return
       }
@@ -342,6 +346,8 @@ export function useCloudSync(
       // чтением ответа доедет сам, а повтор безвреден — своё же тело в облаке
       // узнаётся по lastSent и засчитывается как успех.
       lastSent.current = payload
+      // ответ читать некому: до подтверждения считаем, что облако ушло вперёд
+      flushedUnconfirmed.current = true
       keepaliveFlush(code, payload, version.current)
     }
 

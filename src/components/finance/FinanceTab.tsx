@@ -84,11 +84,34 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
     setExpenseForm(null)
   }
 
+  const deleteMandatory = (m: MandatoryExpense) => {
+    const index = fin.mandatory.findIndex((x) => x.id === m.id)
+    dispatch(A.deleteMandatory(m.id))
+    toast('Расход удалён', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('mandatory', m, index)) },
+    })
+  }
+
+  const deleteOneTime = (o: OneTimeExpense) => {
+    const index = fin.oneTime.findIndex((x) => x.id === o.id)
+    dispatch(A.deleteOneTime(o.id))
+    toast('Расход удалён', {
+      action: { label: 'Отменить', onClick: () => dispatch(A.restore('oneTime', o, index)) },
+    })
+  }
+
   const deleteExpense = () => {
     if (!expenseForm?.id) return
-    if (expenseForm.kind === 'mandatory') dispatch(A.deleteMandatory(expenseForm.id))
-    else dispatch(A.deleteOneTime(expenseForm.id))
+    const id = expenseForm.id
+    const kind = expenseForm.kind
     setExpenseForm(null)
+    if (kind === 'mandatory') {
+      const m = fin.mandatory.find((x) => x.id === id)
+      if (m) deleteMandatory(m)
+    } else {
+      const o = fin.oneTime.find((x) => x.id === id)
+      if (o) deleteOneTime(o)
+    }
   }
 
   /**
@@ -121,8 +144,7 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
             icon: '🗑',
             label: 'Удалить',
             danger: true,
-            confirm: 'Точно удалить?',
-            onClick: () => { dispatch(A.deleteMandatory(t.exp.id)); toast('Расход удалён') },
+            onClick: () => deleteMandatory(t.exp),
           },
         ]
       : [
@@ -133,8 +155,7 @@ export function FinanceTab({ focus }: { focus?: string | null }) {
             icon: '🗑',
             label: 'Удалить',
             danger: true,
-            confirm: 'Точно удалить?',
-            onClick: () => { dispatch(A.deleteOneTime(t.exp.id)); toast('Расход удалён') },
+            onClick: () => deleteOneTime(t.exp),
           },
         ]
 
