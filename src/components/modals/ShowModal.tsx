@@ -10,22 +10,24 @@ interface Props {
   usedColors: string[]
   /** запись для правки; без неё модалка создаёт новую */
   initial?: Show
+  /** заготовка из «Поделиться»: название и ссылка */
+  prefill?: { title?: string; link?: string; kind?: string }
   onCancel: () => void
   onSave: (show: Show) => void
 }
 
-export function ShowModal({ usedColors, initial, onCancel, onSave }: Props) {
-  const builtinInitial = initial !== undefined && (SHOW_KINDS as readonly string[]).includes(initial.kind)
-  const [title, setTitle] = useState(initial?.title ?? '')
-  const [kind, setKind] = useState<string>(builtinInitial ? initial!.kind : 'film')
+export function ShowModal({ usedColors, initial, prefill, onCancel, onSave }: Props) {
+  // категория берётся из правки, затем из догадки «Поделиться», иначе фильм
+  const seedKind = initial?.kind ?? prefill?.kind ?? 'film'
+  const builtinInitial = (SHOW_KINDS as readonly string[]).includes(seedKind)
+  const [title, setTitle] = useState(initial?.title ?? prefill?.title ?? '')
+  const [kind, setKind] = useState<string>(builtinInitial ? seedKind : 'film')
   // null — выбран встроенный вид; строка — включён режим своей категории
-  const [custom, setCustom] = useState<string | null>(
-    initial !== undefined && !builtinInitial ? initial.kind : null,
-  )
+  const [custom, setCustom] = useState<string | null>(builtinInitial ? null : seedKind)
   const [color, setColor] = useState(
     initial?.color ?? (PAL.find((c) => !usedColors.includes(c)) ?? PAL[8]!),
   )
-  const [link, setLink] = useState(initial?.link ?? '')
+  const [link, setLink] = useState(initial?.link ?? prefill?.link ?? '')
   const [error, setError] = useState('')
 
   const submit = () => {

@@ -24,6 +24,8 @@ import type { Idea, IdeaCheck, IdeaLink } from '../../types'
 interface Props {
   idea: Idea | null
   usedCategories: string[]
+  /** ссылка из «Поделиться» — подставляется в поле, дальше как обычно */
+  prefillLink?: string
   onCancel: () => void
   onCreate: (idea: Idea) => void
 }
@@ -36,7 +38,7 @@ function hostname(url: string): string {
   }
 }
 
-export function IdeaModal({ idea, usedCategories, onCancel, onCreate }: Props) {
+export function IdeaModal({ idea, prefillLink, usedCategories, onCancel, onCreate }: Props) {
   const { code } = useAuth()
   const toast = useToast()
 
@@ -44,7 +46,7 @@ export function IdeaModal({ idea, usedCategories, onCancel, onCreate }: Props) {
   const [category, setCategory] = useState(idea?.category ?? IDEA_CATEGORY_SUGGESTIONS[2]!)
   const [text, setText] = useState(idea?.text ?? '')
   const [links, setLinks] = useState<IdeaLink[]>(idea?.links ?? [])
-  const [linkInput, setLinkInput] = useState('')
+  const [linkInput, setLinkInput] = useState(prefillLink ?? '')
   const [checks, setChecks] = useState<IdeaCheck[]>(idea?.checklist ?? [])
   const [checkInput, setCheckInput] = useState('')
   const [images, setImages] = useState<string[]>(idea?.images ?? [])

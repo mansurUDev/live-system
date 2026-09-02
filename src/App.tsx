@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { AuthProvider, useAuth } from './state/AuthProvider'
 import { DataProvider, useData } from './state/DataProvider'
+import { useToast } from './state/ToastProvider'
+import { A } from './state/actions'
 import { NowProvider } from './state/NowProvider'
 import { ToastProvider } from './state/ToastProvider'
 import { useEdgeSwipe } from './hooks/useEdgeSwipe'
@@ -9,6 +11,8 @@ import { useIsMobile } from './hooks/useIsMobile'
 import { NAV_H } from './theme'
 import { useBackup } from './hooks/useBackup'
 import { readTab, writeTab } from './state/storage'
+import { guessShowKind, stashShare, takeShareFromUrl, takeStashedShare, type ShareKind, type SharePayload } from './logic/share'
+import { MAX_IDEAS, MAX_SHOWS, MAX_VIDEOS } from './constants'
 import { BottomNav } from './components/BottomNav'
 import { Header } from './components/Header'
 import { LandingScreen } from './components/LandingScreen'
@@ -20,6 +24,10 @@ import { Tabs } from './components/Tabs'
 import { Toasts } from './components/Toasts'
 import { ChangeCodeModal } from './components/modals/ChangeCodeModal'
 import { SettingsModal } from './components/modals/SettingsModal'
+import { ShareModal } from './components/modals/ShareModal'
+import { IdeaModal } from './components/modals/IdeaModal'
+import { ShowModal } from './components/modals/ShowModal'
+import { VideoModal } from './components/modals/VideoModal'
 import { VersionsModal } from './components/modals/VersionsModal'
 import { BriefTab } from './components/brief/BriefTab'
 import { WheelTab } from './components/wheel/WheelTab'
@@ -54,14 +62,18 @@ const glowLayer: CSSProperties = {
 }
 
 function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
-  const { state, sync } = useData()
+  const { state, dispatch, sync } = useData()
   const { logout } = useAuth()
+  const toast = useToast()
   const isMobile = useIsMobile()
   const backup = useBackup()
   const [moreOpen, setMoreOpen] = useState(false)
   const [changingCode, setChangingCode] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [versionsOpen, setVersionsOpen] = useState(false)
+  // ссылка, пришедшая через «Поделиться»: сперва спрашиваем, куда её положить
+  const [share, setShare] = useState<SharePayload | null>(null)
+  const [shareTo, setShareTo] = useState<ShareKind | null>(null)
 
   // Куда именно нажали в сводке: вкладка открывается целиком, и без подсветки
   // человек оказывается перед общим списком, не понимая, зачем его сюда привели.
@@ -71,6 +83,32 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
     setTab(t)
     setMoreOpen(false)
     setFocus(focusId ? { tab: t, id: focusId } : null)
+  }
+
+  // «Поделиться» могло прийти до входа — ссылка ждала в sessionStorage
+  useEffect(() => {
+    const pending = takeStashedShare()
+    if (pending) setShare(pending)
+  }, [])
+
+  const lib = state.doc.lib
+
+  const pickShare = (kind: ShareKind) => {
+    const full =
+      (kind === 'video' && lib.videos.length >= MAX_VIDEOS) ||
+      (kind === 'show' && lib.shows.length >= MAX_SHOWS) ||
+      (kind === 'idea' && state.doc.ideas.length >= MAX_IDEAS)
+    if (full) {
+      toast('Список полон — убери лишнее и попробуй снова')
+      setShare(null)
+      return
+    }
+    setShareTo(kind)
+  }
+
+  const closeShare = () => {
+    setShare(null)
+    setShareTo(null)
   }
 
   // Снимаем отметку, когда вспышка отыграла: иначе повторный переход к той же
@@ -159,6 +197,49 @@ function Shell({ tab, setTab }: { tab: Tab; setTab: (t: Tab) => void }) {
       {changingCode && <ChangeCodeModal onClose={() => setChangingCode(false)} />}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {versionsOpen && <VersionsModal onClose={() => setVersionsOpen(false)} />}
+      {share && !shareTo && <ShareModal share={share} onPick={pickShare} onCancel={closeShare} />}
+
+      {share && shareTo === 'video' && (
+        <VideoModal
+          video={null}
+          prefillUrl={share.url}
+          usedColors={[...lib.books, ...lib.courses, ...lib.videos, ...lib.shows].map((x) => x.color)}
+          onCancel={closeShare}
+          onCreate={(v) => {
+            dispatch(A.saveVideo(v))
+            closeShare()
+            toast('Сохранено в «Учёбе», очередь видео')
+          }}
+        />
+      )}
+
+      {share && shareTo === 'show' && (
+        <ShowModal
+          usedColors={[...lib.books, ...lib.courses, ...lib.videos, ...lib.shows].map((x) => x.color)}
+          prefill={{ title: share.title, link: share.url, kind: guessShowKind(share.url) }}
+          onCancel={closeShare}
+          onSave={(sh) => {
+            dispatch(A.saveShow(sh))
+            closeShare()
+            toast('Сохранено в «Смотреть»')
+          }}
+        />
+      )}
+
+      {share && shareTo === 'idea' && (
+        <IdeaModal
+          idea={null}
+          prefillLink={share.url}
+          usedCategories={[...new Set(state.doc.ideas.map((i) => i.category))]}
+          onCancel={closeShare}
+          onCreate={(idea) => {
+            dispatch(A.saveIdea(idea))
+            closeShare()
+            toast('Сохранено в «Идеях»')
+          }}
+        />
+      )}
+
       {backup.elements}
       <Toasts />
     </div>
@@ -194,6 +275,15 @@ function Authed() {
 }
 
 export default function App() {
+  // до входа и до всякого рендера: параметры «Поделиться» уезжают в память
+  // сессии, а адрес чистится — иначе перезагрузка предложит ту же ссылку снова
+  useEffect(() => {
+    const incoming = takeShareFromUrl(window.location)
+    if (!incoming) return
+    stashShare(incoming)
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [])
+
   return (
     <ToastProvider>
       <AuthProvider>

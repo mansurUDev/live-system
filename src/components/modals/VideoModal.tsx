@@ -11,6 +11,8 @@ interface Props {
   /** null — добавляем новое */
   video: Video | null
   usedColors: string[]
+  /** адрес, пришедший из «Поделиться» — форма открывается уже заполненной */
+  prefillUrl?: string
   onCancel: () => void
   onCreate: (video: Video) => void
 }
@@ -18,8 +20,8 @@ interface Props {
 /** Пауза после остановки набора, прежде чем спрашивать oEmbed — не долбим на каждый символ */
 const PREVIEW_DELAY_MS = 500
 
-export function VideoModal({ video, usedColors, onCancel, onCreate }: Props) {
-  const [url, setUrl] = useState(video?.url ?? '')
+export function VideoModal({ video, usedColors, prefillUrl, onCancel, onCreate }: Props) {
+  const [url, setUrl] = useState(video?.url ?? prefillUrl ?? '')
   const [note, setNote] = useState(video?.note ?? '')
   const [error, setError] = useState('')
   const [preview, setPreview] = useState<YoutubeMeta | null>(
